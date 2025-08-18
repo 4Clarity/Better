@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Function to check if a port is in use
+is_port_in_use() {
+  lsof -i:$1 >/dev/null
+}
+
+# Function to find an available port
+find_available_port() {
+  local port=$1
+  while is_port_in_use $port; do
+    port=$((port + 1))
+  done
+  echo $port
+}
+
+# Default ports
+DEFAULT_POSTGRES_PORT=5432
+DEFAULT_PGBOUNCER_PORT=5433
+DEFAULT_REDIS_PORT=6379
+DEFAULT_WEB_SERVER_PORT=80
+DEFAULT_NODE_APP_PORT=8080
+DEFAULT_PYTHON_APP_PORT=8888
+DEFAULT_RABBITMQ_PORT=5672
+DEFAULT_RABBITMQ_MANAGEMENT_PORT=15672
+DEFAULT_MINIO_PORT=9000
+DEFAULT_MINIO_CONSOLE_PORT=9001
+DEFAULT_N8N_PORT=5678
+
+# Find available ports
+POSTGRES_PORT=$(find_available_port $DEFAULT_POSTGRES_PORT)
+PGBOUNCER_PORT=$(find_available_port $DEFAULT_PGBOUNCER_PORT)
+REDIS_PORT=$(find_available_port $DEFAULT_REDIS_PORT)
+WEB_SERVER_PORT=$(find_available_port $DEFAULT_WEB_SERVER_PORT)
+NODE_APP_PORT=$(find_available_port $DEFAULT_NODE_APP_PORT)
+PYTHON_APP_PORT=$(find_available_port $DEFAULT_PYTHON_APP_PORT)
+RABBITMQ_PORT=$(find_available_port $DEFAULT_RABBITMQ_PORT)
+RABBITMQ_MANAGEMENT_PORT=$(find_available_port $DEFAULT_RABBITMQ_MANAGEMENT_PORT)
+MINIO_PORT=$(find_available_port $DEFAULT_MINIO_PORT)
+MINIO_CONSOLE_PORT=$(find_available_port $DEFAULT_MINIO_CONSOLE_PORT)
+N8N_PORT=$(find_available_port $DEFAULT_N8N_PORT)
+
+# Create .env file
+cat > .env << EOL
+# PostgreSQL
+POSTGRES_PORT=${POSTGRES_PORT}
+
+# PgBouncer
+PGBOUNCER_PORT=${PGBOUNCER_PORT}
+
+# Redis
+REDIS_PORT=${REDIS_PORT}
+
+# Web Server
+WEB_SERVER_PORT=${WEB_SERVER_PORT}
+
+# Node App
+NODE_APP_PORT=${NODE_APP_PORT}
+
+# Python App
+PYTHON_APP_PORT=${PYTHON_APP_PORT}
+
+# RabbitMQ
+RABBITMQ_PORT=${RABBITMQ_PORT}
+RABBITMQ_MANAGEMENT_PORT=${RABBITMQ_MANAGEMENT_PORT}
+
+# Minio
+MINIO_PORT=${MINIO_PORT}
+MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT}
+
+# n8n
+N8N_PORT=${N8N_PORT}
+EOL
+
+echo ".env file created successfully with the following ports:"
+echo "POSTGRES_PORT: ${POSTGRES_PORT}"
+echo "PGBOUNCER_PORT: ${PGBOUNCER_PORT}"
+echo "REDIS_PORT: ${REDIS_PORT}"
+echo "WEB_SERVER_PORT: ${WEB_SERVER_PORT}"
+echo "NODE_APP_PORT: ${NODE_APP_PORT}"
+echo "PYTHON_APP_PORT: ${PYTHON_APP_PORT}"
+echo "RABBITMQ_PORT: ${RABBITMQ_PORT}"
+echo "RABBITMQ_MANAGEMENT_PORT: ${RABBITMQ_MANAGEMENT_PORT}"
+echo "MINIO_PORT: ${MINIO_PORT}"
+echo "MINIO_CONSOLE_PORT: ${MINIO_CONSOLE_PORT}"
+echo "N8N_PORT: ${N8N_PORT}"
