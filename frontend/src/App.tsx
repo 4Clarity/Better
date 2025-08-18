@@ -1,8 +1,8 @@
+import { DashboardPage } from './pages/DashboardPage';
+
 function App() {
   return (
-    <>
-      <h1>Transition Intelligence Platform</h1>
-    </>
+    <DashboardPage />
   )
 }
 

@@ -44,6 +44,11 @@ To build the Docker images and start all the services, run the following command
 docker-compose up --build
 ```
 
+to stop services..
+``` bash
+docker-compose down
+```
+
 - The `--build` flag forces Docker to rebuild the images, which is necessary on the first run or after making changes to `Dockerfile`s or application dependencies.
 - The services will start in the foreground, and you will see logs from all containers in your terminal. To stop the services, press `Ctrl+C`.
 - To run the services in the background (detached mode), use `docker-compose up -d --build`.

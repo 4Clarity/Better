@@ -1,0 +1,35 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Transition {
+  id              String      @id @default(cuid())
+  contractName    String
+  contractNumber  String
+  startDate       DateTime
+  endDate         DateTime
+  status          String      @default("Not Started")
+  milestones      Milestone[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Milestone {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  dueDate       DateTime
+  transition    Transition @relation(fields: [transitionId], references: [id])
+  transitionId  String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
