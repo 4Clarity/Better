@@ -1,6 +1,9 @@
 # Use an official Node.js runtime as a parent image
 FROM node:18-alpine
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl libc6-compat
+
 # Set the working directory in the container
 WORKDIR /app
 
@@ -17,4 +20,4 @@ COPY . .
 EXPOSE 3000
 
 # Run the app when the container launches
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "npx prisma generate && npm run dev"]
