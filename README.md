@@ -83,7 +83,76 @@ Once the containers are running, you can access the different parts of the appli
 - `backend-python/`: The Python service for AI/ML and data processing tasks.
 - `database/`: Contains SQL scripts for database initialization.
 
-## 4. Build Challenges & Solutions
+## 4. Data Architecture Overview
+
+The Transition Intelligence Platform implements a comprehensive data schema designed for government contract transitions with **21 core entities** supporting role-based access control, audit compliance, and AI-powered knowledge management.
+
+### Core Data Entities
+
+**🏢 Organization & Access Management**
+- **Organizations**: Government agencies and contractor companies with hierarchical structure
+- **Transitions**: Central workspace entities for contract transition projects
+- **TransitionUsers**: Role-based access control with security clearance progression tracking
+
+**📋 Work Management**
+- **Milestones**: High-level transition deliverables and checkpoints
+- **Tasks**: Granular work assignments with dependencies, progress tracking, and time management
+- **TaskComments**: Contextual communication threads for task collaboration
+
+**📄 Document & Knowledge Management**
+- **Artifacts**: Version-controlled documents with approval workflows and security classification
+- **DeliverableQualityReviews**: Multi-dimensional quality assessment (completeness, accuracy, clarity, security) with approval gates
+- **KnowledgeChunks**: AI-processed text segments from approved documents
+- **VectorEmbeddings**: Semantic search capabilities using pgvector for natural language queries
+
+**📧 Communication & Calendar**
+- **Communications**: Centralized logging of emails, chat messages, and notifications across platforms (Teams, Slack, Email)
+- **CalendarEvents**: Integrated calendar system with Outlook/Teams synchronization and automated event generation
+- **NotificationPreferences**: User-configurable multi-channel notification settings
+
+**🎓 Contractor Readiness**
+- **ContractorProficiencyAssessments**: Comprehensive skill evaluations across technical, domain, and soft skills
+- **ProficiencyProgressTracking**: Longitudinal analytics with learning velocity, trend analysis, and predictive modeling
+
+**🔍 AI & Analytics**
+- **QuerySessions**: Natural language question-answering audit trail with user feedback
+- **ArtifactAuditLog**: Immutable audit trail for all document actions ensuring compliance
+
+### Key Architectural Features
+
+**🔐 Security-First Design**
+- Role-based access control with explicit security clearance requirements
+- Immutable audit trails for all actions and communications
+- Data encryption at rest and in transit with classification handling
+
+**🤖 AI Integration**
+- Vector embeddings for semantic search and knowledge discovery
+- Quality-gated content processing ensuring only approved deliverables become searchable
+- Natural language query capabilities with source citation and confidence scoring
+
+**📊 Enterprise Integration**
+- Microsoft Graph API integration for Outlook/Teams calendar synchronization
+- Multi-platform communication logging (Teams, Slack, Email, SMS)
+- External tool integration while maintaining centralized audit trails
+
+**📈 Analytics & Insights**
+- Real-time contractor readiness tracking with predictive completion modeling
+- Quality metrics for deliverable assessment and improvement
+- Learning velocity analysis with automated intervention triggers
+- Communication pattern analysis for knowledge gap identification
+
+### Data Relationships
+
+The schema implements a hub-and-spoke model with **Transitions** as the central entity, connected to:
+- User management through **TransitionUsers** junction table
+- Work breakdown via **Milestones** and **Tasks** hierarchy  
+- Document lifecycle through **Artifacts** → **Quality Reviews** → **Knowledge Processing**
+- Communication tracking across all related entities
+- Proficiency monitoring for incoming contractors
+
+This architecture supports enterprise-scale government contract transitions while maintaining strict compliance, security, and auditability requirements essential for federal contracting environments.
+
+## 5. Build Challenges & Solutions
 
 This section documents the key challenges encountered during the setup of the local development environment and the solutions that were implemented.
 
@@ -109,3 +178,44 @@ This section documents the key challenges encountered during the setup of the lo
 -   **Problem**: After all services were running, the frontend application at `http://tip.localhost` would not load, even though the container was running without errors.
 -   **Cause**: The Vite development server inside the `frontend` container was configured to listen on `localhost` (`127.0.0.1`) by default. This meant it would only accept connections from within the container itself, not from the Traefik reverse proxy.
 -   **Solution**: The `vite.config.ts` file was modified to instruct the Vite server to listen on `0.0.0.0`. This allows the server to accept connections from any network interface, making it accessible to the reverse proxy and allowing traffic to be correctly routed to the application.
+
+### 4. Backend Node.js 400 Error and Service Crashes
+
+-   **Problem**: The backend-node service was returning 400 "Bad Gateway" errors when accessed via `http://api.tip.localhost/api/transitions`, and the container was repeatedly crashing with various module loading errors.
+-   **Root Causes**:
+    -   **Port Mismatch**: The Node.js application was listening on port 3001, but Docker and Traefik were configured to expect port 3000.
+    -   **ES Module Issues**: The `package.json` had `"type": "module"` but `ts-node-dev` couldn't handle ES modules properly, causing import resolution failures.
+    -   **Prisma Compatibility**: The Prisma client was generated with incorrect binary targets for the Alpine Linux ARM64 environment.
+    -   **Database Connection**: The `DATABASE_URL` was pointing to port 5433 instead of the correct PostgreSQL port 5432.
+-   **Solutions Implemented**:
+    -   **Port Alignment**: Changed `src/index.ts` to listen on port 3000 to match Docker configuration.
+    -   **CommonJS Conversion**: Removed `"type": "module"` from `package.json` and reverted to CommonJS imports without `.js` extensions.
+    -   **Prisma Binary Targets**: Updated `schema.prisma` to include `binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]` for Alpine Linux compatibility.
+    -   **Runtime Prisma Generation**: Modified `Dockerfile.dev` to generate Prisma client at runtime: `CMD ["sh", "-c", "npx prisma generate && npm run dev"]`.
+    -   **Database URL Fix**: Corrected `.env` file to use `postgresql://user:password@db:5432/tip`.
+    -   **OpenSSL Dependencies**: Added `RUN apk add --no-cache openssl libc6-compat` to Dockerfile for Prisma engine compatibility.
+
+### 5. PostCSS ES Module Configuration Error
+
+-   **Problem**: The frontend build was failing with `module is not defined in ES module scope` error in `postcss.config.js`.
+-   **Cause**: The frontend `package.json` included `"type": "module"` which treated `.js` files as ES modules, but the PostCSS config was using CommonJS syntax.
+-   **Solution**: Updated `frontend/postcss.config.js` to use ES module syntax: `export default { plugins: { tailwindcss: {}, autoprefixer: {} } }`.
+
+### 6. Missing Frontend Functionality
+
+-   **Problem**: The frontend UI displayed but clicking "New Transition" button had no effect, and no transitions were being fetched or displayed.
+-   **Cause**: The `DashboardPage.tsx` component was only a static template with no API integration or event handlers implemented.
+-   **Solution**: Implemented complete transitions functionality:
+    -   Added `useState` and `useEffect` hooks for state management
+    -   Created `fetchTransitions()` function to GET data from API
+    -   Implemented `createSampleTransition()` function for POST requests
+    -   Added error handling and loading states
+    -   Built responsive UI with transition cards, status badges, and real-time updates
+
+### 7. Database Schema and Migration Issues
+
+-   **Problem**: Prisma client initialization errors and missing database tables for the transitions API.
+-   **Solution**: 
+    -   Created proper Prisma schema with `Transition` and `Milestone` models
+    -   Ran `npx prisma db push --accept-data-loss` to synchronize schema with database
+    -   Implemented proper database connection handling in the application
