@@ -1,0 +1,48 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../node_modules/.prisma-simple/client"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  role      String   // "program_manager", "stakeholder", etc.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Transition {
+  id             String      @id @default(cuid())
+  contractName   String
+  contractNumber String      @unique
+  startDate      DateTime
+  endDate        DateTime
+  status         String      @default("Not Started")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  milestones     Milestone[]
+
+  @@index([status])
+  @@index([contractNumber])
+}
+
+model Milestone {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  dueDate      DateTime
+  transitionId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  transition   Transition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+
+  @@index([transitionId])
+}
