@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
@@ -11,25 +8,219 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TransitionStatus {
+  NOT_STARTED
+  ON_TRACK
+  AT_RISK
+  BLOCKED
+  COMPLETED
+}
+
+enum ContractStatus {
+  PLANNING
+  ACTIVE
+  RENEWAL
+  EXPIRING
+  EXPIRED
+  EXTENDED
+}
+
+enum StakeholderType {
+  INTERNAL_PROGRAM
+  INTERNAL_TECHNICAL
+  INTERNAL_EXECUTIVE
+  EXTERNAL_VENDOR
+  EXTERNAL_SERVICE
+  EXTERNAL_SME_RESOURCE
+  INCOMING_CONTRACTOR
+}
+
+enum TransitionDuration {
+  IMMEDIATE
+  THIRTY_DAYS
+  FORTY_FIVE_DAYS
+  SIXTY_DAYS
+  NINETY_DAYS
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+  OVERDUE
+}
+
+enum PriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model User {
+  id                    String             @id @default(cuid())
+  email                 String             @unique
+  firstName             String
+  lastName              String
+  role                  String             // "program_manager", "director", "stakeholder", etc.
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  createdTransitions    Transition[]       @relation("TransitionCreator")
+  managedOperations     BusinessOperation[] @relation("OperationManager")
+  assignedOperations    BusinessOperation[] @relation("OperationPM")
+  directedOperations    BusinessOperation[] @relation("OperationDirector")
+  contractorPMContracts Contract[]         @relation("ContractorPM")
+  stakeholderOperations OperationStakeholder[]
+  auditLogs             AuditLog[]
+}
+
+model BusinessOperation {
+  id                    String        @id @default(cuid())
+  name                  String
+  businessFunction      String
+  technicalDomain       String
+  description           String?
+  scope                 String        // Functional and technical boundaries
+  objectives            String        // Operation objectives
+  performanceMetrics    Json          // Operational, quality, compliance metrics
+  supportPeriodStart    DateTime
+  supportPeriodEnd      DateTime
+  currentContractEnd    DateTime
+  currentManagerId      String?
+  governmentPMId        String
+  directorId            String
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  
+  currentManager        User?                  @relation("OperationManager", fields: [currentManagerId], references: [id])
+  governmentPM          User                   @relation("OperationPM", fields: [governmentPMId], references: [id])
+  director              User                   @relation("OperationDirector", fields: [directorId], references: [id])
+  contracts             Contract[]
+  stakeholders          OperationStakeholder[]
+  auditLogs             AuditLog[]
+
+  @@index([businessFunction])
+  @@index([technicalDomain])
+  @@index([governmentPMId])
+  @@index([directorId])
+}
+
+model OperationStakeholder {
+  id                 String          @id @default(cuid())
+  businessOperationId String
+  userId             String?
+  name               String
+  role               String
+  email              String
+  phone              String?
+  organization       String?
+  stakeholderType    StakeholderType
+  receiveNotifications Boolean        @default(false)
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  businessOperation  BusinessOperation @relation(fields: [businessOperationId], references: [id], onDelete: Cascade)
+  user               User?             @relation(fields: [userId], references: [id])
+
+  @@index([businessOperationId])
+  @@index([stakeholderType])
+  @@index([userId])
+}
+
+model Contract {
+  id                  String        @id @default(cuid())
+  businessOperationId String
+  contractName        String
+  contractNumber      String        @unique
+  contractorName      String
+  contractorPMId      String?       // Contractor's Program Manager
+  startDate           DateTime
+  endDate             DateTime
+  canBeExtended       Boolean       @default(true)
+  status              ContractStatus @default(PLANNING)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  businessOperation   BusinessOperation @relation(fields: [businessOperationId], references: [id])
+  contractorPM        User?            @relation("ContractorPM", fields: [contractorPMId], references: [id])
+  transitions         Transition[]
+  auditLogs           AuditLog[]
+
+  @@index([businessOperationId])
+  @@index([contractNumber])
+  @@index([status])
+  @@index([endDate])
+}
+
+
 model Transition {
-  id              String      @id @default(cuid())
-  contractName    String
-  contractNumber  String
-  startDate       DateTime
-  endDate         DateTime
-  status          String      @default("Not Started")
-  milestones      Milestone[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id               String            @id @default(cuid())
+  // Legacy fields (keeping for existing data)
+  contractName     String?
+  contractNumber   String?           @unique
+  // New hierarchy fields (optional initially for migration)
+  contractId       String?
+  name             String?            // Transition name
+  startDate        DateTime          // Transition start date
+  endDate          DateTime          // Transition end date
+  duration         TransitionDuration @default(THIRTY_DAYS)
+  keyPersonnel     String?           // JSON string or separate table
+  description      String?
+  status           TransitionStatus   @default(NOT_STARTED)
+  requiresContinuousService Boolean  @default(true)
+  createdBy        String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  contract         Contract?         @relation(fields: [contractId], references: [id])
+  creator          User?             @relation("TransitionCreator", fields: [createdBy], references: [id])
+  milestones       Milestone[]
+  auditLogs        AuditLog[]
+
+  @@index([status])
+  @@index([contractId])
+  @@index([contractNumber])
+  @@index([createdBy])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 model Milestone {
-  id            String     @id @default(cuid())
-  title         String
-  description   String?
-  dueDate       DateTime
-  transition    Transition @relation(fields: [transitionId], references: [id])
-  transitionId  String
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String          @id @default(cuid())
+  title        String
+  description  String?
+  dueDate      DateTime
+  priority     PriorityLevel   @default(MEDIUM)
+  status       MilestoneStatus @default(PENDING)
+  transitionId String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  transition   Transition      @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+  auditLogs    AuditLog[]
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([transitionId])
+}
+
+model AuditLog {
+  id                String            @id @default(cuid())
+  entityType        String            // "business_operation", "contract", "transition", "milestone"
+  entityId          String
+  action            String            // "CREATE", "UPDATE", "DELETE"
+  oldValues         Json?             // Previous state
+  newValues         Json?             // New state
+  userId            String
+  timestamp         DateTime          @default(now())
+  user              User              @relation(fields: [userId], references: [id])
+  businessOperation BusinessOperation? @relation(fields: [entityId], references: [id], map: "AuditLog_businessOperationId_fkey")
+  contract          Contract?         @relation(fields: [entityId], references: [id], map: "AuditLog_contractId_fkey")
+  transition        Transition?       @relation(fields: [entityId], references: [id], map: "AuditLog_transitionId_fkey")
+  milestone         Milestone?        @relation(fields: [entityId], references: [id], map: "AuditLog_milestoneId_fkey")
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([timestamp])
 }

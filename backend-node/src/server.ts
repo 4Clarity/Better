@@ -2,8 +2,13 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { ZodError } from 'zod';
 import { serializerCompiler, validatorCompiler } from 'fastify-zod';
-import { transitionSchemas } from './modules/transition/transition.service';
-import transitionRoutes from './modules/transition/transition.route';
+import { transitionSchemas } from './modules/transition/transition-raw.service';
+import { milestoneSchemas } from './modules/milestone/milestone.service';
+import transitionRoutes from './modules/transition/transition-raw.route';
+import milestoneRoutes from './modules/milestone/milestone.route';
+import businessOperationRoutes from './modules/business-operation/business-operation.route';
+import contractRoutes from './modules/contract/contract.route';
+import enhancedTransitionRoutes from './modules/transition/enhanced-transition.route';
 
 export function buildServer() {
   const server = Fastify({
@@ -15,7 +20,7 @@ export function buildServer() {
   server.setSerializerCompiler(serializerCompiler);
 
   // Add schemas to the server instance
-  for (const schema of [...transitionSchemas]) {
+  for (const schema of [...transitionSchemas, ...milestoneSchemas]) {
     server.addSchema(schema);
   }
 
@@ -39,6 +44,19 @@ export function buildServer() {
 
   // Register routes
   server.register(transitionRoutes, { prefix: '/api/transitions' });
+  server.register(businessOperationRoutes, { prefix: '/api/business-operations' });
+  server.register(contractRoutes, { prefix: '/api/contracts' });
+  server.register(enhancedTransitionRoutes, { prefix: '/api/enhanced-transitions' });
+  
+  // Register nested milestone routes under transitions
+  server.register(async function (server) {
+    server.register(milestoneRoutes, { prefix: '/:transitionId/milestones' });
+  }, { prefix: '/api/transitions' });
+
+  // Health check endpoint
+  server.get('/health', async (request, reply) => {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  });
 
   return server;
 }
