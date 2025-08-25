@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* TIP Theme - Light Mode */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
@@ -13,8 +14,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    /* TIP Primary Color - Green accent */
+    --primary: 76 46% 58%; /* #A5C460 equivalent */
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -30,23 +32,25 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 76 46% 58%; /* Match primary color */
 
     --radius: 0.5rem;
   }
 
   .dark {
+    /* TIP Theme - Dark Mode */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 217.2 32.6% 17.5%; /* Darker card background */
     --card-foreground: 210 40% 98%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: 217.2 32.6% 17.5%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* TIP Primary Color - Green accent (same for consistency) */
+    --primary: 76 46% 58%; /* #A5C460 equivalent */
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -62,7 +66,7 @@
 
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 76 46% 58%; /* Match primary color */
   }
 }
 

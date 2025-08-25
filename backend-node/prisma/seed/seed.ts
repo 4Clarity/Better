@@ -1,81 +1,36 @@
-import { PrismaClient, TransitionStatus, MilestoneStatus, PriorityLevel } from '@prisma/client';
+import { PrismaClient, SecurityClearanceLevel, InvitationStatus, AccountStatus, PIVStatus, OrganizationType, AffiliationType, EmploymentStatus, AccessLevel, TransitionRole, SecurityStatus, PlatformAccess, TransitionStatus, MilestoneStatus, PriorityLevel } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seeding...');
+  console.log('🌱 Starting comprehensive user management database seeding...');
 
   try {
-    // Create Users
-    const users = await seedUsers();
+    // Create Organizations first
+    const organizations = await seedOrganizations();
+    
+    // Create Persons and Users
+    const { persons, users } = await seedPersonsAndUsers();
+    
+    // Create Person Organization Affiliations
+    await seedPersonOrganizationAffiliations(persons, organizations, users);
+    
+    // Create Business Operations and Contracts
+    const { businessOperations, contracts } = await seedBusinessOperationsAndContracts(organizations, users);
     
     // Create Transitions
-    const transitions = await seedTransitions(users);
+    const transitions = await seedTransitions(organizations, contracts, users);
+    
+    // Create Transition Users
+    await seedTransitionUsers(transitions, users);
     
     // Create Milestones
-    await seedMilestones(transitions, users);
+    const milestones = await seedMilestones(transitions, users);
     
-    console.log('✅ Database seeding completed successfully!');
+    console.log('✅ Comprehensive database seeding completed successfully!');
   } catch (error) {
     console.error('❌ Error during database seeding:', error);
     throw error;
-  }
-}
-
-async function seedSystemSettings() {
-  console.log('📝 Seeding system settings...');
-  
-  const settings = [
-    {
-      key: 'platform.name',
-      value: 'Transition Intelligence Platform',
-      description: 'Platform display name',
-      category: 'General',
-      isPublic: true,
-    },
-    {
-      key: 'platform.version',
-      value: '1.0.0',
-      description: 'Current platform version',
-      category: 'General',
-      isPublic: true,
-    },
-    {
-      key: 'features.vectorSearch',
-      value: true,
-      description: 'Enable vector-based semantic search',
-      category: 'Features',
-      isPublic: false,
-    },
-    {
-      key: 'features.aiAssistant',
-      value: true,
-      description: 'Enable AI-powered question answering',
-      category: 'Features',
-      isPublic: false,
-    },
-    {
-      key: 'security.clearanceLevels',
-      value: ['None', 'Public Trust', 'Confidential', 'Secret', 'Top Secret', 'TS/SCI'],
-      description: 'Available security clearance levels',
-      category: 'Security',
-      isPublic: false,
-    },
-    {
-      key: 'notifications.defaultChannels',
-      value: ['email', 'inApp'],
-      description: 'Default notification channels for new users',
-      category: 'Notifications',
-      isPublic: false,
-    },
-  ];
-
-  for (const setting of settings) {
-    await prisma.systemSetting.upsert({
-      where: { key: setting.key },
-      update: setting,
-      create: setting,
-    });
   }
 }
 
@@ -142,7 +97,45 @@ async function seedOrganizations() {
 async function seedPersonsAndUsers() {
   console.log('👥 Seeding persons and users...');
   
-  // Sample Persons
+  // System Administrator - Richard Roach
+  const richardRoach = await prisma.person.upsert({
+    where: { id: 'person-richard-001' },
+    update: {},
+    create: {
+      id: 'person-richard-001',
+      firstName: 'Richard',
+      lastName: 'Roach',
+      primaryEmail: 'Richard.Roach@Gmail.com',
+      workPhone: '+1-555-0100',
+      title: 'System Administrator',
+      securityClearanceLevel: 'TOP_SECRET',
+      clearanceExpirationDate: new Date('2027-12-31'),
+      pivStatus: 'PIV_VERIFIED',
+      skills: ['System Administration', 'User Management', 'Security Compliance', 'Database Management'],
+      certifications: ['CISSP', 'Security+', 'CISM'],
+      workLocation: 'Remote',
+      professionalSummary: 'Experienced system administrator with expertise in user management and security compliance.',
+    },
+  });
+
+  const richardUser = await prisma.user.upsert({
+    where: { id: 'user-richard-001' },
+    update: {},
+    create: {
+      id: 'user-richard-001',
+      personId: 'person-richard-001',
+      username: 'richard.roach',
+      keycloakId: 'kc-richard-001',
+      invitationStatus: 'INVITATION_ACCEPTED',
+      accountStatus: 'ACTIVE',
+      emailVerified: true,
+      roles: ['System Administrator', 'Security Officer', 'Government Program Director'],
+      lastLoginAt: new Date(),
+      sessionTimeout: 60, // 60 minutes for admin
+    },
+  });
+
+  // Government Program Manager
   const johnDoe = await prisma.person.upsert({
     where: { id: 'person-john-001' },
     update: {},
@@ -152,13 +145,34 @@ async function seedPersonsAndUsers() {
       lastName: 'Doe',
       primaryEmail: 'john.doe@dod.gov',
       workPhone: '+1-555-0101',
-      title: 'Program Manager',
+      title: 'Senior Program Manager',
       securityClearanceLevel: 'SECRET',
-      skills: ['Project Management', 'Government Contracting', 'Security Compliance'],
+      clearanceExpirationDate: new Date('2026-12-31'),
+      pivStatus: 'PIV_VERIFIED',
+      skills: ['Project Management', 'Government Contracting', 'Security Compliance', 'Risk Management'],
+      certifications: ['PMP', 'CISSP', 'Security+'],
       workLocation: 'Washington, DC',
+      professionalSummary: 'Experienced government program manager with 15+ years managing large-scale IT transitions.',
     },
   });
 
+  const johnUser = await prisma.user.upsert({
+    where: { id: 'user-john-001' },
+    update: {},
+    create: {
+      id: 'user-john-001',
+      personId: 'person-john-001',
+      username: 'john.doe',
+      keycloakId: 'kc-john-001',
+      invitationStatus: 'INVITATION_ACCEPTED',
+      accountStatus: 'ACTIVE',
+      emailVerified: true,
+      roles: ['Government Program Manager'],
+      lastLoginAt: new Date('2024-08-24'),
+    },
+  });
+
+  // Departing Contractor
   const janeSmith = await prisma.person.upsert({
     where: { id: 'person-jane-001' },
     update: {},
@@ -170,55 +184,12 @@ async function seedPersonsAndUsers() {
       workPhone: '+1-555-0102',
       title: 'Senior Software Engineer',
       securityClearanceLevel: 'CONFIDENTIAL',
-      skills: ['Full Stack Development', 'DevOps', 'Cloud Architecture'],
+      clearanceExpirationDate: new Date('2025-06-30'),
+      pivStatus: 'PIV_VERIFIED',
+      skills: ['Full Stack Development', 'DevOps', 'Cloud Architecture', 'System Design'],
+      certifications: ['AWS Certified Solutions Architect', 'Kubernetes Administrator'],
       workLocation: 'Arlington, VA',
-    },
-  });
-
-  const bobJohnson = await prisma.person.upsert({
-    where: { id: 'person-bob-001' },
-    update: {},
-    create: {
-      id: 'person-bob-001',
-      firstName: 'Bob',
-      lastName: 'Johnson',
-      primaryEmail: 'bob.johnson@techcorp.com',
-      workPhone: '+1-555-0103',
-      title: 'Technical Lead',
-      securityClearanceLevel: 'SECRET',
-      skills: ['System Architecture', 'Database Design', 'Team Leadership'],
-      workLocation: 'Reston, VA',
-    },
-  });
-
-  const aliceWilson = await prisma.person.upsert({
-    where: { id: 'person-alice-001' },
-    update: {},
-    create: {
-      id: 'person-alice-001',
-      firstName: 'Alice',
-      lastName: 'Wilson',
-      primaryEmail: 'alice.wilson@gsa.gov',
-      workPhone: '+1-555-0104',
-      title: 'Security Officer',
-      securityClearanceLevel: 'TOP_SECRET',
-      skills: ['Security Analysis', 'Compliance', 'Risk Management'],
-      workLocation: 'Washington, DC',
-    },
-  });
-
-  // Sample Users
-  const johnUser = await prisma.user.upsert({
-    where: { id: 'user-john-001' },
-    update: {},
-    create: {
-      id: 'user-john-001',
-      personId: 'person-john-001',
-      username: 'john.doe',
-      keycloakId: 'kc-john-001',
-      accountStatus: 'ACTIVE',
-      emailVerified: true,
-      roles: ['PROGRAM_MANAGER'],
+      professionalSummary: 'Full-stack developer with expertise in cloud-native applications and DevOps practices.',
     },
   });
 
@@ -230,9 +201,32 @@ async function seedPersonsAndUsers() {
       personId: 'person-jane-001',
       username: 'jane.smith',
       keycloakId: 'kc-jane-001',
+      invitationStatus: 'INVITATION_ACCEPTED',
       accountStatus: 'ACTIVE',
       emailVerified: true,
-      roles: ['CONTRACTOR'],
+      roles: ['Departing Contractor'],
+      lastLoginAt: new Date('2024-08-23'),
+    },
+  });
+
+  // Incoming Contractor
+  const bobJohnson = await prisma.person.upsert({
+    where: { id: 'person-bob-001' },
+    update: {},
+    create: {
+      id: 'person-bob-001',
+      firstName: 'Bob',
+      lastName: 'Johnson',
+      primaryEmail: 'bob.johnson@techcorp.com',
+      workPhone: '+1-555-0103',
+      title: 'Technical Lead',
+      securityClearanceLevel: 'SECRET',
+      clearanceExpirationDate: new Date('2027-03-15'),
+      pivStatus: 'PIV_EXCEPTION_INTERIM',
+      skills: ['System Architecture', 'Database Design', 'Team Leadership', 'Enterprise Integration'],
+      certifications: ['Oracle Certified Professional', 'Spring Professional'],
+      workLocation: 'Reston, VA',
+      professionalSummary: 'Technical lead with extensive experience in enterprise system architecture and team management.',
     },
   });
 
@@ -244,9 +238,35 @@ async function seedPersonsAndUsers() {
       personId: 'person-bob-001',
       username: 'bob.johnson',
       keycloakId: 'kc-bob-001',
-      accountStatus: 'ACTIVE',
-      emailVerified: true,
-      roles: ['CONTRACTOR'],
+      invitationStatus: 'INVITATION_SENT',
+      accountStatus: 'PENDING',
+      emailVerified: false,
+      roles: ['Incoming Contractor'],
+      invitationToken: 'inv-token-bob-001',
+      invitationExpiresAt: new Date('2024-09-15'),
+      invitedBy: 'user-john-001',
+      invitedAt: new Date('2024-08-15'),
+    },
+  });
+
+  // Security Officer
+  const aliceWilson = await prisma.person.upsert({
+    where: { id: 'person-alice-001' },
+    update: {},
+    create: {
+      id: 'person-alice-001',
+      firstName: 'Alice',
+      lastName: 'Wilson',
+      primaryEmail: 'alice.wilson@gsa.gov',
+      workPhone: '+1-555-0104',
+      title: 'Senior Security Officer',
+      securityClearanceLevel: 'TOP_SECRET',
+      clearanceExpirationDate: new Date('2025-11-30'),
+      pivStatus: 'PIV_VERIFIED',
+      skills: ['Security Analysis', 'Compliance', 'Risk Management', 'Incident Response'],
+      certifications: ['CISSP', 'CISM', 'Security+', 'FISMA'],
+      workLocation: 'Washington, DC',
+      professionalSummary: 'Senior security professional specializing in government compliance and risk management.',
     },
   });
 
@@ -258,15 +278,55 @@ async function seedPersonsAndUsers() {
       personId: 'person-alice-001',
       username: 'alice.wilson',
       keycloakId: 'kc-alice-001',
+      invitationStatus: 'INVITATION_ACCEPTED',
       accountStatus: 'ACTIVE',
       emailVerified: true,
-      roles: ['SECURITY_OFFICER'],
+      roles: ['Security Officer'],
+      twoFactorEnabled: true,
+      twoFactorMethod: 'TOTP',
+      lastLoginAt: new Date('2024-08-24'),
+    },
+  });
+
+  // Observer User
+  const mikeBrown = await prisma.person.upsert({
+    where: { id: 'person-mike-001' },
+    update: {},
+    create: {
+      id: 'person-mike-001',
+      firstName: 'Mike',
+      lastName: 'Brown',
+      primaryEmail: 'mike.brown@dod.gov',
+      workPhone: '+1-555-0105',
+      title: 'IT Analyst',
+      securityClearanceLevel: 'PUBLIC_TRUST',
+      pivStatus: 'PIV_VERIFIED',
+      skills: ['Data Analysis', 'Reporting', 'Process Improvement'],
+      certifications: ['CompTIA A+', 'ITIL Foundation'],
+      workLocation: 'Arlington, VA',
+      professionalSummary: 'IT analyst focused on process improvement and data analysis.',
+    },
+  });
+
+  const mikeUser = await prisma.user.upsert({
+    where: { id: 'user-mike-001' },
+    update: {},
+    create: {
+      id: 'user-mike-001',
+      personId: 'person-mike-001',
+      username: 'mike.brown',
+      keycloakId: 'kc-mike-001',
+      invitationStatus: 'INVITATION_ACCEPTED',
+      accountStatus: 'ACTIVE',
+      emailVerified: true,
+      roles: ['Observer'],
+      lastLoginAt: new Date('2024-08-22'),
     },
   });
 
   return {
-    persons: { johnDoe, janeSmith, bobJohnson, aliceWilson },
-    users: { johnUser, janeUser, bobUser, aliceUser },
+    persons: { richardRoach, johnDoe, janeSmith, bobJohnson, aliceWilson, mikeBrown },
+    users: { richardUser, johnUser, janeUser, bobUser, aliceUser, mikeUser },
   };
 }
 
@@ -275,15 +335,35 @@ async function seedPersonOrganizationAffiliations(persons: any, organizations: a
   
   const affiliations = [
     {
+      id: 'affil-000',
+      personId: persons.richardRoach.id,
+      organizationId: organizations.dod.id,
+      jobTitle: 'System Administrator',
+      department: 'Information Technology Directorate',
+      employeeId: 'DOD-000-SA',
+      affiliationType: 'EMPLOYEE' as AffiliationType,
+      employmentStatus: 'ACTIVE' as EmploymentStatus,
+      securityClearanceRequired: 'TOP_SECRET' as SecurityClearanceLevel,
+      startDate: new Date('2018-01-01'),
+      isPrimary: true,
+      accessLevel: 'ADMINISTRATIVE' as AccessLevel,
+      compensationLevel: 'GS-15',
+      createdBy: users.richardUser.id,
+    },
+    {
       id: 'affil-001',
       personId: persons.johnDoe.id,
       organizationId: organizations.dod.id,
       jobTitle: 'Senior Program Manager',
-      department: 'Information Technology',
-      affiliationType: 'EMPLOYEE',
-      employmentStatus: 'ACTIVE',
+      department: 'Information Technology Directorate',
+      employeeId: 'DOD-001-PM',
+      affiliationType: 'EMPLOYEE' as AffiliationType,
+      employmentStatus: 'ACTIVE' as EmploymentStatus,
+      securityClearanceRequired: 'SECRET' as SecurityClearanceLevel,
       startDate: new Date('2020-01-15'),
       isPrimary: true,
+      accessLevel: 'ADMINISTRATIVE' as AccessLevel,
+      compensationLevel: 'GS-14',
       createdBy: users.johnUser.id,
     },
     {
@@ -291,11 +371,15 @@ async function seedPersonOrganizationAffiliations(persons: any, organizations: a
       personId: persons.janeSmith.id,
       organizationId: organizations.acmeCorp.id,
       jobTitle: 'Senior Software Engineer',
-      department: 'Engineering',
-      affiliationType: 'EMPLOYEE',
-      employmentStatus: 'ACTIVE',
+      department: 'Engineering Solutions',
+      employeeId: 'ACME-002-SE',
+      affiliationType: 'EMPLOYEE' as AffiliationType,
+      employmentStatus: 'ACTIVE' as EmploymentStatus,
+      securityClearanceRequired: 'CONFIDENTIAL' as SecurityClearanceLevel,
       startDate: new Date('2021-03-01'),
       isPrimary: true,
+      accessLevel: 'ELEVATED' as AccessLevel,
+      contractNumber: 'DOD-IT-2024-001',
       createdBy: users.janeUser.id,
     },
     {
@@ -304,10 +388,13 @@ async function seedPersonOrganizationAffiliations(persons: any, organizations: a
       organizationId: organizations.techCorp.id,
       jobTitle: 'Technical Lead',
       department: 'Solutions Architecture',
-      affiliationType: 'EMPLOYEE',
-      employmentStatus: 'ACTIVE',
+      employeeId: 'TECH-003-TL',
+      affiliationType: 'EMPLOYEE' as AffiliationType,
+      employmentStatus: 'ACTIVE' as EmploymentStatus,
+      securityClearanceRequired: 'SECRET' as SecurityClearanceLevel,
       startDate: new Date('2019-08-01'),
       isPrimary: true,
+      accessLevel: 'ELEVATED' as AccessLevel,
       createdBy: users.bobUser.id,
     },
     {
@@ -315,12 +402,32 @@ async function seedPersonOrganizationAffiliations(persons: any, organizations: a
       personId: persons.aliceWilson.id,
       organizationId: organizations.gsa.id,
       jobTitle: 'Senior Security Officer',
-      department: 'Cybersecurity',
-      affiliationType: 'EMPLOYEE',
-      employmentStatus: 'ACTIVE',
+      department: 'Cybersecurity Division',
+      employeeId: 'GSA-004-SO',
+      affiliationType: 'EMPLOYEE' as AffiliationType,
+      employmentStatus: 'ACTIVE' as EmploymentStatus,
+      securityClearanceRequired: 'TOP_SECRET' as SecurityClearanceLevel,
       startDate: new Date('2018-05-01'),
       isPrimary: true,
+      accessLevel: 'ADMINISTRATIVE' as AccessLevel,
+      compensationLevel: 'GS-13',
       createdBy: users.aliceUser.id,
+    },
+    {
+      id: 'affil-005',
+      personId: persons.mikeBrown.id,
+      organizationId: organizations.dod.id,
+      jobTitle: 'IT Analyst',
+      department: 'Information Systems',
+      employeeId: 'DOD-005-AN',
+      affiliationType: 'EMPLOYEE' as AffiliationType,
+      employmentStatus: 'ACTIVE' as EmploymentStatus,
+      securityClearanceRequired: 'PUBLIC_TRUST' as SecurityClearanceLevel,
+      startDate: new Date('2022-06-01'),
+      isPrimary: true,
+      accessLevel: 'STANDARD' as AccessLevel,
+      compensationLevel: 'GS-12',
+      createdBy: users.mikeUser.id,
     },
   ];
 
@@ -333,7 +440,102 @@ async function seedPersonOrganizationAffiliations(persons: any, organizations: a
   }
 }
 
-async function seedTransitions(organizations: any, users: any) {
+async function seedBusinessOperationsAndContracts(organizations: any, users: any) {
+  console.log('🏭 Seeding business operations and contracts...');
+
+  // Create Business Operations
+  const dataplatformOp = await prisma.businessOperation.upsert({
+    where: { id: 'biz-op-001' },
+    update: {},
+    create: {
+      id: 'biz-op-001',
+      name: 'Enterprise Data Platform Operations',
+      businessFunction: 'Data Management',
+      technicalDomain: 'Cloud Infrastructure',
+      description: 'Management and operation of enterprise data platform supporting analytics and reporting',
+      scope: 'Government-wide data integration and analytics platform',
+      objectives: 'Provide scalable, secure, and compliant data services for government agencies',
+      performanceMetrics: {
+        uptime: '99.9%',
+        responseTime: '<500ms',
+        dataProcessingCapacity: '10TB/day',
+        userSatisfaction: '>4.5/5'
+      },
+      supportPeriodStart: new Date('2024-01-01'),
+      supportPeriodEnd: new Date('2026-12-31'),
+      currentContractEnd: new Date('2024-12-31'),
+      governmentPMId: users.johnUser.id,
+      directorId: users.johnUser.id, // For now, same person
+    },
+  });
+
+  const idManagementOp = await prisma.businessOperation.upsert({
+    where: { id: 'biz-op-002' },
+    update: {},
+    create: {
+      id: 'biz-op-002',
+      name: 'Identity Management System Operations',
+      businessFunction: 'Identity and Access Management',
+      technicalDomain: 'Cybersecurity',
+      description: 'Operation of enterprise identity management and access control systems',
+      scope: 'Multi-agency identity federation and access management',
+      objectives: 'Provide secure, compliant, and user-friendly identity services',
+      performanceMetrics: {
+        uptime: '99.95%',
+        authenticationTime: '<2s',
+        securityIncidents: '0 critical',
+        complianceScore: '100%'
+      },
+      supportPeriodStart: new Date('2024-01-01'),
+      supportPeriodEnd: new Date('2025-12-31'),
+      currentContractEnd: new Date('2025-03-31'),
+      governmentPMId: users.aliceUser.id,
+      directorId: users.aliceUser.id,
+    },
+  });
+
+  // Create Contracts
+  const dataplatformContract = await prisma.contract.upsert({
+    where: { id: 'contract-001' },
+    update: {},
+    create: {
+      id: 'contract-001',
+      businessOperationId: dataplatformOp.id,
+      contractName: 'Enterprise Data Platform Support',
+      contractNumber: 'DOD-IT-2024-001',
+      contractorName: 'ACME Technology Solutions',
+      contractorPMId: users.janeUser.id,
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-12-31'),
+      canBeExtended: true,
+      status: 'ACTIVE',
+    },
+  });
+
+  const idManagementContract = await prisma.contract.upsert({
+    where: { id: 'contract-002' },
+    update: {},
+    create: {
+      id: 'contract-002',
+      businessOperationId: idManagementOp.id,
+      contractName: 'Identity Management System Modernization',
+      contractNumber: 'GSA-SEC-2024-002',
+      contractorName: 'TechCorp Systems',
+      contractorPMId: users.bobUser.id,
+      startDate: new Date('2024-09-01'),
+      endDate: new Date('2025-03-31'),
+      canBeExtended: false,
+      status: 'PLANNING',
+    },
+  });
+
+  return {
+    businessOperations: { dataplatformOp, idManagementOp },
+    contracts: { dataplatformContract, idManagementContract }
+  };
+}
+
+async function seedTransitions(organizations: any, contracts: any, users: any) {
   console.log('🔄 Seeding transitions...');
   
   const transition1 = await prisma.transition.upsert({
@@ -341,20 +543,17 @@ async function seedTransitions(organizations: any, users: any) {
     update: {},
     create: {
       id: 'trans-001',
-      name: 'Enterprise Data Platform Migration',
-      contractName: 'DOD Enterprise Data Platform',
+      name: 'Enterprise Data Platform Transition',
+      contractName: 'Enterprise Data Platform Support',
       contractNumber: 'DOD-IT-2024-001',
+      contractId: contracts.dataplatformContract.id,
       organizationId: organizations.dod.id,
-      status: 'ACTIVE',
-      startDate: new Date('2024-06-01'),
+      status: 'ON_TRACK' as TransitionStatus,
+      startDate: new Date('2024-10-01'),
       endDate: new Date('2024-12-31'),
-      description: 'Migration of legacy data systems to modern cloud-based platform',
-      priority: 'HIGH',
-      riskLevel: 'MEDIUM',
-      budget: 2500000.00,
-      trainingRequired: true,
-      certificationRequired: true,
-      clearanceRequired: 'SECRET',
+      duration: 'NINETY_DAYS',
+      description: 'Transition of data platform operations from ACME to new contractor',
+      requiresContinuousService: true,
       createdBy: users.johnUser.id,
     },
   });
@@ -364,20 +563,17 @@ async function seedTransitions(organizations: any, users: any) {
     update: {},
     create: {
       id: 'trans-002',
-      name: 'Identity Management System Upgrade',
-      contractName: 'GSA Identity Management Modernization',
+      name: 'Identity Management System Transition',
+      contractName: 'Identity Management System Modernization',
       contractNumber: 'GSA-SEC-2024-002',
+      contractId: contracts.idManagementContract.id,
       organizationId: organizations.gsa.id,
-      status: 'PLANNING',
-      startDate: new Date('2024-09-01'),
+      status: 'NOT_STARTED' as TransitionStatus,
+      startDate: new Date('2024-12-01'),
       endDate: new Date('2025-03-31'),
-      description: 'Upgrade of legacy identity management systems',
-      priority: 'CRITICAL',
-      riskLevel: 'HIGH',
-      budget: 1800000.00,
-      trainingRequired: true,
-      certificationRequired: true,
-      clearanceRequired: 'CONFIDENTIAL',
+      duration: 'NINETY_DAYS',
+      description: 'Implementation and transition to modernized identity management system',
+      requiresContinuousService: true,
       createdBy: users.aliceUser.id,
     },
   });
@@ -393,37 +589,56 @@ async function seedTransitionUsers(transitions: any, users: any) {
       id: 'tu-001',
       transitionId: transitions.transition1.id,
       userId: users.johnUser.id,
-      role: 'PROGRAM_MANAGER',
-      securityStatus: 'CLEARED',
-      platformAccess: 'FULL_ACCESS',
+      role: 'PROGRAM_MANAGER' as TransitionRole,
+      securityStatus: 'CLEARED' as SecurityStatus,
+      platformAccess: 'FULL_ACCESS' as PlatformAccess,
       invitedBy: users.johnUser.id,
+      acceptedAt: new Date('2024-08-01'),
+      lastAccessAt: new Date('2024-08-24'),
     },
     {
       id: 'tu-002',
       transitionId: transitions.transition1.id,
       userId: users.janeUser.id,
-      role: 'DEPARTING_CONTRACTOR',
-      securityStatus: 'CLEARED',
-      platformAccess: 'STANDARD',
+      role: 'DEPARTING_CONTRACTOR' as TransitionRole,
+      securityStatus: 'CLEARED' as SecurityStatus,
+      platformAccess: 'STANDARD' as PlatformAccess,
       invitedBy: users.johnUser.id,
+      acceptedAt: new Date('2024-08-02'),
+      lastAccessAt: new Date('2024-08-23'),
+      accessNotes: 'Full access to current systems for knowledge transfer',
     },
     {
       id: 'tu-003',
       transitionId: transitions.transition1.id,
       userId: users.bobUser.id,
-      role: 'INCOMING_CONTRACTOR',
-      securityStatus: 'IN_PROCESS',
-      platformAccess: 'READ_only',
+      role: 'INCOMING_CONTRACTOR' as TransitionRole,
+      securityStatus: 'IN_PROCESS' as SecurityStatus,
+      platformAccess: 'READ_ONLY' as PlatformAccess,
       invitedBy: users.johnUser.id,
+      accessNotes: 'Limited access pending security clearance processing',
     },
     {
       id: 'tu-004',
       transitionId: transitions.transition2.id,
       userId: users.aliceUser.id,
-      role: 'SECURITY_OFFICER',
-      securityStatus: 'CLEARED',
-      platformAccess: 'FULL_ACCESS',
+      role: 'SECURITY_OFFICER' as TransitionRole,
+      securityStatus: 'CLEARED' as SecurityStatus,
+      platformAccess: 'FULL_ACCESS' as PlatformAccess,
       invitedBy: users.aliceUser.id,
+      acceptedAt: new Date('2024-08-01'),
+      lastAccessAt: new Date('2024-08-24'),
+    },
+    {
+      id: 'tu-005',
+      transitionId: transitions.transition1.id,
+      userId: users.mikeUser.id,
+      role: 'OBSERVER' as TransitionRole,
+      securityStatus: 'CLEARED' as SecurityStatus,
+      platformAccess: 'READ_ONLY' as PlatformAccess,
+      invitedBy: users.johnUser.id,
+      acceptedAt: new Date('2024-08-10'),
+      lastAccessAt: new Date('2024-08-22'),
     },
   ];
 
@@ -439,204 +654,54 @@ async function seedTransitionUsers(transitions: any, users: any) {
 async function seedMilestones(transitions: any, users: any) {
   console.log('🎯 Seeding milestones...');
   
-  const milestone1 = await prisma.milestone.upsert({
-    where: { id: 'mile-001' },
-    update: {},
-    create: {
+  const milestones = [
+    {
       id: 'mile-001',
       transitionId: transitions.transition1.id,
-      title: 'System Analysis Complete',
-      description: 'Complete analysis of current system architecture and data flows',
-      dueDate: new Date('2024-08-15'),
-      status: 'COMPLETED',
-      priority: 'HIGH',
-      assignedTo: users.janeUser.id,
-      percentComplete: 100,
-      createdBy: users.johnUser.id,
+      title: 'Security Clearance Processing Complete',
+      description: 'Complete security clearance processing for all incoming team members',
+      dueDate: new Date('2024-09-30'),
+      status: 'IN_PROGRESS' as MilestoneStatus,
+      priority: 'CRITICAL' as PriorityLevel,
     },
-  });
-
-  const milestone2 = await prisma.milestone.upsert({
-    where: { id: 'mile-002' },
-    update: {},
-    create: {
+    {
       id: 'mile-002',
       transitionId: transitions.transition1.id,
       title: 'Knowledge Transfer Sessions',
-      description: 'Conduct comprehensive knowledge transfer sessions with incoming team',
-      dueDate: new Date('2024-10-30'),
-      status: 'IN_PROGRESS',
-      priority: 'CRITICAL',
-      assignedTo: users.bobUser.id,
-      percentComplete: 45,
-      createdBy: users.johnUser.id,
+      description: 'Conduct comprehensive knowledge transfer sessions between departing and incoming teams',
+      dueDate: new Date('2024-11-15'),
+      status: 'PENDING' as MilestoneStatus,
+      priority: 'HIGH' as PriorityLevel,
     },
-  });
-
-  const milestone3 = await prisma.milestone.upsert({
-    where: { id: 'mile-003' },
-    update: {},
-    create: {
+    {
       id: 'mile-003',
       transitionId: transitions.transition1.id,
-      title: 'Security Clearance Processing',
-      description: 'Complete security clearance processing for incoming team members',
-      dueDate: new Date('2024-11-15'),
-      status: 'NOT_STARTED',
-      priority: 'HIGH',
-      assignedTo: users.aliceUser.id,
-      percentComplete: 0,
-      createdBy: users.johnUser.id,
-    },
-  });
-
-  return { milestone1, milestone2, milestone3 };
-}
-
-async function seedTasks(transitions: any, milestones: any, users: any) {
-  console.log('📋 Seeding tasks...');
-  
-  const tasks = [
-    {
-      id: 'task-001',
-      transitionId: transitions.transition1.id,
-      milestoneId: milestones.milestone1.id,
-      title: 'Document Current Database Schema',
-      description: 'Create comprehensive documentation of existing database structure',
-      status: 'COMPLETED',
-      priority: 'HIGH',
-      assignedTo: users.janeUser.id,
-      assignedBy: users.johnUser.id,
-      dueDate: new Date('2024-08-10'),
-      completedDate: new Date('2024-08-08'),
-      estimatedHours: 16.0,
-      actualHours: 14.5,
-      percentComplete: 100,
-      createdBy: users.johnUser.id,
+      title: 'System Access Verification',
+      description: 'Verify that incoming team has proper access to all necessary systems and tools',
+      dueDate: new Date('2024-12-01'),
+      status: 'PENDING' as MilestoneStatus,
+      priority: 'HIGH' as PriorityLevel,
     },
     {
-      id: 'task-002',
+      id: 'mile-004',
       transitionId: transitions.transition1.id,
-      milestoneId: milestones.milestone2.id,
-      title: 'Prepare Training Materials',
-      description: 'Develop comprehensive training materials for new team members',
-      status: 'IN_PROGRESS',
-      priority: 'MEDIUM',
-      assignedTo: users.bobUser.id,
-      assignedBy: users.johnUser.id,
-      dueDate: new Date('2024-10-15'),
-      estimatedHours: 32.0,
-      actualHours: 18.0,
-      percentComplete: 60,
-      createdBy: users.johnUser.id,
-    },
-    {
-      id: 'task-003',
-      transitionId: transitions.transition1.id,
-      milestoneId: milestones.milestone2.id,
-      title: 'Conduct System Architecture Review',
-      description: 'Review system architecture with incoming technical lead',
-      status: 'NOT_STARTED',
-      priority: 'HIGH',
-      assignedTo: users.bobUser.id,
-      assignedBy: users.johnUser.id,
-      dueDate: new Date('2024-10-20'),
-      estimatedHours: 8.0,
-      percentComplete: 0,
-      createdBy: users.johnUser.id,
-    },
-    {
-      id: 'task-004',
-      transitionId: transitions.transition1.id,
-      milestoneId: milestones.milestone3.id,
-      title: 'Submit Security Clearance Applications',
-      description: 'Process and submit security clearance applications for incoming contractors',
-      status: 'NOT_STARTED',
-      priority: 'CRITICAL',
-      assignedTo: users.aliceUser.id,
-      assignedBy: users.johnUser.id,
-      dueDate: new Date('2024-09-30'),
-      estimatedHours: 12.0,
-      percentComplete: 0,
-      createdBy: users.johnUser.id,
+      title: 'Transition Handoff Complete',
+      description: 'Complete formal handoff of all responsibilities to incoming contractor',
+      dueDate: new Date('2024-12-31'),
+      status: 'PENDING' as MilestoneStatus,
+      priority: 'CRITICAL' as PriorityLevel,
     },
   ];
 
-  for (const task of tasks) {
-    await prisma.task.upsert({
-      where: { id: task.id },
-      update: task,
-      create: task,
+  for (const milestone of milestones) {
+    await prisma.milestone.upsert({
+      where: { id: milestone.id },
+      update: milestone,
+      create: milestone,
     });
   }
-}
 
-async function seedArtifacts(transitions: any, users: any) {
-  console.log('📄 Seeding artifacts...');
-  
-  const artifacts = [
-    {
-      id: 'art-001',
-      transitionId: transitions.transition1.id,
-      name: 'System Architecture Documentation',
-      description: 'Comprehensive documentation of current system architecture',
-      type: 'DOCUMENTATION',
-      mimeType: 'application/pdf',
-      filePath: '/artifacts/transition-001/system-architecture.pdf',
-      fileSize: BigInt(2048576), // 2MB
-      checksum: 'abc123def456789',
-      version: 1,
-      status: 'APPROVED',
-      isRequired: true,
-      submittedBy: users.janeUser.id,
-      submittedAt: new Date('2024-08-08'),
-      reviewedBy: users.johnUser.id,
-      reviewedAt: new Date('2024-08-10'),
-      approvalComments: 'Comprehensive and well-documented. Approved for knowledge base.',
-      securityClassification: 'CONFIDENTIAL',
-    },
-    {
-      id: 'art-002',
-      transitionId: transitions.transition1.id,
-      name: 'Database Schema Export',
-      description: 'Complete database schema with table structures and relationships',
-      type: 'DATABASE_EXPORT',
-      mimeType: 'application/sql',
-      filePath: '/artifacts/transition-001/database-schema.sql',
-      fileSize: BigInt(512000), // 500KB
-      checksum: 'def456ghi789abc',
-      version: 1,
-      status: 'UNDER_REVIEW',
-      isRequired: true,
-      submittedBy: users.janeUser.id,
-      submittedAt: new Date('2024-08-12'),
-      securityClassification: 'CONFIDENTIAL',
-    },
-    {
-      id: 'art-003',
-      transitionId: transitions.transition1.id,
-      name: 'API Documentation',
-      description: 'RESTful API documentation with endpoints and examples',
-      type: 'DOCUMENTATION',
-      mimeType: 'text/markdown',
-      filePath: '/artifacts/transition-001/api-documentation.md',
-      fileSize: BigInt(256000), // 250KB
-      checksum: 'ghi789jkl012mno',
-      version: 1,
-      status: 'DRAFT',
-      isRequired: true,
-      submittedBy: users.janeUser.id,
-      securityClassification: 'UNCLASSIFIED',
-    },
-  ];
-
-  for (const artifact of artifacts) {
-    await prisma.artifact.upsert({
-      where: { id: artifact.id },
-      update: artifact,
-      create: artifact,
-    });
-  }
+  return milestones;
 }
 
 main()
