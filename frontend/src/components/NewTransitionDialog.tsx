@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ContractSelector } from "@/components/ContractSelector";
+import { Contract } from "@/services/api";
 
 interface NewTransitionFormData {
   contractName: string;
@@ -38,6 +40,7 @@ interface NewTransitionDialogProps {
 export function NewTransitionDialog({ onTransitionCreated, userRole }: NewTransitionDialogProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [formData, setFormData] = useState<NewTransitionFormData>({
     contractName: "",
     contractNumber: "",
@@ -51,6 +54,23 @@ export function NewTransitionDialog({ onTransitionCreated, userRole }: NewTransi
 
   // Role-based visibility - only show for program_manager role
   const canCreateTransition = userRole === "program_manager";
+
+  // Handle contract selection and auto-populate form fields
+  const handleContractSelect = (contract: Contract) => {
+    setSelectedContract(contract);
+    setFormData(prev => ({
+      ...prev,
+      contractName: contract.contractName,
+      contractNumber: contract.contractNumber
+    }));
+    // Clear any existing validation errors for contract fields
+    setErrors(prev => ({
+      ...prev,
+      contractName: undefined,
+      contractNumber: undefined
+    }));
+    console.log('Auto-populated contract:', contract.contractName, contract.contractNumber);
+  };
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -121,6 +141,7 @@ export function NewTransitionDialog({ onTransitionCreated, userRole }: NewTransi
       onTransitionCreated(newTransition);
       
       // Reset form and close dialog
+      setSelectedContract(null);
       setFormData({
         contractName: "",
         contractNumber: "",
@@ -162,44 +183,43 @@ export function NewTransitionDialog({ onTransitionCreated, userRole }: NewTransi
       <DialogTrigger asChild>
         <Button>New Transition</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[525px]">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Transition</DialogTitle>
           <DialogDescription>
-            Create a new contract transition project. Fill in the required information below.
+            Create a new contract transition project by selecting a contract from your business operations and defining transition details.
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="contractName">Contract Name *</Label>
-              <Input
-                id="contractName"
-                value={formData.contractName}
-                onChange={(e) => handleInputChange('contractName', e.target.value)}
-                placeholder="Enter contract name"
-                className={errors.contractName ? 'border-red-500' : ''}
-              />
-              {errors.contractName && (
-                <p className="text-sm text-red-500">{errors.contractName}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contractNumber">Contract Number *</Label>
-              <Input
-                id="contractNumber"
-                value={formData.contractNumber}
-                onChange={(e) => handleInputChange('contractNumber', e.target.value)}
-                placeholder="e.g., CNT-2024-001"
-                className={errors.contractNumber ? 'border-red-500' : ''}
-              />
-              {errors.contractNumber && (
-                <p className="text-sm text-red-500">{errors.contractNumber}</p>
-              )}
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Contract Selection Section */}
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <h3 className="text-sm font-medium mb-3">Contract Information</h3>
+            <ContractSelector
+              selectedContract={selectedContract}
+              onContractSelect={handleContractSelect}
+              className="space-y-3"
+            />
+            {(errors.contractName || errors.contractNumber) && (
+              <p className="text-sm text-red-500 mt-2">
+                Please select a contract from the list above
+              </p>
+            )}
           </div>
+
+          {/* Display Selected Contract Info */}
+          {selectedContract && (
+            <div className="grid grid-cols-2 gap-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div>
+                <Label className="text-sm font-medium text-green-800">Selected Contract Name</Label>
+                <p className="text-sm text-green-700">{formData.contractName}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-green-800">Selected Contract Number</Label>
+                <p className="text-sm text-green-700">{formData.contractNumber}</p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

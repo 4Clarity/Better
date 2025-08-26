@@ -5,6 +5,9 @@ import { ProjectHubPage } from './pages/ProjectHubPage';
 import { BusinessOperationsPage } from './pages/BusinessOperationsPage';
 import { BusinessOperationDetailPage } from './pages/BusinessOperationDetailPage';
 import { ContractDetailPage } from './pages/ContractDetailPage';
+import { TransitionsPage } from './pages/TransitionsPage';
+import { EnhancedTransitionDetailPage } from './pages/EnhancedTransitionDetailPage';
+import { EditBusinessOperationPage } from './pages/EditBusinessOperationPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { TransitionUserPage } from './pages/TransitionUserPage';
 
@@ -19,12 +22,17 @@ function App() {
         } />
         <Route path="/transitions" element={
           <Layout pageTitle="Transitions">
-            <DashboardPage />
+            <TransitionsPage />
           </Layout>
         } />
         <Route path="/transitions/:id" element={
           <Layout pageTitle="Transition Details">
             <ProjectHubPage />
+          </Layout>
+        } />
+        <Route path="/enhanced-transitions/:id" element={
+          <Layout pageTitle="Enhanced Transition Details">
+            <EnhancedTransitionDetailPage />
           </Layout>
         } />
         <Route path="/transitions/:transitionId/users" element={
@@ -40,6 +48,11 @@ function App() {
         <Route path="/business-operations/:id" element={
           <Layout pageTitle="Business Operation Details">
             <BusinessOperationDetailPage />
+          </Layout>
+        } />
+        <Route path="/business-operations/:id/edit" element={
+          <Layout pageTitle="Edit Business Operation">
+            <EditBusinessOperationPage />
           </Layout>
         } />
         <Route path="/contracts/:id" element={

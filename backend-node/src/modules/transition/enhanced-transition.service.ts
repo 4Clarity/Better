@@ -76,7 +76,12 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
           }
         },
         creator: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         milestones: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
@@ -138,7 +143,12 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
           }
         },
         creator: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         _count: {
           select: { milestones: true }
@@ -168,20 +178,40 @@ export async function getEnhancedTransitionById(id: string) {
           businessOperation: {
             include: {
               governmentPM: {
-                select: { id: true, firstName: true, lastName: true, email: true }
+                select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
               },
               director: {
-                select: { id: true, firstName: true, lastName: true, email: true }
+                select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
               }
             }
           },
           contractorPM: {
-            select: { id: true, firstName: true, lastName: true, email: true }
+            select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
           }
         }
       },
       creator: {
-        select: { id: true, firstName: true, lastName: true, email: true }
+        select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
       },
       milestones: {
         include: {
@@ -194,7 +224,12 @@ export async function getEnhancedTransitionById(id: string) {
       auditLogs: {
         include: {
           user: {
-            select: { id: true, firstName: true, lastName: true, email: true }
+            select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
           }
         },
         orderBy: { timestamp: 'desc' },
@@ -241,7 +276,12 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
           }
         },
         creator: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         milestones: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }

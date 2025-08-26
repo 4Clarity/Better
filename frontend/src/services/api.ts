@@ -355,7 +355,7 @@ export const enhancedTransitionApi = {
     return response.json();
   },
 
-  async update(id: string, data: Partial<Omit<EnhancedTransition, 'id' | 'contractId' | 'createdAt' | 'updatedAt' | 'contract' | 'creator' | 'milestones' | '_count'>>): Promise<EnhancedTransition> {
+  async update(id: string, data: Partial<Omit<EnhancedTransition, 'id' | 'createdAt' | 'updatedAt' | 'contract' | 'creator' | 'milestones' | '_count'> & { contractId?: string }>): Promise<EnhancedTransition> {
     const response = await fetch(`${API_BASE_URL}/enhanced-transitions/${id}`, {
       method: 'PUT',
       headers: {

@@ -57,15 +57,18 @@ export function NewBusinessOperationDialog({ onBusinessOperationCreated, userRol
       };
 
       // Ensure dates are in YYYY-MM-DD format only
-      const requestData = {
+      const requestData: any = {
         ...formData,
         performanceMetrics,
         supportPeriodStart: formData.supportPeriodStart.split('T')[0], // Remove time part if present
         supportPeriodEnd: formData.supportPeriodEnd.split('T')[0],
         currentContractEnd: formData.currentContractEnd.split('T')[0],
-        // Convert empty string to undefined for optional foreign key fields
-        currentManagerId: formData.currentManagerId || undefined,
       };
+
+      // Only include currentManagerId if it has a value
+      if (formData.currentManagerId && formData.currentManagerId.trim()) {
+        requestData.currentManagerId = formData.currentManagerId.trim();
+      }
       
       console.log('Original currentManagerId:', JSON.stringify(formData.currentManagerId));
       console.log('Processed currentManagerId:', JSON.stringify(requestData.currentManagerId));
