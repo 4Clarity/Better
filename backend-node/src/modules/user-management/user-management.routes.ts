@@ -7,7 +7,12 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
   // Get all users with filtering and pagination
   fastify.get('/users', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const filters = request.query as any;
+      const query = request.query as any;
+      const filters = {
+        ...query,
+        page: query.page ? parseInt(query.page) : undefined,
+        pageSize: query.pageSize ? parseInt(query.pageSize) : undefined,
+      };
       const result = await userService.getUsers(filters);
       return reply.code(200).send(result);
     } catch (error) {

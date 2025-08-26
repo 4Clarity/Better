@@ -56,7 +56,7 @@ TIP evolves through four distinct phases:
 
 ### 1.1 Enhanced Authentication & Authorization
 
-**Priority: Critical** | **Duration: 3 weeks** | **Dependencies: None**
+**Priority: Critical** | **Duration: 3 weeks** | **Dependencies: Phase 0 User Management Complete**
 
 #### Backend Tasks
 

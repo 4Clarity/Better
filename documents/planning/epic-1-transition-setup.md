@@ -4,6 +4,207 @@
 
 ---
 
+## User Story 1.0.1: System Admin - User Account Management
+
+**As a** System Administrator,
+**I want to** manage user accounts, roles, and access permissions through the Security & Access section,
+**So that** I can maintain secure access control and ensure only authorized personnel can access appropriate system resources.
+
+### Acceptance Criteria:
+- System Administrator can access a comprehensive User Management interface from Security & Access section
+- Admin can view all user accounts with their current status (Active, Inactive, Suspended, Locked, Pending)
+- Admin can invite new users by email with role assignment and PIV requirements
+- Admin can modify user roles and permissions with proper approval workflow
+- Admin can deactivate/reactivate user accounts with reason tracking
+- All user management actions create immutable audit log entries
+- PIV status and security clearance levels are tracked and enforced
+- Role-based access control prevents unauthorized account modifications
+
+---
+
+### Development Tasks:
+
+#### Backend Engineer (Node.js/Fastify)
+- **Task BE-1.0.1:** Implement comprehensive User and Person management schemas according to data_schema.md
+- **Task BE-1.0.2:** Create User Management API endpoints with full CRUD operations and security controls
+- **Task BE-1.0.3:** Implement invitation system with token generation, expiration, and email integration
+- **Task BE-1.0.4:** Build role assignment and permission management system with audit trails
+- **Task BE-1.0.5:** Create user account lifecycle management (deactivation, reactivation, suspension)
+
+#### Frontend Engineer (React/Vite)
+- **Task FE-1.0.1:** Build comprehensive User Management interface in Security & Access section
+- **Task FE-1.0.2:** Create user invitation workflow with role selection and PIV requirement setting
+- **Task FE-1.0.3:** Implement user account status management with reason tracking
+- **Task FE-1.0.4:** Build audit trail viewer for user management actions
+- **Task FE-1.0.5:** Create role-based permission matrix visualization
+
+#### QA & Test Automation Engineer
+- **Task QA-1.0.1:** Write comprehensive Pact contract tests for all user management endpoints
+- **Task QA-1.0.2:** Create Cypress E2E tests for complete user lifecycle management workflows
+- **Task QA-1.0.3:** Implement security testing for role-based access controls and privilege escalation prevention
+
+---
+
+## User Story 1.0.2: System Admin - User Invitation and Registration
+
+**As a** System Administrator,
+**I want to** invite new users with specific roles and guide them through secure registration,
+**So that** new team members can quickly gain appropriate access while maintaining security standards.
+
+### Acceptance Criteria:
+- Admin can send secure invitation emails with unique tokens and expiration dates
+- Invitation includes role assignment, PIV requirements, and onboarding instructions
+- Invited users receive clear guidance on registration requirements and security expectations
+- Registration process validates PIV status and security clearance before account activation
+- Failed invitations and registration attempts are logged for security monitoring
+- Invitation system supports bulk invitations for team onboarding
+- Re-invitation capability for expired or failed invitation attempts
+
+---
+
+### Development Tasks:
+
+#### Backend Engineer (Node.js/Fastify)
+- **Task BE-1.0.6:** Implement secure invitation token generation and validation system
+- **Task BE-1.0.7:** Create email service integration for invitation and notification delivery
+- **Task BE-1.0.8:** Build registration verification system with PIV and clearance validation
+- **Task BE-1.0.9:** Implement bulk invitation processing with status tracking
+- **Task BE-1.0.10:** Create invitation lifecycle management (resend, expire, cancel)
+
+#### Frontend Engineer (React/Vite)
+- **Task FE-1.0.6:** Build user invitation interface with role selection and bulk invite capability
+- **Task FE-1.0.7:** Create registration completion interface with PIV status verification
+- **Task FE-1.0.8:** Implement invitation status tracking dashboard for administrators
+- **Task FE-1.0.9:** Build user onboarding guidance interface with role-specific instructions
+- **Task FE-1.0.10:** Create invitation management interface for resending and cancelling invites
+
+#### QA & Test Automation Engineer
+- **Task QA-1.0.3:** Write contract tests for invitation and registration workflows
+- **Task QA-1.0.4:** Create E2E tests covering complete invitation-to-activation user journey
+- **Task QA-1.0.5:** Implement security testing for token validation and registration bypass attempts
+
+---
+
+## User Story 1.0.3: System Admin - Role Assignment and Access Control
+
+**As a** System Administrator,
+**I want to** assign and modify user roles with granular permissions,
+**So that** each user has appropriate access levels based on their responsibilities and security clearance.
+
+### Acceptance Criteria:
+- Admin can assign users to predefined roles (Program Manager, Government PM, Security Officer, etc.)
+- Role assignments automatically configure appropriate system permissions and UI access
+- Permission changes take effect immediately with session validation
+- Role modifications require approval workflow for sensitive role changes
+- Admin can create custom permission sets for special circumstances
+- Role assignments respect PIV status and security clearance requirements
+- Historical role changes are tracked with change reason and approver information
+
+---
+
+### Development Tasks:
+
+#### Backend Engineer (Node.js/Fastify)
+- **Task BE-1.0.11:** Implement comprehensive RBAC system with hierarchical roles and permissions
+- **Task BE-1.0.12:** Create role assignment workflow with approval process for sensitive changes
+- **Task BE-1.0.13:** Build permission enforcement middleware for all API endpoints
+- **Task BE-1.0.14:** Implement dynamic role validation based on PIV status and clearance level
+- **Task BE-1.0.15:** Create role change audit system with approval tracking
+
+#### Frontend Engineer (React/Vite)
+- **Task FE-1.0.11:** Build role assignment interface with permission preview capability
+- **Task FE-1.0.12:** Create permission matrix visualization for role understanding
+- **Task FE-1.0.13:** Implement role change approval workflow interface
+- **Task FE-1.0.14:** Build role-based navigation and feature visibility system
+- **Task FE-1.0.15:** Create role change history and audit trail interface
+
+#### QA & Test Automation Engineer
+- **Task QA-1.0.6:** Write comprehensive tests for RBAC system and permission enforcement
+- **Task QA-1.0.7:** Create E2E tests for role assignment and permission validation workflows
+- **Task QA-1.0.8:** Implement privilege escalation and role bypass security testing
+
+---
+
+## User Story 1.0.4: System Admin - Account Deactivation and Lifecycle Management
+
+**As a** System Administrator,
+**I want to** safely deactivate user accounts while preserving audit trails and data integrity,
+**So that** departing personnel lose access immediately while maintaining historical accountability.
+
+### Acceptance Criteria:
+- Admin can immediately deactivate user accounts with mandatory reason documentation
+- Deactivated accounts lose all system access while preserving audit and historical data
+- Account deactivation triggers notification to relevant stakeholders and system administrators
+- Deactivated accounts can be reactivated with proper approval and reason documentation
+- System supports temporary account suspension for security incidents or administrative holds
+- Account lifecycle events integrate with audit logging and compliance reporting
+- Bulk account management for organizational changes (team transfers, contract endings)
+
+---
+
+### Development Tasks:
+
+#### Backend Engineer (Node.js/Fastify)
+- **Task BE-1.0.16:** Implement account deactivation system with immediate access revocation
+- **Task BE-1.0.17:** Create account lifecycle state management (Active, Suspended, Deactivated)
+- **Task BE-1.0.18:** Build notification system for account status changes
+- **Task BE-1.0.19:** Implement account reactivation workflow with approval controls
+- **Task BE-1.0.20:** Create bulk account management capabilities for organizational changes
+
+#### Frontend Engineer (React/Vite)
+- **Task FE-1.0.16:** Build account deactivation interface with reason tracking and confirmation
+- **Task FE-1.0.17:** Create account status management dashboard with lifecycle visualization
+- **Task FE-1.0.18:** Implement bulk account operations interface for organizational changes
+- **Task FE-1.0.19:** Build account reactivation workflow with approval request system
+- **Task FE-1.0.20:** Create account lifecycle reporting and analytics interface
+
+#### QA & Test Automation Engineer
+- **Task QA-1.0.9:** Write tests for account deactivation and immediate access revocation
+- **Task QA-1.0.10:** Create E2E tests for complete account lifecycle management workflows
+- **Task QA-1.0.11:** Implement security testing for deactivated account access prevention
+
+---
+
+## User Story 1.0.5: Security Officer - PIV Status and Clearance Management
+
+**As a** Security Officer,
+**I want to** monitor and manage PIV status and security clearance levels for all users,
+**So that** access controls align with current security requirements and compliance standards.
+
+### Acceptance Criteria:
+- Security Officer can view comprehensive PIV status dashboard for all users
+- System tracks PIV card validation, expiration dates, and exception statuses
+- Security clearance levels are monitored with expiration tracking and renewal alerts
+- PIV exceptions require documented justification and have automatic expiration
+- Access levels automatically adjust based on PIV status and clearance changes
+- Security Officer receives alerts for expiring clearances and PIV exceptions
+- Compliance reporting available for security audits and reviews
+
+---
+
+### Development Tasks:
+
+#### Backend Engineer (Node.js/Fastify)
+- **Task BE-1.0.21:** Implement PIV status tracking and validation system
+- **Task BE-1.0.22:** Create security clearance management with expiration monitoring
+- **Task BE-1.0.23:** Build PIV exception workflow with justification and approval tracking
+- **Task BE-1.0.24:** Implement automated access level adjustment based on security status
+- **Task BE-1.0.25:** Create security alert system for expiring credentials and exceptions
+
+#### Frontend Engineer (React/Vite)
+- **Task FE-1.0.21:** Build PIV status dashboard with comprehensive user security overview
+- **Task FE-1.0.22:** Create security clearance management interface with renewal tracking
+- **Task FE-1.0.23:** Implement PIV exception management workflow with justification capture
+- **Task FE-1.0.24:** Build security alert dashboard with expiration and compliance monitoring
+- **Task FE-1.0.25:** Create security compliance reporting interface with audit trail export
+
+#### QA & Test Automation Engineer
+- **Task QA-1.0.12:** Write tests for PIV validation and security clearance systems
+- **Task QA-1.0.13:** Create E2E tests for security status management workflows
+- **Task QA-1.0.14:** Implement compliance testing for security requirement enforcement
+
+---
+
 ## User Story 1.1.1: Create New Transition Project
 
 **As a** Government PM (Brenda),

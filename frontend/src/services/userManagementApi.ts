@@ -165,6 +165,11 @@ export class UserManagementApi {
       pageSize: number;
     }>(endpoint);
     
+    // Check if response is already in expected format (has pagination object)
+    if ((backendResponse as any).pagination) {
+      return backendResponse as UsersResponse;
+    }
+    
     // Transform backend response to match frontend expected format
     const totalPages = Math.ceil(backendResponse.totalCount / backendResponse.pageSize);
     return {
