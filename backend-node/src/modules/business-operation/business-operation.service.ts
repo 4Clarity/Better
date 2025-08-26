@@ -46,6 +46,14 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
   const endDate = new Date(data.supportPeriodEnd);
   const contractEndDate = new Date(data.currentContractEnd);
 
+  console.log('Date validation:', {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    contractEndDate: contractEndDate.toISOString(),
+    endDateAfterStart: endDate > startDate,
+    contractEndBeforeSupport: contractEndDate <= endDate
+  });
+
   if (endDate <= startDate) {
     throw new Error('Support period end date must be after start date');
   }
@@ -80,13 +88,28 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
       data: createData,
       include: {
         governmentPM: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         director: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         currentManager: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         contracts: {
           select: { id: true, contractName: true, contractNumber: true, status: true }
@@ -155,13 +178,28 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
       orderBy: { [sortBy]: sortOrder },
       include: {
         governmentPM: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         director: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         currentManager: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         contracts: {
           select: { id: true, contractName: true, contractNumber: true, status: true }
@@ -190,13 +228,28 @@ export async function getBusinessOperationById(id: string) {
     where: { id },
     include: {
       governmentPM: {
-        select: { id: true, firstName: true, lastName: true, email: true }
+        select: { 
+          id: true, 
+          person: { 
+            select: { firstName: true, lastName: true, primaryEmail: true } 
+          } 
+        }
       },
       director: {
-        select: { id: true, firstName: true, lastName: true, email: true }
+        select: { 
+          id: true, 
+          person: { 
+            select: { firstName: true, lastName: true, primaryEmail: true } 
+          } 
+        }
       },
       currentManager: {
-        select: { id: true, firstName: true, lastName: true, email: true }
+        select: { 
+          id: true, 
+          person: { 
+            select: { firstName: true, lastName: true, primaryEmail: true } 
+          } 
+        }
       },
       contracts: {
         include: {
@@ -208,7 +261,12 @@ export async function getBusinessOperationById(id: string) {
       stakeholders: {
         include: {
           user: {
-            select: { id: true, firstName: true, lastName: true, email: true }
+            select: { 
+              id: true, 
+              person: { 
+                select: { firstName: true, lastName: true, primaryEmail: true } 
+              } 
+            }
           }
         }
       },
@@ -250,18 +308,45 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
     if (data.supportPeriodEnd) updateData.supportPeriodEnd = new Date(data.supportPeriodEnd);
     if (data.currentContractEnd) updateData.currentContractEnd = new Date(data.currentContractEnd);
 
+    // Check if currentManagerId is a valid User ID, otherwise set to null
+    if ('currentManagerId' in data) {
+      if (data.currentManagerId) {
+        const userExists = await prisma.user.findUnique({
+          where: { id: data.currentManagerId }
+        });
+        updateData.currentManagerId = userExists ? data.currentManagerId : null;
+      } else {
+        updateData.currentManagerId = null;
+      }
+    }
+
     const businessOperation = await prisma.businessOperation.update({
       where: { id },
       data: updateData,
       include: {
         governmentPM: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         director: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         currentManager: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         contracts: {
           select: { id: true, contractName: true, contractNumber: true, status: true }

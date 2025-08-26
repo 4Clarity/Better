@@ -110,11 +110,19 @@ export function BusinessOperationDetailPage() {
           </div>
           <p className="text-gray-600">{operation.businessFunction} • {operation.technicalDomain}</p>
         </div>
-        <NewContractDialog 
-          businessOperationId={operation.id}
-          onContractCreated={handleContractCreated}
-          userRole={userRole}
-        />
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => navigate(`/business-operations/${operation.id}/edit`)}
+          >
+            Edit Operation
+          </Button>
+          <NewContractDialog 
+            businessOperationId={operation.id}
+            onContractCreated={handleContractCreated}
+            userRole={userRole}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -62,7 +62,12 @@ export async function createContract(data: CreateContractInput) {
           select: { id: true, name: true, businessFunction: true }
         },
         contractorPM: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         transitions: {
           select: { id: true, name: true, status: true, startDate: true, endDate: true }
@@ -116,7 +121,12 @@ export async function getContracts(query: GetContractsQuery) {
           select: { id: true, name: true, businessFunction: true }
         },
         contractorPM: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         _count: {
           select: { transitions: true }
@@ -148,15 +158,30 @@ export async function getContractById(id: string) {
           businessFunction: true, 
           technicalDomain: true,
           governmentPM: {
-            select: { id: true, firstName: true, lastName: true, email: true }
+            select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
           },
           director: {
-            select: { id: true, firstName: true, lastName: true, email: true }
+            select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
           }
         }
       },
       contractorPM: {
-        select: { id: true, firstName: true, lastName: true, email: true }
+        select: { 
+          id: true, 
+          person: { 
+            select: { firstName: true, lastName: true, primaryEmail: true } 
+          } 
+        }
       },
       transitions: {
         include: {
@@ -205,7 +230,12 @@ export async function updateContract(id: string, data: UpdateContractInput) {
           select: { id: true, name: true, businessFunction: true }
         },
         contractorPM: {
-          select: { id: true, firstName: true, lastName: true, email: true }
+          select: { 
+            id: true, 
+            person: { 
+              select: { firstName: true, lastName: true, primaryEmail: true } 
+            } 
+          }
         },
         transitions: {
           select: { id: true, name: true, status: true, startDate: true, endDate: true }
@@ -253,7 +283,12 @@ export async function getContractsByBusinessOperation(businessOperationId: strin
     where: { businessOperationId },
     include: {
       contractorPM: {
-        select: { id: true, firstName: true, lastName: true, email: true }
+        select: { 
+          id: true, 
+          person: { 
+            select: { firstName: true, lastName: true, primaryEmail: true } 
+          } 
+        }
       },
       transitions: {
         select: { id: true, name: true, status: true, startDate: true, endDate: true }
