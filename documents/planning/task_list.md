@@ -22,6 +22,50 @@
 
 ---
 
+## Phase 0: User Management Foundation (Prerequisites)
+
+### Sprint 0: Core User Account Management (3 weeks)
+*Must be completed before all other phases*
+
+#### Backend Tasks
+| Task ID | Priority | Task | Assignee | Status | Dependencies | Est. Hours |
+|---------|----------|------|----------|---------|--------------|------------|
+| BE-0.1.1 | 🔴 | Implement comprehensive User and Person schemas | Backend Lead | ⏳ | None | 32 |
+| BE-0.1.2 | 🔴 | Create User Management API with CRUD operations | Backend Dev | ⏳ | BE-0.1.1 | 28 |
+| BE-0.1.3 | 🔴 | Implement invitation system with email integration | Backend Dev | ⏳ | BE-0.1.2 | 24 |
+| BE-0.1.4 | 🔴 | Build RBAC system with role assignment | Backend Dev | ⏳ | BE-0.1.2 | 32 |
+| BE-0.1.5 | 🟡 | Create account lifecycle management | Backend Dev | ⏳ | BE-0.1.4 | 20 |
+| BE-0.2.1 | 🟡 | Implement PIV status tracking system | Backend Dev | ⏳ | BE-0.1.4 | 24 |
+| BE-0.2.2 | 🟡 | Create security clearance management | Backend Dev | ⏳ | BE-0.2.1 | 20 |
+
+#### Frontend Tasks
+| Task ID | Priority | Task | Assignee | Status | Dependencies | Est. Hours |
+|---------|----------|------|----------|---------|--------------|------------|
+| FE-0.1.1 | 🔴 | Build User Management interface in Security & Access | Frontend Lead | ⏳ | BE-0.1.2 | 32 |
+| FE-0.1.2 | 🔴 | Create user invitation workflow with role selection | Frontend Dev | ⏳ | BE-0.1.3 | 24 |
+| FE-0.1.3 | 🟡 | Implement role assignment interface with permissions | Frontend Dev | ⏳ | BE-0.1.4 | 28 |
+| FE-0.1.4 | 🟡 | Build account lifecycle management interface | Frontend Dev | ⏳ | BE-0.1.5 | 20 |
+| FE-0.2.1 | 🟡 | Create PIV status dashboard | Frontend Dev | ⏳ | BE-0.2.1 | 24 |
+| FE-0.2.2 | 🟡 | Build security compliance reporting interface | Frontend Dev | ⏳ | BE-0.2.2 | 20 |
+
+#### Database Tasks
+| Task ID | Priority | Task | Assignee | Status | Dependencies | Est. Hours |
+|---------|----------|------|----------|---------|--------------|------------|
+| DB-0.1.1 | 🔴 | Create comprehensive Person and User tables per schema | Backend Lead | ⏳ | None | 16 |
+| DB-0.1.2 | 🔴 | Implement PersonOrganizationAffiliations relationship | Backend Lead | ⏳ | DB-0.1.1 | 12 |
+| DB-0.1.3 | 🟡 | Create audit trail tables for user management | Backend Dev | ⏳ | DB-0.1.1 | 10 |
+| DB-0.1.4 | 🟡 | Add role hierarchy and permission structures | Backend Dev | ⏳ | DB-0.1.1 | 14 |
+
+#### QA Tasks
+| Task ID | Priority | Task | Assignee | Status | Dependencies | Est. Hours |
+|---------|----------|------|----------|---------|--------------|------------|
+| QA-0.1.1 | 🟡 | Create user management API contract tests | QA Lead | ⏳ | BE-0.1.2 | 20 |
+| QA-0.1.2 | 🟡 | Build comprehensive user lifecycle E2E tests | QA Dev | ⏳ | FE-0.1.1 | 28 |
+| QA-0.1.3 | 🟡 | Implement security testing for RBAC system | QA Dev | ⏳ | BE-0.1.4 | 24 |
+| QA-0.2.1 | 🔵 | Create PIV status and compliance testing | QA Dev | ⏳ | BE-0.2.1 | 16 |
+
+---
+
 ## Phase 1: Enterprise Foundation (Months 1-4)
 
 ### Sprint 1: Enhanced Authentication & Authorization (3 weeks)

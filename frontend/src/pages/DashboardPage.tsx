@@ -60,13 +60,16 @@ export function DashboardPage() {
   }, []);
 
   return (
-    <div className="container mx-auto p-8">
+    <div className="p-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Transitions Dashboard</h1>
+        <div>
+          <h2 className="text-2xl font-semibold mb-2">Transitions Overview</h2>
+          <p className="text-muted-foreground">Manage and track your transition projects</p>
+        </div>
         <div className="flex gap-3">
           <button
             onClick={() => navigate('/business-operations')}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors border"
           >
             Business Operations
           </button>
@@ -78,23 +81,31 @@ export function DashboardPage() {
       </div>
       
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg mb-4">
           Error: {error}
         </div>
       )}
       
       {loading ? (
-        <div className="text-center py-8">Loading transitions...</div>
+        <div className="text-center py-12">
+          <div className="text-muted-foreground">Loading transitions...</div>
+        </div>
       ) : transitions.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          No transitions found. Click "New Transition" to create one!
+        <div className="text-center py-12 text-muted-foreground">
+          <div className="mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 mx-auto text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <p className="text-lg font-medium mb-2">No transitions found</p>
+          <p>Click "New Transition" to create your first transition project!</p>
         </div>
       ) : (
         <div className="grid gap-4">
           {transitions.map((transition) => (
             <div 
               key={transition.id} 
-              className="border rounded-lg p-4 shadow-sm bg-white hover:shadow-md transition-shadow cursor-pointer hover:border-blue-300"
+              className="border rounded-lg p-6 shadow-sm bg-card hover:shadow-md transition-all cursor-pointer hover:border-primary/20 group"
               onClick={() => navigate(`/transitions/${transition.id}`)}
               role="button"
               tabIndex={0}
@@ -104,27 +115,38 @@ export function DashboardPage() {
                 }
               }}
             >
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-semibold text-blue-900 hover:text-blue-700">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="text-xl font-semibold text-foreground group-hover:text-primary transition-colors">
                   {transition.contractName}
                 </h3>
-                <span className={`px-2 py-1 rounded text-sm ${
-                  transition.status === 'ON_TRACK' ? 'bg-green-100 text-green-800' :
-                  transition.status === 'AT_RISK' ? 'bg-yellow-100 text-yellow-800' :
-                  transition.status === 'BLOCKED' ? 'bg-red-100 text-red-800' :
-                  transition.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                  'bg-gray-100 text-gray-800'
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  transition.status === 'ON_TRACK' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                  transition.status === 'AT_RISK' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                  transition.status === 'BLOCKED' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                  transition.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                  'bg-muted text-muted-foreground'
                 }`}>
                   {transition.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                 </span>
               </div>
-              <p className="text-gray-600 mb-2">Contract: {transition.contractNumber}</p>
-              <div className="text-sm text-gray-500">
-                <p>Start: {new Date(transition.startDate).toLocaleDateString()}</p>
-                <p>End: {new Date(transition.endDate).toLocaleDateString()}</p>
+              <p className="text-muted-foreground mb-3">Contract: {transition.contractNumber}</p>
+              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground mb-3">
+                <div>
+                  <span className="font-medium">Start:</span> {new Date(transition.startDate).toLocaleDateString()}
+                </div>
+                <div>
+                  <span className="font-medium">End:</span> {new Date(transition.endDate).toLocaleDateString()}
+                </div>
               </div>
-              <div className="mt-3 text-xs text-blue-600">
-                Click to view details →
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {transition.creator && (
+                    <span>Created by {transition.creator.firstName} {transition.creator.lastName}</span>
+                  )}
+                </div>
+                <div className="text-sm text-primary font-medium group-hover:translate-x-1 transition-transform">
+                  View details →
+                </div>
               </div>
             </div>
           ))}

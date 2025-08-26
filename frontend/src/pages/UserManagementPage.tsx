@@ -79,9 +79,19 @@ export function UserManagementPage() {
       });
       
       const response = await UserManagementApi.getUsers(params);
+      
       setUsers(response.users);
       setFilteredUsers(response.users);
-      setTotalPages(response.pagination.totalPages);
+      
+      // Handle pagination safely
+      if (response.pagination && response.pagination.totalPages !== undefined) {
+        setTotalPages(response.pagination.totalPages);
+      } else {
+        // Fallback calculation if pagination is missing
+        const totalUsers = (response as any).totalCount || response.users?.length || 0;
+        const pageSize = params.pageSize || 25;
+        setTotalPages(Math.ceil(totalUsers / pageSize));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
       console.error('Error loading users:', err);
