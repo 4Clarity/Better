@@ -181,11 +181,11 @@ export function NewTransitionDialog({ onTransitionCreated, userRole }: NewTransi
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>New Transition</Button>
+        <Button>New Team Member Transition</Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Transition</DialogTitle>
+          <DialogTitle>Create New Team Member Transition</DialogTitle>
           <DialogDescription>
             Create a new contract transition project by selecting a contract from your business operations and defining transition details.
           </DialogDescription>

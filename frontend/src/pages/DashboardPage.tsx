@@ -98,7 +98,7 @@ export function DashboardPage() {
             </svg>
           </div>
           <p className="text-lg font-medium mb-2">No transitions found</p>
-          <p>Click "New Transition" to create your first transition project!</p>
+          <p>Click "New Team Member Transition" to create your first transition project!</p>
         </div>
       ) : (
         <div className="grid gap-4">
