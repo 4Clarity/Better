@@ -17,7 +17,7 @@ export const createEnhancedTransitionSchema = z.object({
   createdBy: z.string().optional(),
 });
 
-export const updateEnhancedTransitionSchema = createEnhancedTransitionSchema.partial().omit({ contractId: true });
+export const updateEnhancedTransitionSchema = createEnhancedTransitionSchema.partial();
 
 export const getEnhancedTransitionsQuerySchema = z.object({
   contractId: z.string().optional(),
@@ -248,6 +248,22 @@ export async function getEnhancedTransitionById(id: string) {
 export async function updateEnhancedTransition(id: string, data: UpdateEnhancedTransitionInput) {
   const existing = await getEnhancedTransitionById(id);
 
+  // Validate contract if being changed
+  if (data.contractId && data.contractId !== existing.contractId) {
+    const contract = await prisma.contract.findUnique({
+      where: { id: data.contractId },
+      include: {
+        businessOperation: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    if (!contract) {
+      throw new Error('Contract not found');
+    }
+  }
+
   // Validate dates if provided
   if (data.startDate || data.endDate) {
     const startDate = data.startDate ? new Date(data.startDate) : existing.startDate;
@@ -300,7 +316,8 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
 }
 
 export async function deleteEnhancedTransition(id: string) {
-  const existing = await getEnhancedTransitionById(id);
+  // Validate transition exists before deleting
+  await getEnhancedTransitionById(id);
 
   await prisma.transition.delete({
     where: { id }

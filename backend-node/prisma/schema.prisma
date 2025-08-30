@@ -494,7 +494,7 @@ model Transition {
   id               String            @id @default(cuid())
   // Legacy fields (keeping for existing data)
   contractName     String?
-  contractNumber   String?           @unique
+  contractNumber   String?
   // New hierarchy fields (optional initially for migration)
   contractId       String?
   organizationId   String?           // New field for organization relation

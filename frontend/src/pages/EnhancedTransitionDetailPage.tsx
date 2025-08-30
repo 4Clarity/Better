@@ -297,9 +297,9 @@ export function EnhancedTransitionDetailPage() {
               {transition.milestones && transition.milestones.length > 0 ? (
                 <div className="space-y-2">
                   {transition.milestones.map((milestone, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
+                    <div key={milestone.id || index} className="flex items-center gap-2 text-sm">
                       <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span>{milestone}</span>
+                      <span>{milestone.title}</span>
                     </div>
                   ))}
                 </div>

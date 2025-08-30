@@ -91,7 +91,7 @@ export async function createTransition(data: CreateTransitionInput) {
     const result = await prisma.$executeRaw`
       INSERT INTO "Transition" 
       (id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt")
-      VALUES (${id}, ${data.contractName}, ${data.contractNumber}, ${startDate}, ${endDate}, 'Not Started', ${now}, ${now})
+      VALUES (${id}, ${data.contractName}, ${data.contractNumber}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
     `;
 
     // Fetch the created transition

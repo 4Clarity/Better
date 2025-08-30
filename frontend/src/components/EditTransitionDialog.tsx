@@ -116,7 +116,6 @@ export function EditTransitionDialog({
             <ContractSelector
               selectedContract={selectedContract}
               onContractSelect={handleContractSelect}
-              businessOperationId={selectedContract?.businessOperationId}
               className="space-y-3"
             />
           </div>

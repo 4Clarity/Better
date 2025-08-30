@@ -44,6 +44,14 @@ export function ContractSelector({
     }
   }, [selectedBusinessOpId]);
 
+  // Initialize business operation from selected contract
+  useEffect(() => {
+    if (selectedContract && selectedContract.businessOperationId && !selectedBusinessOpId) {
+      console.log('Setting business operation from selected contract:', selectedContract.businessOperationId);
+      setSelectedBusinessOpId(selectedContract.businessOperationId);
+    }
+  }, [selectedContract, selectedBusinessOpId]);
+
   const fetchBusinessOperations = async () => {
     try {
       const response = await businessOperationApi.getAll();
@@ -63,7 +71,9 @@ export function ContractSelector({
     try {
       setLoading(true);
       setError(null);
+      console.log('Fetching contracts for business operation:', businessOpId);
       const fetchedContracts = await contractApi.getByBusinessOperation(businessOpId);
+      console.log('Fetched contracts:', fetchedContracts);
       setContracts(fetchedContracts);
     } catch (err) {
       console.error('Failed to fetch contracts:', err);
