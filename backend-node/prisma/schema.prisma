@@ -528,6 +528,7 @@ model Transition {
   milestones       Milestone[]
   auditLogs        AuditLog[]
   transitionUsers  TransitionUser[]
+  tasks            Task[]
 
   @@index([status])
   @@index([contractId])
@@ -593,6 +594,7 @@ model AuditLog {
   contract          Contract?         @relation(fields: [entityId], references: [id], map: "AuditLog_contractId_fkey")
   transition        Transition?       @relation(fields: [entityId], references: [id], map: "AuditLog_transitionId_fkey")
   milestone         Milestone?        @relation(fields: [entityId], references: [id], map: "AuditLog_milestoneId_fkey")
+  task              Task?             @relation(fields: [entityId], references: [id], map: "AuditLog_taskId_fkey")
 
   @@index([entityType, entityId])
   @@index([userId])
