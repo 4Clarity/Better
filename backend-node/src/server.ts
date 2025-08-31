@@ -11,6 +11,7 @@ import businessOperationRoutes from './modules/business-operation/business-opera
 import contractRoutes from './modules/contract/contract.route';
 import enhancedTransitionRoutes from './modules/transition/enhanced-transition.route';
 import { userManagementRoutes } from './modules/user-management/user-management.routes';
+import taskRoutes from './modules/task/task.route';
 
 export function buildServer() {
   const server = Fastify({
@@ -67,7 +68,6 @@ export function buildServer() {
   // Register nested milestone routes under transitions
   server.register(async function (server) {
     server.register(milestoneRoutes, { prefix: '/:transitionId/milestones' });
-    const taskRoutes = (await import('./modules/task/task.route')).default;
     server.register(taskRoutes, { prefix: '/:transitionId/tasks' });
   }, { prefix: '/api/transitions' });
 
