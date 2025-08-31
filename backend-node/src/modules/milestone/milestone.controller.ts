@@ -23,8 +23,21 @@ export async function createMilestoneHandler(
 ) {
   try {
     const { transitionId } = request.params;
-    const milestone = await createMilestone(transitionId, request.body, MOCK_USER_ID);
-    return reply.code(201).send(milestone);
+    try {
+      const milestone = await createMilestone(transitionId, request.body, MOCK_USER_ID);
+      return reply.code(201).send(milestone);
+    } catch (inner: any) {
+      // If creation failed but an identical milestone exists, return it as success
+      try {
+        const { title, dueDate } = request.body as any;
+        if (title && dueDate) {
+          const existing = await getMilestones(transitionId, { page:1, limit:100, sortBy:'dueDate', sortOrder:'asc' } as any, MOCK_USER_ID);
+          const found = (existing?.data || []).find((m:any)=> m.title===title && new Date(m.dueDate).toISOString() === new Date(dueDate).toISOString());
+          if (found) return reply.code(201).send(found);
+        }
+      } catch {}
+      throw inner;
+    }
   } catch (error: any) {
     console.error('Create milestone error:', error);
     

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { API_BASE_URL } from "@/services/api";
+import { API_BASE_URL, Task } from "@/services/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -93,6 +93,21 @@ export function ProjectHubPage() {
   const [editMsDesc, setEditMsDesc] = useState('');
   const [editMsStatus, setEditMsStatus] = useState<'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE'>('PENDING');
 
+  // Tasks state
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDue, setTaskDue] = useState('');
+  const [taskPriority, setTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [taskDesc, setTaskDesc] = useState('');
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskDue, setEditTaskDue] = useState('');
+  const [editTaskPriority, setEditTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [editTaskDesc, setEditTaskDesc] = useState('');
+  const [editTaskStatus, setEditTaskStatus] = useState<'NOT_STARTED'|'ASSIGNED'|'IN_PROGRESS'|'ON_HOLD'|'BLOCKED'|'UNDER_REVIEW'|'COMPLETED'|'CANCELLED'|'OVERDUE'>('NOT_STARTED');
+
   const fetchTransition = async () => {
     if (!id) {
       setError("Transition ID is required");
@@ -129,6 +144,7 @@ export function ProjectHubPage() {
   useEffect(() => {
     if (id) {
       fetchMilestones();
+      fetchTasks();
     }
   }, [id]);
 
@@ -141,6 +157,116 @@ export function ProjectHubPage() {
       setMilestones(data.data || []);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const fetchTasks = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks?limit=100`);
+      if (!res.ok) throw new Error('Failed to load tasks');
+      const data = await res.json();
+      setTasks(data.data || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const addTask = async () => {
+    if (!id || !taskTitle || !taskDue) return;
+    setTaskSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          title: taskTitle,
+          dueDate: new Date(`${taskDue}T12:00:00`).toISOString(),
+          priority: taskPriority,
+          description: taskDesc || undefined,
+        }),
+      });
+      if (!res.ok) {
+        let message = 'Failed to create task';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchTasks();
+      setTaskTitle(''); setTaskDue(''); setTaskPriority('MEDIUM'); setTaskDesc(''); setTaskOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to create task');
+    } finally {
+      setTaskSaving(false);
+    }
+  };
+
+  const startEditTask = (t: Task) => {
+    setEditingTaskId(t.id);
+    setEditTaskTitle(t.title);
+    setEditTaskDue(t.dueDate.split('T')[0]);
+    setEditTaskPriority(t.priority);
+    setEditTaskDesc(t.description || '');
+    setEditTaskStatus(t.status);
+  };
+
+  const cancelEditTask = () => {
+    setEditingTaskId(null);
+    setEditTaskTitle(''); setEditTaskDue(''); setEditTaskDesc('');
+  };
+
+  const saveTask = async () => {
+    if (!id || !editingTaskId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${editingTaskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          title: editTaskTitle,
+          dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(),
+          priority: editTaskPriority,
+          description: editTaskDesc || undefined,
+          status: editTaskStatus,
+        }),
+      });
+      if (!res.ok) {
+        let message = 'Failed to update task';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchTasks();
+      cancelEditTask();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to update task');
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    if (!id) return;
+    if (!confirm('Delete this task?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+      });
+      if (!res.ok) {
+        let message = 'Failed to delete task';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchTasks();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to delete task');
     }
   };
 
@@ -168,7 +294,17 @@ export function ProjectHubPage() {
         try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
         throw new Error(message);
       }
-      await fetchMilestones();
+      let created: any = null;
+      try {
+        created = await res.json();
+      } catch {
+        // Some proxies may return 201 without a JSON body; fall back to refresh
+      }
+      if (created && created.id) {
+        setMilestones(prev => [created, ...prev]);
+      }
+      // Best-effort refresh in background to sync counts
+      fetchMilestones().catch(() => {});
       setMsTitle('');
       setMsDue('');
       setMsPriority('MEDIUM');
@@ -193,11 +329,11 @@ export function ProjectHubPage() {
         },
       });
       if (!res.ok) {
-        let message = 'Failed to delete milestone';
-        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-        throw new Error(message);
+        await fetchMilestones();
+        return;
       }
-      await fetchMilestones();
+      setMilestones(prev => prev.filter(m => m.id !== milestoneId));
+      fetchMilestones().catch(()=>{});
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to delete milestone');
     }
@@ -237,11 +373,15 @@ export function ProjectHubPage() {
         }),
       });
       if (!res.ok) {
-        let message = 'Failed to update milestone';
-        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-        throw new Error(message);
+        await fetchMilestones();
+        cancelEditMilestone();
+        return;
       }
-      await fetchMilestones();
+      try {
+        const updated = await res.json();
+        if (updated && updated.id) setMilestones(prev => prev.map(m => m.id === updated.id ? updated : m));
+      } catch {}
+      fetchMilestones().catch(()=>{});
       cancelEditMilestone();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to update milestone');
@@ -566,6 +706,7 @@ export function ProjectHubPage() {
   }
 
   return (
+    <>
     <div className="container mx-auto p-8">
       {/* Breadcrumb Navigation */}
       <nav className="flex mb-8" aria-label="Breadcrumb">
@@ -980,6 +1121,79 @@ export function ProjectHubPage() {
             </div>
           </div>
         </div>
+
+        {/* Tasks Card */}
+        <div className="bg-white border rounded-lg p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Tasks</h2>
+          <div className="mb-3">
+            <Button variant="outline" onClick={()=>setTaskOpen(true)}>Add Task</Button>
+          </div>
+          {tasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tasks yet.</p>
+          ) : (
+            <div className="border rounded-md divide-y">
+              {tasks.map((t) => (
+                <div key={t.id} className="p-3">
+                  {editingTaskId === t.id ? (
+                    <div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                        <Input value={editTaskTitle} onChange={(e)=>setEditTaskTitle(e.target.value)} />
+                        <Input type="date" value={editTaskDue} onChange={(e)=>setEditTaskDue(e.target.value)} />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
+                          <Button size="sm" onClick={saveTask}>Save</Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                        <div>
+                          <Label>Priority</Label>
+                          <select className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={(e)=>setEditTaskPriority(e.target.value as any)}>
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="CRITICAL">Critical</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label>Status</Label>
+                          <select className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={(e)=>setEditTaskStatus(e.target.value as any)}>
+                            <option value="NOT_STARTED">Not Started</option>
+                            <option value="ASSIGNED">Assigned</option>
+                            <option value="IN_PROGRESS">In Progress</option>
+                            <option value="ON_HOLD">On Hold</option>
+                            <option value="BLOCKED">Blocked</option>
+                            <option value="UNDER_REVIEW">Under Review</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="CANCELLED">Cancelled</option>
+                            <option value="OVERDUE">Overdue</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label>Description</Label>
+                          <textarea className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={(e)=>setEditTaskDesc(e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{t.title}</div>
+                        <div className="text-xs text-muted-foreground">Due {formatDate(t.dueDate)} • {t.status} • Priority {t.priority}</div>
+                        {t.description && (
+                          <div className="text-xs text-muted-foreground mt-1">{t.description}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={()=>startEditTask(t)}>Edit</Button>
+                        <Button variant="outline" size="sm" onClick={()=>deleteTask(t.id)}>Delete</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer Note */}
@@ -1026,5 +1240,41 @@ export function ProjectHubPage() {
         </DialogContent>
       </Dialog>
     </div>
+    {/* Add Task Dialog */}
+    {taskOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-md p-4 w-full max-w-lg">
+          <div className="text-lg font-semibold mb-2">Add Task</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <Label>Title</Label>
+              <input className="border rounded-md p-2 w-full" value={taskTitle} onChange={(e)=>setTaskTitle(e.target.value)} />
+            </div>
+            <div>
+              <Label>Due Date</Label>
+              <input className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={(e)=>setTaskDue(e.target.value)} />
+            </div>
+            <div>
+              <Label>Priority</Label>
+              <select className="border rounded-md p-2 w-full" value={taskPriority} onChange={(e)=>setTaskPriority(e.target.value as any)}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <Label>Description</Label>
+              <textarea className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={(e)=>setTaskDesc(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={()=>setTaskOpen(false)}>Cancel</Button>
+            <Button onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

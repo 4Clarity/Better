@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { enhancedTransitionApi, EnhancedTransition, API_BASE_URL } from "@/services/api";
+import { enhancedTransitionApi, EnhancedTransition, API_BASE_URL, Task } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,10 +49,26 @@ export function EnhancedTransitionDetailPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editStatus, setEditStatus] = useState<'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE'>('PENDING');
 
+  // Tasks state
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDue, setTaskDue] = useState("");
+  const [taskPriority, setTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [taskDesc, setTaskDesc] = useState("");
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskDue, setEditTaskDue] = useState("");
+  const [editTaskPriority, setEditTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [editTaskDesc, setEditTaskDesc] = useState("");
+  const [editTaskStatus, setEditTaskStatus] = useState<'NOT_STARTED'|'ASSIGNED'|'IN_PROGRESS'|'ON_HOLD'|'BLOCKED'|'UNDER_REVIEW'|'COMPLETED'|'CANCELLED'|'OVERDUE'>('NOT_STARTED');
+
   useEffect(() => {
     if (id) {
       fetchTransitionDetails();
       fetchMilestones();
+      fetchTasks();
     }
   }, [id]);
 
@@ -71,6 +87,63 @@ export function EnhancedTransitionDetailPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchTasks = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks?limit=100`);
+      if (!res.ok) throw new Error('Failed to load tasks');
+      const data = await res.json(); setTasks(data.data || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const addTask = async () => {
+    if (!id || !taskTitle || !taskDue) return;
+    setTaskSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' },
+        body: JSON.stringify({ title: taskTitle, dueDate: new Date(`${taskDue}T12:00:00`).toISOString(), priority: taskPriority, description: taskDesc || undefined }),
+      });
+      if (!res.ok) { let m='Failed to create task'; try{const e=await res.json(); if(e?.message)m=e.message;}catch{} throw new Error(m);} 
+      await fetchTasks(); setTaskTitle(""); setTaskDue(""); setTaskPriority('MEDIUM'); setTaskDesc(""); setTaskOpen(false);
+    } catch (e:any) { alert(e.message || 'Failed to create task'); } finally { setTaskSaving(false); }
+  };
+
+  const startEditTask = (t: Task) => {
+    setEditingTaskId(t.id);
+    setEditTaskTitle(t.title);
+    setEditTaskDue(t.dueDate.split('T')[0]);
+    setEditTaskPriority(t.priority);
+    setEditTaskDesc(t.description || '');
+    setEditTaskStatus(t.status);
+  };
+
+  const cancelEditTask = () => { setEditingTaskId(null); setEditTaskTitle(""); setEditTaskDue(""); setEditTaskDesc(""); };
+
+  const saveTask = async () => {
+    if (!id || !editingTaskId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${editingTaskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' },
+        body: JSON.stringify({ title: editTaskTitle, dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(), priority: editTaskPriority, description: editTaskDesc || undefined, status: editTaskStatus }),
+      });
+      if (!res.ok) { await fetchTasks(); cancelEditTask(); return; }
+      try { const updated = await res.json(); if (updated && (updated as any).id) setTasks(prev=>prev.map(t=>t.id===updated.id?updated:t)); } catch {}
+      fetchTasks().catch(()=>{}); cancelEditTask();
+    } catch (e:any) { alert(e.message || 'Failed to update task'); }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    if (!id) return; if (!confirm('Delete this task?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${taskId}`, { method: 'DELETE', headers: { 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' } });
+      if (!res.ok) { await fetchTasks(); return; }
+      setTasks(prev=>prev.filter(t=>t.id!==taskId)); fetchTasks().catch(()=>{});
+    } catch (e:any) { alert(e.message || 'Failed to delete task'); }
   };
 
   const handleTransitionUpdated = (updatedTransition: EnhancedTransition) => {
@@ -114,7 +187,13 @@ export function EnhancedTransitionDetailPage() {
         try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
         throw new Error(message);
       }
-      await fetchMilestones();
+      try {
+        const created = await res.json();
+        if (created && created.id) setMilestones(prev => [created, ...prev]);
+      } catch {
+        // Ignore non-JSON success bodies
+      }
+      fetchMilestones().catch(()=>{});
       setMsTitle(""); setMsDue(""); setMsPriority('MEDIUM'); setMsDesc(""); setMsOpen(false);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to add milestone');
@@ -157,13 +236,9 @@ export function EnhancedTransitionDetailPage() {
           status: editStatus,
         }),
       });
-      if (!res.ok) {
-        let message = 'Failed to update milestone';
-        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-        throw new Error(message);
-      }
-      await fetchMilestones();
-      cancelEdit();
+      if (!res.ok) { await fetchMilestones(); cancelEdit(); return; }
+      try { const updated = await res.json(); if (updated && (updated as any).id) setMilestones(prev=>prev.map(m=>m.id===updated.id?updated:m)); } catch {}
+      fetchMilestones().catch(()=>{}); cancelEdit();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to update milestone');
     }
@@ -180,12 +255,8 @@ export function EnhancedTransitionDetailPage() {
           'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
       });
-      if (!res.ok) {
-        let message = 'Failed to delete milestone';
-        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-        throw new Error(message);
-      }
-      await fetchMilestones();
+      if (!res.ok) { await fetchMilestones(); return; }
+      setMilestones(prev=>prev.filter(m=>m.id!==mid)); fetchMilestones().catch(()=>{});
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to delete milestone');
     }

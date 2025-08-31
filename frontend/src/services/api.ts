@@ -125,6 +125,19 @@ export interface Milestone {
   updatedAt: string;
 }
 
+export interface Task {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueDate: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'NOT_STARTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'ON_HOLD' | 'BLOCKED' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE';
+  transitionId: string;
+  milestoneId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -134,6 +147,71 @@ export interface PaginatedResponse<T> {
     totalPages: number;
   };
 }
+
+// Tasks API
+export const taskApi = {
+  async getAll(transitionId: string, params?: {
+    status?: Task['status'];
+    priority?: Task['priority'];
+    page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc'|'desc';
+  }): Promise<PaginatedResponse<Task>> {
+    const url = new URL(`${API_BASE_URL}/transitions/${transitionId}/tasks`);
+    if (params) {
+      Object.entries(params).forEach(([k,v])=>{ if (v!==undefined && v!==null) url.searchParams.append(k, v.toString()); });
+    }
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.statusText}`);
+    return res.json();
+  },
+  async create(transitionId: string, data: Omit<Task,'id'|'createdAt'|'updatedAt'|'transitionId'>): Promise<Task> {
+    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': 'program_manager',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      let message = 'Failed to create task';
+      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+  async update(transitionId: string, taskId: string, data: Partial<Omit<Task,'id'|'createdAt'|'updatedAt'|'transitionId'>>): Promise<Task> {
+    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': 'program_manager',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      let message = 'Failed to update task';
+      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+      throw new Error(message);
+    }
+    return res.json();
+  },
+  async delete(transitionId: string, taskId: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/${taskId}`, {
+      method: 'DELETE',
+      headers: {
+        'x-user-role': 'program_manager',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+      },
+    });
+    if (!res.ok) {
+      let message = 'Failed to delete task';
+      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+      throw new Error(message);
+    }
+  },
+};
 
 // Business Operations API
 export const businessOperationApi = {
