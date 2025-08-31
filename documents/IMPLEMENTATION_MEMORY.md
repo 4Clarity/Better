@@ -173,6 +173,10 @@ if (error.code === 'P2003') {
   - Safe delete removes related audit logs first.
 - Registered routes in server under transitions prefix.
 
+### Startup Ordering and Health
+- Backend now waits for Postgres before applying Prisma schema (`nc db 5432` loop) to avoid race causing startup crashes and frontend “Failed to fetch”.
+- Added `/api/health` alias in addition to `/health` to ease proxy testing.
+
 ### Auth and Routing
 - Minimal RBAC guards (`pmOnly`) on protected routes accept either `AUTH_BYPASS=true` or `x-auth-bypass: true`, else verify JWT and require `program_manager` role.
 - Header toggle added to Layout to control `x-auth-bypass` during development.

@@ -2,7 +2,7 @@
 FROM node:18-alpine
 
 # Install OpenSSL for Prisma
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat netcat-openbsd
 
 # Set the working directory in the container
 WORKDIR /app
@@ -19,5 +19,5 @@ COPY . .
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
 
-# Run the app when the container launches (generate client and push schema)
-CMD ["sh", "-c", "npx prisma generate && npx prisma db push && npm run dev"]
+# Run the app when the container launches (wait for DB, generate client and push schema)
+CMD ["sh", "-c", "until nc -z db 5432; do echo 'waiting for db:5432'; sleep 2; done; npx prisma generate && npx prisma db push && npm run dev"]
