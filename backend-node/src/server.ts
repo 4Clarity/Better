@@ -76,5 +76,10 @@ export function buildServer() {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
 
+  // API health alias for convenience when testing behind proxies
+  server.get('/api/health', async (request, reply) => {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  });
+
   return server;
 }
