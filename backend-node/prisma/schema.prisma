@@ -183,6 +183,18 @@ enum PriorityLevel {
   CRITICAL
 }
 
+enum TaskStatus {
+  NOT_STARTED
+  ASSIGNED
+  IN_PROGRESS
+  ON_HOLD
+  BLOCKED
+  UNDER_REVIEW
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
 // Person Entity - Core individual profile
 model Person {
   id                        String    @id @default(uuid())
@@ -538,10 +550,33 @@ model Milestone {
   updatedAt    DateTime        @updatedAt
   transition   Transition      @relation(fields: [transitionId], references: [id], onDelete: Cascade)
   auditLogs    AuditLog[]
+  tasks        Task[]
 
   @@index([status])
   @@index([dueDate])
   @@index([transitionId])
+}
+
+model Task {
+  id           String      @id @default(cuid())
+  title        String
+  description  String?
+  dueDate      DateTime
+  priority     PriorityLevel @default(MEDIUM)
+  status       TaskStatus    @default(NOT_STARTED)
+  transitionId String
+  milestoneId  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  transition   Transition   @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+  milestone    Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  auditLogs    AuditLog[]
+
+  @@index([transitionId])
+  @@index([milestoneId])
+  @@index([status])
+  @@index([dueDate])
 }
 
 model AuditLog {

@@ -67,6 +67,8 @@ export function buildServer() {
   // Register nested milestone routes under transitions
   server.register(async function (server) {
     server.register(milestoneRoutes, { prefix: '/:transitionId/milestones' });
+    const taskRoutes = (await import('./modules/task/task.route')).default;
+    server.register(taskRoutes, { prefix: '/:transitionId/tasks' });
   }, { prefix: '/api/transitions' });
 
   // Health check endpoint

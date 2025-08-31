@@ -163,7 +163,15 @@ if (error.code === 'P2003') {
   - Create: keeps transition date window validation; added idempotency guard (same transitionId + title + dueDate returns existing instead of duplicating).
   - Delete: removes audit logs first to avoid FK errors, then deletes by milestone id.
   - Update/Get: operate by milestone id; transition fetch is optional and only used for dueDate range validation.
-  - Bulk delete: deletes by ids and clears related audit logs.
+- Bulk delete: deletes by ids and clears related audit logs.
+
+#### Tasks (new)
+- Added Task entity to Prisma with enums and relations (`prisma/schema.prisma`).
+- Created task service, controller, and routes under `/api/transitions/:transitionId/tasks`:
+  - Create with idempotency guard and due date validation against Transition.
+  - List with filters and pagination; Update/Delete by task id.
+  - Safe delete removes related audit logs first.
+- Registered routes in server under transitions prefix.
 
 ### Auth and Routing
 - Minimal RBAC guards (`pmOnly`) on protected routes accept either `AUTH_BYPASS=true` or `x-auth-bypass: true`, else verify JWT and require `program_manager` role.
