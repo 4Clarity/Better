@@ -220,3 +220,6 @@ The user management system is production-ready with proper error handling, valid
 
 ### Operations
 - Restarted stack via `docker-compose up -d --build`. Synced DB schema with `prisma db push`. Verified backend `/api/health` and frontend via Traefik.
+
+### Documentation
+- README updated with a Testing section covering prerequisites (Traefik, /etc/hosts), auth bypass in dev, how to run Cypress (headless/interactive), single spec runs, and locations of specs. See `README.md#5-testing`.

@@ -218,4 +218,60 @@ This section documents the key challenges encountered during the setup of the lo
 -   **Solution**: 
     -   Created proper Prisma schema with `Transition` and `Milestone` models
     -   Ran `npx prisma db push --accept-data-loss` to synchronize schema with database
+
+## 5. Testing
+
+This project uses Cypress for end-to-end (E2E) testing of the UI and integrated backend flows.
+
+### Prerequisites
+- Ensure the stack is running behind Traefik so the hostnames resolve correctly:
+  - `docker-compose up -d --build`
+- Ensure these hostnames are present in `/etc/hosts`:
+  - `127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost`
+
+### Auth Bypass in Dev
+- The app supports an “Auth Bypass” development mode controlled via a UI toggle (in the left sidebar header). When ON, protected routes accept the header `x-auth-bypass: true`.
+- Cypress tests set this via localStorage automatically in helpers, but you can toggle it in the UI when testing manually.
+
+### Run Cypress Tests
+From the `frontend/` folder:
+
+```bash
+cd frontend
+# Headless run (CI-like)
+npm run test:e2e:headless
+
+# Standard run
+npm run test:e2e
+
+# Open Cypress runner (interactive)
+npm run test:e2e:open
+```
+
+By default, tests assume:
+- Frontend is at `http://tip.localhost`
+- Backend API is at `http://api.tip.localhost/api`
+(Configured in `frontend/cypress.config.ts`.)
+
+### Useful Tips
+- Run a single spec by using Cypress’s built-in pattern matching in the runner, or run headless with `--spec`:
+  ```bash
+  npx cypress run --spec cypress/e2e/transitions/project_hub_milestones_crud.cy.ts
+  ```
+- To view backend traffic during tests, tail logs: `docker-compose logs -f backend-node`.
+- If you see foreign key errors in tests, ensure the DB schema is up-to-date: inside the backend container run `npx prisma db push`.
+
+### Where Are the Tests?
+- E2E specs live under `frontend/cypress/e2e/` and include:
+  - Smoke tests (stack health)
+  - Security (User Management) views
+  - Transitions overview
+  - Milestones CRUD (Project Hub and Enhanced Detail)
+  - Tasks CRUD on Enhanced Detail (incl. Subtasks and Milestone association)
+  - Planning View tree operations (add, indent/outdent, reorder)
+  - Auth Bypass toggle checks
+
+### Test Plan
+- See the full test plan at `documents/planning/epic-0-1-cypress-test-plan.md` for coverage goals, selectors guidance, CI strategy, and a traceability matrix outline.
+
     -   Implemented proper database connection handling in the application
