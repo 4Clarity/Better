@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { serializerCompiler, validatorCompiler } from 'fastify-zod';
 import { transitionSchemas } from './modules/transition/transition-raw.service';
 import { milestoneSchemas } from './modules/milestone/milestone.service';
+import { taskSchemas } from './modules/task/task.service';
 import transitionRoutes from './modules/transition/transition-raw.route';
 import milestoneRoutes from './modules/milestone/milestone.route';
 import businessOperationRoutes from './modules/business-operation/business-operation.route';
@@ -36,7 +37,7 @@ export function buildServer() {
   server.setSerializerCompiler(serializerCompiler);
 
   // Add schemas to the server instance
-  for (const schema of [...transitionSchemas, ...milestoneSchemas]) {
+  for (const schema of [...transitionSchemas, ...milestoneSchemas, ...taskSchemas]) {
     server.addSchema(schema);
   }
 
