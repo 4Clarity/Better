@@ -530,7 +530,7 @@ export function EnhancedTransitionDetailPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Milestones</CardTitle>
-              <Button variant="outline" onClick={() => setMsOpen(true)}>Add Milestone</Button>
+              <Button data-testid="milestones-add-btn" variant="outline" onClick={() => setMsOpen(true)}>Add Milestone</Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -543,17 +543,17 @@ export function EnhancedTransitionDetailPage() {
                     {editingId === m.id ? (
                       <div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                          <input className="border rounded-md p-2" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
-                          <input className="border rounded-md p-2" type="date" value={editDue} onChange={e=>setEditDue(e.target.value)} />
+                          <input data-testid="milestone-edit-title" className="border rounded-md p-2" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
+                          <input data-testid="milestone-edit-date" className="border rounded-md p-2" type="date" value={editDue} onChange={e=>setEditDue(e.target.value)} />
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
-                            <Button size="sm" onClick={saveMilestone}>Save</Button>
+                            <Button data-testid="milestone-cancel-edit" variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
+                            <Button data-testid="milestone-save-edit" size="sm" onClick={saveMilestone}>Save</Button>
                           </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
                           <div>
                             <div className="text-xs font-medium mb-1">Priority</div>
-                            <select className="border rounded-md p-2 w-full" value={editPriority} onChange={e=>setEditPriority(e.target.value as any)}>
+                            <select data-testid="milestone-edit-priority" className="border rounded-md p-2 w-full" value={editPriority} onChange={e=>setEditPriority(e.target.value as any)}>
                               <option value="LOW">Low</option>
                               <option value="MEDIUM">Medium</option>
                               <option value="HIGH">High</option>
@@ -562,7 +562,7 @@ export function EnhancedTransitionDetailPage() {
                           </div>
                           <div>
                             <div className="text-xs font-medium mb-1">Status</div>
-                            <select className="border rounded-md p-2 w-full" value={editStatus} onChange={e=>setEditStatus(e.target.value as any)}>
+                            <select data-testid="milestone-edit-status" className="border rounded-md p-2 w-full" value={editStatus} onChange={e=>setEditStatus(e.target.value as any)}>
                               <option value="PENDING">Not Started</option>
                               <option value="IN_PROGRESS">In Progress</option>
                               <option value="BLOCKED">Blocked</option>
@@ -572,7 +572,7 @@ export function EnhancedTransitionDetailPage() {
                           </div>
                           <div>
                             <div className="text-xs font-medium mb-1">Description</div>
-                            <textarea className="border rounded-md p-2 w-full" rows={2} value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
+                            <textarea data-testid="milestone-edit-desc" className="border rounded-md p-2 w-full" rows={2} value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
                           </div>
                         </div>
                       </div>
@@ -586,8 +586,8 @@ export function EnhancedTransitionDetailPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => startEdit(m)}>Edit</Button>
-                          <Button variant="outline" size="sm" onClick={() => deleteMilestone(m.id)}>Delete</Button>
+                          <Button data-testid="edit-milestone-btn" variant="outline" size="sm" onClick={() => startEdit(m)}>Edit</Button>
+                          <Button data-testid="delete-milestone-btn" variant="outline" size="sm" onClick={() => deleteMilestone(m.id)}>Delete</Button>
                         </div>
                       </div>
                     )}
@@ -603,7 +603,7 @@ export function EnhancedTransitionDetailPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Tasks</CardTitle>
-              <Button variant="outline" onClick={() => setTaskOpen(true)}>Add Task</Button>
+              <Button data-testid="tasks-add-btn" variant="outline" onClick={() => setTaskOpen(true)}>Add Task</Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -616,17 +616,17 @@ export function EnhancedTransitionDetailPage() {
                     {editingTaskId === t.id ? (
                       <div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                          <input className="border rounded-md p-2" value={editTaskTitle} onChange={e=>setEditTaskTitle(e.target.value)} />
-                          <input className="border rounded-md p-2" type="date" value={editTaskDue} onChange={e=>setEditTaskDue(e.target.value)} />
+                          <input data-testid="edit-task-title" className="border rounded-md p-2" value={editTaskTitle} onChange={e=>setEditTaskTitle(e.target.value)} />
+                          <input data-testid="edit-task-date" className="border rounded-md p-2" type="date" value={editTaskDue} onChange={e=>setEditTaskDue(e.target.value)} />
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
-                            <Button size="sm" onClick={saveTask}>Save</Button>
+                            <Button data-testid="cancel-task-btn" variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
+                            <Button data-testid="save-task-btn" size="sm" onClick={saveTask}>Save</Button>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
                           <div>
                             <div className="text-xs font-medium mb-1">Priority</div>
-                            <select className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={e=>setEditTaskPriority(e.target.value as any)}>
+                            <select data-testid="edit-task-priority" className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={e=>setEditTaskPriority(e.target.value as any)}>
                               <option value="LOW">Low</option>
                               <option value="MEDIUM">Medium</option>
                               <option value="HIGH">High</option>
@@ -635,7 +635,7 @@ export function EnhancedTransitionDetailPage() {
                           </div>
                           <div>
                             <div className="text-xs font-medium mb-1">Status</div>
-                            <select className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={e=>setEditTaskStatus(e.target.value as any)}>
+                            <select data-testid="edit-task-status" className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={e=>setEditTaskStatus(e.target.value as any)}>
                               <option value="NOT_STARTED">Not Started</option>
                               <option value="ASSIGNED">Assigned</option>
                               <option value="IN_PROGRESS">In Progress</option>
@@ -658,7 +658,7 @@ export function EnhancedTransitionDetailPage() {
                           </div>
                           <div>
                             <div className="text-xs font-medium mb-1">Description</div>
-                            <textarea className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={e=>setEditTaskDesc(e.target.value)} />
+                            <textarea data-testid="edit-task-desc" className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={e=>setEditTaskDesc(e.target.value)} />
                           </div>
                         </div>
                       </div>
@@ -672,9 +672,9 @@ export function EnhancedTransitionDetailPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => startEditTask(t)}>Edit</Button>
-                          <Button variant="outline" size="sm" onClick={() => { setSubtaskParentId(t.id); setTaskOpen(true); }}>Add Subtask</Button>
-                          <Button variant="outline" size="sm" onClick={() => deleteTask(t.id)}>Delete</Button>
+                          <Button data-testid="edit-task-btn" variant="outline" size="sm" onClick={() => startEditTask(t)}>Edit</Button>
+                          <Button data-testid="add-subtask-btn" variant="outline" size="sm" onClick={() => { setSubtaskParentId(t.id); setTaskOpen(true); }}>Add Subtask</Button>
+                          <Button data-testid="delete-task-btn" variant="outline" size="sm" onClick={() => deleteTask(t.id)}>Delete</Button>
                         </div>
                       </div>
                     )}
@@ -770,29 +770,38 @@ export function EnhancedTransitionDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
               <div className="text-xs font-medium mb-1">Title</div>
-              <input className="border rounded-md p-2 w-full" value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} />
+              <input data-testid="task-title" className="border rounded-md p-2 w-full" value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} />
             </div>
             <div>
               <div className="text-xs font-medium mb-1">Due Date</div>
-              <input className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={e=>setTaskDue(e.target.value)} />
+              <input data-testid="task-date" className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={e=>setTaskDue(e.target.value)} />
             </div>
             <div>
               <div className="text-xs font-medium mb-1">Priority</div>
-              <select className="border rounded-md p-2 w-full" value={taskPriority} onChange={e=>setTaskPriority(e.target.value as any)}>
+              <select data-testid="task-priority" className="border rounded-md p-2 w-full" value={taskPriority} onChange={e=>setTaskPriority(e.target.value as any)}>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
                 <option value="CRITICAL">Critical</option>
               </select>
             </div>
+            <div>
+              <div className="text-xs font-medium mb-1">Milestone</div>
+              <select data-testid="task-milestone" className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={e=>setTaskMilestoneId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {milestones.map(m => (
+                  <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
+              </select>
+            </div>
             <div className="md:col-span-2">
               <div className="text-xs font-medium mb-1">Description</div>
-              <textarea className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={e=>setTaskDesc(e.target.value)} />
+              <textarea data-testid="task-desc" className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={e=>setTaskDesc(e.target.value)} />
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={()=>{ setTaskOpen(false); setSubtaskParentId(null); }}>Cancel</Button>
-            <Button onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
+            <Button data-testid="task-cancel" variant="outline" onClick={()=>{ setTaskOpen(false); setSubtaskParentId(null); }}>Cancel</Button>
+            <Button data-testid="task-create" onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
           </div>
         </div>
       </div>

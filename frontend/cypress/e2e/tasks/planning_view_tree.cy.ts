@@ -15,36 +15,35 @@ describe('Planning View: Task Tree operations', () => {
     cy.visit(`/transitions/${transition.id}/tasks-milestones`)
     cy.contains('Tasks & Milestones Planning').should('be.visible')
     cy.contains('Unassigned Tasks').parent().within(()=>{
-      cy.contains('Add Task').click()
+      cy.get('[data-testid="planning-add-root-task-btn"]').click()
     })
-    cy.get('input').filter(':visible').first().type('Root A')
-    cy.get('input[type="date"]').filter(':visible').first().type(due)
-    cy.contains('Create Task').click()
+    cy.get('[data-testid="task-title"]').type('Root A')
+    cy.get('[data-testid="task-date"]').type(due)
+    cy.get('[data-testid="task-create"]').click()
     cy.contains('Root A').should('be.visible')
 
     // Add another root
     cy.contains('Unassigned Tasks').parent().within(()=>{
-      cy.contains('Add Task').click()
+      cy.get('[data-testid="planning-add-root-task-btn"]').click()
     })
-    cy.get('input').filter(':visible').first().type('Root B')
-    cy.get('input[type="date"]').filter(':visible').first().type(due)
-    cy.contains('Create Task').click()
+    cy.get('[data-testid="task-title"]').type('Root B')
+    cy.get('[data-testid="task-date"]').type(due)
+    cy.get('[data-testid="task-create"]').click()
     cy.contains('Root B').should('be.visible')
 
     // Indent Root B under Root A (becomes subtask)
     cy.contains('Root B').parents('[class*=border]').first().within(()=>{
-      cy.contains('Indent').click()
+      cy.get('[data-testid="indent-btn"]').click()
     })
     // Move subtask down/up operations
     cy.contains('Root B').parents('[class*=border]').first().within(()=>{
-      cy.contains('Up').should('be.visible')
+      cy.get('[data-testid="up-btn"]').should('be.visible')
     })
 
     // Outdent back to root
     cy.contains('Root B').parents('[class*=border]').first().within(()=>{
-      cy.contains('Outdent').click()
+      cy.get('[data-testid="outdent-btn"]').click()
     })
     cy.contains('Root B').should('be.visible')
   })
 })
-

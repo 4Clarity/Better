@@ -19,41 +19,39 @@ describe('Enhanced Detail: Tasks CRUD + Subtasks + Milestone', () => {
   it('creates a task with milestone, adds a subtask, edits and deletes', () => {
     cy.visit(`/enhanced-transitions/${transition.id}`)
     cy.contains('Tasks').should('be.visible')
-    cy.contains('Add Task').click()
-    cy.get('input[type="text"]').filter(':visible').first().type('Prepare Documentation')
-    cy.get('input[type="date"]').filter(':visible').first().type(due.toISOString().split('T')[0])
-    cy.get('select').filter(':visible').first().select('Medium')
-    // Milestone dropdown exists later in the form; pick Phase 1
-    cy.get('select').filter(':visible').eq(1).select('Phase 1')
-    cy.contains('Create Task').click()
+    cy.get('[data-testid="tasks-add-btn"]').click()
+    cy.get('[data-testid="task-title"]').type('Prepare Documentation')
+    cy.get('[data-testid="task-date"]').type(due.toISOString().split('T')[0])
+    cy.get('[data-testid="task-priority"]').select('MEDIUM')
+    cy.get('[data-testid="task-milestone"]').select('Phase 1')
+    cy.get('[data-testid="task-create"]').click()
     cy.contains('Prepare Documentation').should('be.visible')
 
     // Add subtask
     cy.contains('Prepare Documentation').parents('[class*=p-3]').within(() => {
-      cy.contains('Add Subtask').click()
+      cy.get('[data-testid="add-subtask-btn"]').click()
     })
-    cy.get('input[type="text"]').filter(':visible').first().type('Gather Requirements')
-    cy.get('input[type="date"]').filter(':visible').first().type(due.toISOString().split('T')[0])
-    cy.contains('Create Task').click()
+    cy.get('[data-testid="task-title"]').type('Gather Requirements')
+    cy.get('[data-testid="task-date"]').type(due.toISOString().split('T')[0])
+    cy.get('[data-testid="task-create"]').click()
     cy.contains('Gather Requirements').should('be.visible')
 
     // Edit task
     cy.contains('Prepare Documentation').parents('[class*=p-3]').within(() => {
-      cy.contains('Edit').click()
+      cy.get('[data-testid="edit-task-btn"]').click()
     })
-    cy.get('input[type="text"]').filter(':visible').first().clear().type('Prepare Docs v2')
-    cy.get('select').filter(':visible').first().select('High')
-    cy.get('select').filter(':visible').eq(1).select('In Progress')
-    cy.get('select').filter(':visible').eq(2).select('Phase 1')
-    cy.contains('Save').click()
+    cy.get('[data-testid="edit-task-title"]').clear().type('Prepare Docs v2')
+    cy.get('[data-testid="edit-task-priority"]').select('HIGH')
+    cy.get('[data-testid="edit-task-status"]').select('IN_PROGRESS')
+    cy.get('[data-testid="edit-task-milestone"]').select('Phase 1')
+    cy.get('[data-testid="save-task-btn"]').click()
     cy.contains('Prepare Docs v2').should('be.visible')
 
     // Delete
     cy.contains('Prepare Docs v2').parents('[class*=p-3]').within(() => {
-      cy.contains('Delete').click()
+      cy.get('[data-testid="delete-task-btn"]').click()
     })
     cy.on('window:confirm', () => true)
     cy.contains('Prepare Docs v2').should('not.exist')
   })
 })
-

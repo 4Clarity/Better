@@ -168,7 +168,7 @@ export function TasksAndMilestonesPage() {
         <div className="space-y-6">
           {/* Unassigned tasks (roots without milestone) */}
           <div className="bg-white border rounded-md">
-            <div className="p-3 flex items-center justify-between border-b"><div className="font-medium">Unassigned Tasks</div><Button variant="outline" size="sm" onClick={()=>openAddFor(undefined, undefined)}>Add Task</Button></div>
+            <div className="p-3 flex items-center justify-between border-b"><div className="font-medium">Unassigned Tasks</div><Button data-testid="planning-add-root-task-btn" variant="outline" size="sm" onClick={()=>openAddFor(undefined, undefined)}>Add Task</Button></div>
             <div className="p-2">
               <TaskList nodes={tree.filter(t=>!t.milestoneId)} onMoveUp={moveUp} onMoveDown={moveDown} onIndent={indent} onOutdent={outdent} onAddSubtask={(n)=>openAddFor(n, undefined)} />
             </div>
@@ -177,7 +177,7 @@ export function TasksAndMilestonesPage() {
           {/* Milestone groups */}
           {milestones.map(m => (
             <div key={m.id} className="bg-white border rounded-md">
-              <div className="p-3 flex items-center justify-between border-b"><div className="font-medium">Milestone: {m.title}</div><Button variant="outline" size="sm" onClick={()=>openAddFor(undefined, m)}>Add Task</Button></div>
+              <div className="p-3 flex items-center justify-between border-b"><div className="font-medium">Milestone: {m.title}</div><Button data-testid="planning-add-milestone-task-btn" variant="outline" size="sm" onClick={()=>openAddFor(undefined, m)}>Add Task</Button></div>
               <div className="p-2">
                 <TaskList nodes={tree.filter(t=>t.milestoneId===m.id)} onMoveUp={moveUp} onMoveDown={moveDown} onIndent={indent} onOutdent={outdent} onAddSubtask={(n)=>openAddFor(n, m)} />
               </div>
@@ -193,15 +193,15 @@ export function TasksAndMilestonesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               <div>
                 <Label>Title</Label>
-                <Input value={addTitle} onChange={(e)=>setAddTitle(e.target.value)} placeholder="Task title" />
+                <Input data-testid="task-title" value={addTitle} onChange={(e)=>setAddTitle(e.target.value)} placeholder="Task title" />
               </div>
               <div>
                 <Label>Due Date</Label>
-                <Input type="date" value={addDue} onChange={(e)=>setAddDue(e.target.value)} />
+                <Input data-testid="task-date" type="date" value={addDue} onChange={(e)=>setAddDue(e.target.value)} />
               </div>
               <div>
                 <Label>Priority</Label>
-                <select className="border rounded-md p-2 w-full" value={addPriority} onChange={(e)=>setAddPriority(e.target.value as any)}>
+                <select data-testid="task-priority" className="border rounded-md p-2 w-full" value={addPriority} onChange={(e)=>setAddPriority(e.target.value as any)}>
                   <option value="LOW">Low</option>
                   <option value="MEDIUM">Medium</option>
                   <option value="HIGH">High</option>
@@ -210,7 +210,7 @@ export function TasksAndMilestonesPage() {
               </div>
               <div>
                 <Label>Milestone</Label>
-                <select className="border rounded-md p-2 w-full" value={addMilestoneId || ''} onChange={(e)=>setAddMilestoneId(e.target.value || undefined)}>
+                <select data-testid="task-milestone" className="border rounded-md p-2 w-full" value={addMilestoneId || ''} onChange={(e)=>setAddMilestoneId(e.target.value || undefined)}>
                   <option value="">Unassigned</option>
                   {milestones.map(m => (
                     <option key={m.id} value={m.id}>{m.title}</option>
@@ -252,11 +252,11 @@ function TaskList({ nodes, onMoveUp, onMoveDown, onIndent, onOutdent, onAddSubta
               <span className="text-xs text-muted-foreground">Due {new Date(n.dueDate).toLocaleDateString()} • {n.status} • {n.priority}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={()=>onMoveUp(n.parentTaskId ?? null, idx, n)}>Up</Button>
-              <Button variant="outline" size="sm" onClick={()=>onMoveDown(n.parentTaskId ?? null, idx, n)}>Down</Button>
-              <Button variant="outline" size="sm" onClick={()=>onIndent(n.parentTaskId ?? null, idx, n, nodes)}>Indent</Button>
-              <Button variant="outline" size="sm" onClick={()=>onOutdent(n)}>Outdent</Button>
-              <Button variant="outline" size="sm" onClick={()=>onAddSubtask(n)}>Add Subtask</Button>
+              <Button data-testid="up-btn" variant="outline" size="sm" onClick={()=>onMoveUp(n.parentTaskId ?? null, idx, n)}>Up</Button>
+              <Button data-testid="down-btn" variant="outline" size="sm" onClick={()=>onMoveDown(n.parentTaskId ?? null, idx, n)}>Down</Button>
+              <Button data-testid="indent-btn" variant="outline" size="sm" onClick={()=>onIndent(n.parentTaskId ?? null, idx, n, nodes)}>Indent</Button>
+              <Button data-testid="outdent-btn" variant="outline" size="sm" onClick={()=>onOutdent(n)}>Outdent</Button>
+              <Button data-testid="add-subtask-btn" variant="outline" size="sm" onClick={()=>onAddSubtask(n)}>Add Subtask</Button>
             </div>
           </div>
           {n.children && n.children.length > 0 && (

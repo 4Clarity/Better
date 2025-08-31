@@ -1,5 +1,6 @@
 import React, { useState, useEffect, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import tipLogo from '@/assets/tip-logo-blue.svg';
 
 interface LayoutProps {
   children: ReactNode;
@@ -182,9 +183,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className={`flex items-center space-x-2 transition-all duration-300 ${isSidebarCollapsed ? 'md:opacity-0 md:w-0 md:overflow-hidden' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 19h12" />
-            </svg>
+            <img src={tipLogo} alt="TIP Logo" className="w-8 h-8" />
             <span className="text-xl font-bold">TIP</span>
           </div>
           

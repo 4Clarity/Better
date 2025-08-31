@@ -956,7 +956,7 @@ export function ProjectHubPage() {
             <h3 className="text-lg font-semibold mb-2">Milestones</h3>
             {/* Add Milestone Dialog Trigger */}
             <div className="mb-4">
-              <Button variant="outline" onClick={() => setMsDialogOpen(true)}>Add Milestone</Button>
+              <Button data-testid="milestones-add-btn" variant="outline" onClick={() => setMsDialogOpen(true)}>Add Milestone</Button>
             </div>
             <Dialog open={msDialogOpen} onOpenChange={setMsDialogOpen}>
               <DialogContent>
@@ -1131,7 +1131,7 @@ export function ProjectHubPage() {
         <div className="bg-white border rounded-lg p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Tasks</h2>
           <div className="mb-3">
-            <Button variant="outline" onClick={()=>setTaskOpen(true)}>Add Task</Button>
+            <Button data-testid="tasks-add-btn" variant="outline" onClick={()=>setTaskOpen(true)}>Add Task</Button>
           </div>
           {tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No tasks yet.</p>
@@ -1142,17 +1142,17 @@ export function ProjectHubPage() {
                   {editingTaskId === t.id ? (
                     <div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                        <Input value={editTaskTitle} onChange={(e)=>setEditTaskTitle(e.target.value)} />
-                        <Input type="date" value={editTaskDue} onChange={(e)=>setEditTaskDue(e.target.value)} />
+                        <Input data-testid="edit-task-title" value={editTaskTitle} onChange={(e)=>setEditTaskTitle(e.target.value)} />
+                        <Input data-testid="edit-task-date" type="date" value={editTaskDue} onChange={(e)=>setEditTaskDue(e.target.value)} />
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
-                          <Button size="sm" onClick={saveTask}>Save</Button>
+                          <Button data-testid="cancel-task-btn" variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
+                          <Button data-testid="save-task-btn" size="sm" onClick={saveTask}>Save</Button>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
                         <div>
                           <Label>Priority</Label>
-                          <select className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={(e)=>setEditTaskPriority(e.target.value as any)}>
+                          <select data-testid="edit-task-priority" className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={(e)=>setEditTaskPriority(e.target.value as any)}>
                             <option value="LOW">Low</option>
                             <option value="MEDIUM">Medium</option>
                             <option value="HIGH">High</option>
@@ -1161,7 +1161,7 @@ export function ProjectHubPage() {
                         </div>
                         <div>
                           <Label>Status</Label>
-                          <select className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={(e)=>setEditTaskStatus(e.target.value as any)}>
+                          <select data-testid="edit-task-status" className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={(e)=>setEditTaskStatus(e.target.value as any)}>
                             <option value="NOT_STARTED">Not Started</option>
                             <option value="ASSIGNED">Assigned</option>
                             <option value="IN_PROGRESS">In Progress</option>
@@ -1175,7 +1175,7 @@ export function ProjectHubPage() {
                         </div>
                         <div>
                           <Label>Milestone</Label>
-                          <select className="border rounded-md p-2 w-full" value={editTaskMilestoneId} onChange={(e)=>setEditTaskMilestoneId(e.target.value)}>
+                          <select data-testid="edit-task-milestone" className="border rounded-md p-2 w-full" value={editTaskMilestoneId} onChange={(e)=>setEditTaskMilestoneId(e.target.value)}>
                             <option value="">Unassigned</option>
                             {milestones.map(m => (
                               <option key={m.id} value={m.id}>{m.title}</option>
@@ -1184,7 +1184,7 @@ export function ProjectHubPage() {
                         </div>
                         <div>
                           <Label>Description</Label>
-                          <textarea className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={(e)=>setEditTaskDesc(e.target.value)} />
+                          <textarea data-testid="edit-task-desc" className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={(e)=>setEditTaskDesc(e.target.value)} />
                         </div>
                       </div>
                     </div>
@@ -1198,8 +1198,8 @@ export function ProjectHubPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={()=>startEditTask(t)}>Edit</Button>
-                        <Button variant="outline" size="sm" onClick={()=>deleteTask(t.id)}>Delete</Button>
+                        <Button data-testid="edit-task-btn" variant="outline" size="sm" onClick={()=>startEditTask(t)}>Edit</Button>
+                        <Button data-testid="delete-task-btn" variant="outline" size="sm" onClick={()=>deleteTask(t.id)}>Delete</Button>
                       </div>
                     </div>
                   )}
@@ -1262,15 +1262,15 @@ export function ProjectHubPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
               <Label>Title</Label>
-              <input className="border rounded-md p-2 w-full" value={taskTitle} onChange={(e)=>setTaskTitle(e.target.value)} />
+              <input data-testid="task-title" className="border rounded-md p-2 w-full" value={taskTitle} onChange={(e)=>setTaskTitle(e.target.value)} />
             </div>
             <div>
               <Label>Due Date</Label>
-              <input className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={(e)=>setTaskDue(e.target.value)} />
+              <input data-testid="task-date" className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={(e)=>setTaskDue(e.target.value)} />
             </div>
             <div>
               <Label>Priority</Label>
-              <select className="border rounded-md p-2 w-full" value={taskPriority} onChange={(e)=>setTaskPriority(e.target.value as any)}>
+              <select data-testid="task-priority" className="border rounded-md p-2 w-full" value={taskPriority} onChange={(e)=>setTaskPriority(e.target.value as any)}>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
@@ -1279,7 +1279,7 @@ export function ProjectHubPage() {
             </div>
             <div>
               <Label>Milestone</Label>
-              <select className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={(e)=>setTaskMilestoneId(e.target.value)}>
+              <select data-testid="task-milestone" className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={(e)=>setTaskMilestoneId(e.target.value)}>
                 <option value="">Unassigned</option>
                 {milestones.map(m => (
                   <option key={m.id} value={m.id}>{m.title}</option>
@@ -1288,12 +1288,12 @@ export function ProjectHubPage() {
             </div>
             <div className="md:col-span-2">
               <Label>Description</Label>
-              <textarea className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={(e)=>setTaskDesc(e.target.value)} />
+              <textarea data-testid="task-desc" className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={(e)=>setTaskDesc(e.target.value)} />
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={()=>setTaskOpen(false)}>Cancel</Button>
-            <Button onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
+            <Button data-testid="task-cancel" variant="outline" onClick={()=>setTaskOpen(false)}>Cancel</Button>
+            <Button data-testid="task-create" onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
           </div>
         </div>
       </div>

@@ -15,30 +15,27 @@ describe('Project Hub: Milestones CRUD', () => {
   it('creates, edits, and deletes a milestone', () => {
     cy.visit(`/transitions/${transition.id}`)
     cy.contains('Milestones').should('be.visible')
-    cy.contains('Add Milestone').click()
-
-    cy.get('input[type="text"], input').filter(':visible').first().type('Kickoff Meeting')
-    cy.get('input[type="date"]').filter(':visible').first().type(inSeven.toISOString().split('T')[0])
-    cy.get('select').filter(':visible').first().select('Medium')
-    cy.get('textarea').filter(':visible').first().type('Initial transition kickoff')
-    cy.contains('Create Milestone').click()
+    cy.get('[data-testid="milestones-add-btn"]').click()
+    cy.get('[data-testid="milestone-title"]').type('Kickoff Meeting')
+    cy.get('[data-testid="milestone-date"]').type(inSeven.toISOString().split('T')[0])
+    cy.get('[data-testid="milestone-desc"]').type('Initial transition kickoff')
+    cy.get('[data-testid="milestone-create"]').click()
 
     cy.contains('Kickoff Meeting').should('be.visible')
 
     // Edit inline
     cy.contains('Kickoff Meeting').parents('[class*=p-3]').within(() => {
-      cy.contains('Edit').click()
+      cy.get('[data-testid="edit-milestone-btn"]').click()
     })
-    cy.get('input[type="text"]').filter(':visible').first().clear().type('Kickoff Meeting - Updated')
-    cy.contains('Save').click()
+    cy.get('[data-testid="milestone-edit-title"]').clear().type('Kickoff Meeting - Updated')
+    cy.get('[data-testid="milestone-save-edit"]').click()
     cy.contains('Kickoff Meeting - Updated').should('be.visible')
 
     // Delete
     cy.contains('Kickoff Meeting - Updated').parents('[class*=p-3]').within(() => {
-      cy.contains('Delete').click()
+      cy.get('[data-testid="delete-milestone-btn"]').click()
     })
     cy.on('window:confirm', () => true)
     cy.contains('Kickoff Meeting - Updated').should('not.exist')
   })
 })
-
