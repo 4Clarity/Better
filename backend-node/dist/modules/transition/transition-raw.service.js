@@ -14,10 +14,14 @@ const fastify_zod_1 = require("fastify-zod");
 const prisma = new client_1.PrismaClient();
 // Simple schemas matching current database
 const createTransitionSchema = zod_1.z.object({
-    contractName: zod_1.z.string().min(1, "Contract name is required").max(255),
-    contractNumber: zod_1.z.string().min(1, "Contract number is required").max(100),
+    // Allow either explicit contract fields or a contractId to derive them
+    contractId: zod_1.z.string().optional(),
+    contractName: zod_1.z.string().min(1, "Contract name is required").max(255).optional(),
+    contractNumber: zod_1.z.string().min(1, "Contract number is required").max(100).optional(),
     startDate: zod_1.z.string().datetime(),
     endDate: zod_1.z.string().datetime(),
+}).refine((val) => !!val.contractId || (!!val.contractName && !!val.contractNumber), {
+    message: 'Provide either contractId or both contractName and contractNumber',
 });
 const updateTransitionSchema = zod_1.z.object({
     contractName: zod_1.z.string().min(1).max(255).optional(),
@@ -75,12 +79,32 @@ async function createTransition(data) {
         throw new Error('End date must be after start date');
     }
     try {
+        // If contractId provided, fetch and derive contract fields and validate timeframe
+        let contractId = null;
+        let contractName = data.contractName ?? null;
+        let contractNumber = data.contractNumber ?? null;
+        if (data.contractId) {
+            const contract = await prisma.contract.findUnique({
+                where: { id: data.contractId },
+                include: { businessOperation: true },
+            });
+            if (!contract) {
+                throw new Error('Contract not found');
+            }
+            contractId = contract.id;
+            contractName = contract.contractName;
+            contractNumber = contract.contractNumber;
+            // Validate within contract timeframe
+            if (startDate < contract.startDate || endDate > contract.endDate) {
+                throw new Error('Transition dates must be within contract timeframe');
+            }
+        }
         const id = `clz${generateCuid()}`;
         const now = new Date();
         const result = await prisma.$executeRaw `
       INSERT INTO "Transition" 
-      (id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt")
-      VALUES (${id}, ${data.contractName}, ${data.contractNumber}, ${startDate}, ${endDate}, 'Not Started', ${now}, ${now})
+      (id, "contractName", "contractNumber", "contractId", "startDate", "endDate", status, "createdAt", "updatedAt")
+      VALUES (${id}, ${contractName}, ${contractNumber}, ${contractId}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
     `;
         // Fetch the created transition
         const transition = await prisma.$queryRaw `

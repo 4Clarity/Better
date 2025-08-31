@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { $ref } from './task.service';
-import { createTaskHandler, getTasksHandler, updateTaskHandler, deleteTaskHandler } from './task.controller';
+import { createTaskHandler, getTasksHandler, updateTaskHandler, deleteTaskHandler, getTaskTreeHandler, moveTaskHandler } from './task.controller';
 
 async function taskRoutes(server: FastifyInstance) {
   const pmOnly = async (request: any, reply: any) => {
@@ -17,12 +17,17 @@ async function taskRoutes(server: FastifyInstance) {
   // GET /api/transitions/:transitionId/tasks
   server.get('/', { schema: { querystring: $ref('getTasksQuerySchema'), response: { 200: $ref('taskListResponseSchema') } } }, getTasksHandler);
 
+  // GET /api/transitions/:transitionId/tasks/tree
+  server.get('/tree', { schema: { response: { 200: { type:'object', properties: { data: { type:'array' } } } } } }, getTaskTreeHandler);
+
   // PUT /api/transitions/:transitionId/tasks/:taskId
   server.put('/:taskId', { schema: { params: { type:'object', properties:{ transitionId:{type:'string'}, taskId:{type:'string'} }, required: ['taskId','transitionId'] }, body: $ref('updateTaskSchema'), response: { 200: $ref('taskResponseSchema'), 400: { type:'object', properties:{ statusCode:{type:'number'}, error:{type:'string'}, message:{type:'string'} } } } }, preHandler: pmOnly }, updateTaskHandler);
 
   // DELETE /api/transitions/:transitionId/tasks/:taskId
   server.delete('/:taskId', { schema: { params: { type:'object', properties:{ transitionId:{type:'string'}, taskId:{type:'string'} }, required: ['taskId','transitionId'] }, response: { 200: { type:'object', properties:{ message:{type:'string'} } }, 404: { type:'object', properties:{ statusCode:{type:'number'}, error:{type:'string'}, message:{type:'string'} } } } }, preHandler: pmOnly }, deleteTaskHandler);
+
+  // PATCH /api/transitions/:transitionId/tasks/:taskId/move
+  server.patch('/:taskId/move', { schema: { params: { type:'object', properties:{ transitionId:{type:'string'}, taskId:{type:'string'} }, required: ['taskId','transitionId'] }, body: $ref('moveTaskSchema'), response: { 200: $ref('taskResponseSchema'), 400: { type:'object', properties:{ statusCode:{type:'number'}, error:{type:'string'}, message:{type:'string'} } } } }, preHandler: pmOnly }, moveTaskHandler);
 }
 
 export default taskRoutes;
-

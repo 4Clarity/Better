@@ -567,17 +567,23 @@ model Task {
   status       TaskStatus    @default(NOT_STARTED)
   transitionId String
   milestoneId  String?
+  parentTaskId String?
+  orderIndex   Int           @default(0)
+  sequencePath String?       @db.VarChar(255)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   transition   Transition   @relation(fields: [transitionId], references: [id], onDelete: Cascade)
   milestone    Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  parent       Task?        @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  children     Task[]       @relation("TaskHierarchy")
   auditLogs    AuditLog[]
 
   @@index([transitionId])
   @@index([milestoneId])
   @@index([status])
   @@index([dueDate])
+  @@index([transitionId, parentTaskId, orderIndex])
 }
 
 model AuditLog {

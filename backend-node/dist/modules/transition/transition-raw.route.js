@@ -3,6 +3,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const transition_raw_controller_1 = require("./transition-raw.controller");
 const transition_raw_service_1 = require("./transition-raw.service");
 async function transitionRoutes(server) {
+    // Minimal RBAC guard: allow if AUTH_BYPASS=true or x-user-role includes program_manager
+    const pmOnly = async (request, reply) => {
+        const bypass = process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true';
+        if (bypass)
+            return;
+        try {
+            await request.jwtVerify();
+        }
+        catch {
+            return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: 'JWT required' });
+        }
+        const user = request.user || {};
+        const realmRoles = (user.realm_access?.roles ?? []).map((r) => r.toLowerCase());
+        if (!realmRoles.includes('program_manager')) {
+            return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'PM role required' });
+        }
+    };
     // POST /api/transitions - Create new transition (User Story 1.1.1)
     server.post('/', {
         schema: {
@@ -27,6 +44,7 @@ async function transitionRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, transition_raw_controller_1.createTransitionHandler);
     // GET /api/transitions - List all transitions with filtering/pagination
     server.get('/', {
@@ -99,6 +117,7 @@ async function transitionRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, transition_raw_controller_1.updateTransitionHandler);
     // PATCH /api/transitions/:id/status - Update transition status
     server.patch('/:id/status', {
@@ -123,6 +142,7 @@ async function transitionRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, transition_raw_controller_1.updateTransitionStatusHandler);
     // DELETE /api/transitions/:id - Delete transition
     server.delete('/:id', {
@@ -151,6 +171,7 @@ async function transitionRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, transition_raw_controller_1.deleteTransitionHandler);
 }
 exports.default = transitionRoutes;

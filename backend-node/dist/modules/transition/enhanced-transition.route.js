@@ -25,6 +25,57 @@ const transitionResponseSchema = {
         createdBy: { type: ['string', 'null'] },
         createdAt: { type: 'string' },
         updatedAt: { type: 'string' },
+        contract: {
+            type: ['object', 'null'],
+            properties: {
+                id: { type: 'string' },
+                contractName: { type: 'string' },
+                contractNumber: { type: 'string' },
+                contractorName: { type: 'string' },
+                status: { type: 'string' },
+                businessOperation: {
+                    type: ['object', 'null'],
+                    properties: {
+                        id: { type: 'string' },
+                        name: { type: 'string' },
+                        businessFunction: { type: 'string' },
+                    },
+                },
+            },
+        },
+        creator: {
+            type: ['object', 'null'],
+            properties: {
+                id: { type: 'string' },
+                person: {
+                    type: ['object', 'null'],
+                    properties: {
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
+                        primaryEmail: { type: 'string' },
+                    },
+                },
+            },
+        },
+        milestones: {
+            type: ['array', 'null'],
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                    title: { type: 'string' },
+                    status: { type: 'string' },
+                    dueDate: { type: 'string' },
+                    priority: { type: 'string' },
+                },
+            },
+        },
+        _count: {
+            type: ['object', 'null'],
+            properties: {
+                milestones: { type: 'number' },
+            },
+        },
     },
 };
 const milestoneResponseSchema = {
@@ -166,6 +217,7 @@ async function enhancedTransitionRoutes(server) {
             body: {
                 type: 'object',
                 properties: {
+                    contractId: { type: 'string', minLength: 1 },
                     name: { type: 'string', minLength: 1, maxLength: 255 },
                     description: { type: 'string' },
                     startDate: { type: 'string', format: 'date' },

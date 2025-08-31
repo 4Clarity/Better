@@ -57,12 +57,15 @@ export function EnhancedTransitionDetailPage() {
   const [taskPriority, setTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
   const [taskDesc, setTaskDesc] = useState("");
   const [taskSaving, setTaskSaving] = useState(false);
+  const [taskMilestoneId, setTaskMilestoneId] = useState<string>("");
+  const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDue, setEditTaskDue] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
   const [editTaskDesc, setEditTaskDesc] = useState("");
   const [editTaskStatus, setEditTaskStatus] = useState<'NOT_STARTED'|'ASSIGNED'|'IN_PROGRESS'|'ON_HOLD'|'BLOCKED'|'UNDER_REVIEW'|'COMPLETED'|'CANCELLED'|'OVERDUE'>('NOT_STARTED');
+  const [editTaskMilestoneId, setEditTaskMilestoneId] = useState<string>("");
 
   useEffect(() => {
     if (id) {
@@ -105,10 +108,10 @@ export function EnhancedTransitionDetailPage() {
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' },
-        body: JSON.stringify({ title: taskTitle, dueDate: new Date(`${taskDue}T12:00:00`).toISOString(), priority: taskPriority, description: taskDesc || undefined }),
+        body: JSON.stringify({ title: taskTitle, dueDate: new Date(`${taskDue}T12:00:00`).toISOString(), priority: taskPriority, description: taskDesc || undefined, parentTaskId: subtaskParentId || undefined, milestoneId: taskMilestoneId || undefined }),
       });
       if (!res.ok) { let m='Failed to create task'; try{const e=await res.json(); if(e?.message)m=e.message;}catch{} throw new Error(m);} 
-      await fetchTasks(); setTaskTitle(""); setTaskDue(""); setTaskPriority('MEDIUM'); setTaskDesc(""); setTaskOpen(false);
+      await fetchTasks(); setTaskTitle(""); setTaskDue(""); setTaskPriority('MEDIUM'); setTaskDesc(""); setTaskMilestoneId(""); setSubtaskParentId(null); setTaskOpen(false);
     } catch (e:any) { alert(e.message || 'Failed to create task'); } finally { setTaskSaving(false); }
   };
 
@@ -119,6 +122,7 @@ export function EnhancedTransitionDetailPage() {
     setEditTaskPriority(t.priority);
     setEditTaskDesc(t.description || '');
     setEditTaskStatus(t.status);
+    setEditTaskMilestoneId(t.milestoneId || '');
   };
 
   const cancelEditTask = () => { setEditingTaskId(null); setEditTaskTitle(""); setEditTaskDue(""); setEditTaskDesc(""); };
@@ -129,7 +133,7 @@ export function EnhancedTransitionDetailPage() {
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${editingTaskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' },
-        body: JSON.stringify({ title: editTaskTitle, dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(), priority: editTaskPriority, description: editTaskDesc || undefined, status: editTaskStatus }),
+        body: JSON.stringify({ title: editTaskTitle, dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(), priority: editTaskPriority, description: editTaskDesc || undefined, status: editTaskStatus, milestoneId: editTaskMilestoneId === '' ? null : editTaskMilestoneId }),
       });
       if (!res.ok) { await fetchTasks(); cancelEditTask(); return; }
       try { const updated = await res.json(); if (updated && (updated as any).id) setTasks(prev=>prev.map(t=>t.id===updated.id?updated:t)); } catch {}
@@ -546,7 +550,7 @@ export function EnhancedTransitionDetailPage() {
                             <Button size="sm" onClick={saveMilestone}>Save</Button>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
                           <div>
                             <div className="text-xs font-medium mb-1">Priority</div>
                             <select className="border rounded-md p-2 w-full" value={editPriority} onChange={e=>setEditPriority(e.target.value as any)}>
@@ -584,6 +588,93 @@ export function EnhancedTransitionDetailPage() {
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" onClick={() => startEdit(m)}>Edit</Button>
                           <Button variant="outline" size="sm" onClick={() => deleteMilestone(m.id)}>Delete</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tasks CRUD */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Tasks</CardTitle>
+              <Button variant="outline" onClick={() => setTaskOpen(true)}>Add Task</Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {tasks.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No tasks yet.</div>
+            ) : (
+              <div className="border rounded-md divide-y">
+                {tasks.map(t => (
+                  <div key={t.id} className="p-3">
+                    {editingTaskId === t.id ? (
+                      <div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                          <input className="border rounded-md p-2" value={editTaskTitle} onChange={e=>setEditTaskTitle(e.target.value)} />
+                          <input className="border rounded-md p-2" type="date" value={editTaskDue} onChange={e=>setEditTaskDue(e.target.value)} />
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
+                            <Button size="sm" onClick={saveTask}>Save</Button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                          <div>
+                            <div className="text-xs font-medium mb-1">Priority</div>
+                            <select className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={e=>setEditTaskPriority(e.target.value as any)}>
+                              <option value="LOW">Low</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="HIGH">High</option>
+                              <option value="CRITICAL">Critical</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium mb-1">Status</div>
+                            <select className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={e=>setEditTaskStatus(e.target.value as any)}>
+                              <option value="NOT_STARTED">Not Started</option>
+                              <option value="ASSIGNED">Assigned</option>
+                              <option value="IN_PROGRESS">In Progress</option>
+                              <option value="ON_HOLD">On Hold</option>
+                              <option value="BLOCKED">Blocked</option>
+                              <option value="UNDER_REVIEW">Under Review</option>
+                              <option value="COMPLETED">Completed</option>
+                              <option value="CANCELLED">Cancelled</option>
+                              <option value="OVERDUE">Overdue</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium mb-1">Milestone</div>
+                            <select className="border rounded-md p-2 w-full" value={editTaskMilestoneId} onChange={e=>setEditTaskMilestoneId(e.target.value)}>
+                              <option value="">Unassigned</option>
+                              {milestones.map(m => (
+                                <option key={m.id} value={m.id}>{m.title}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium mb-1">Description</div>
+                            <textarea className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={e=>setEditTaskDesc(e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{t.title}</div>
+                          <div className="text-xs text-muted-foreground">Due {new Date(t.dueDate).toLocaleDateString()} • {t.status} • Priority {t.priority}</div>
+                          {t.description && (
+                            <div className="text-xs text-muted-foreground mt-1">{t.description}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => startEditTask(t)}>Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => { setSubtaskParentId(t.id); setTaskOpen(true); }}>Add Subtask</Button>
+                          <Button variant="outline" size="sm" onClick={() => deleteTask(t.id)}>Delete</Button>
                         </div>
                       </div>
                     )}
@@ -646,6 +737,15 @@ export function EnhancedTransitionDetailPage() {
                 <option value="CRITICAL">Critical</option>
               </select>
             </div>
+            <div>
+              <div className="text-xs font-medium mb-1">Milestone</div>
+              <select className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={e=>setTaskMilestoneId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {milestones.map(m => (
+                  <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
+              </select>
+            </div>
             <div className="md:col-span-2">
               <div className="text-xs font-medium mb-1">Description</div>
               <textarea className="border rounded-md p-2 w-full" rows={3} value={msDesc} onChange={e=>setMsDesc(e.target.value)} />
@@ -654,6 +754,45 @@ export function EnhancedTransitionDetailPage() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={()=>setMsOpen(false)}>Cancel</Button>
             <Button onClick={addMilestone} disabled={msSaving || !msTitle || !msDue}>{msSaving ? 'Adding...' : 'Create Milestone'}</Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Simple Add Task Dialog (portal-like) */}
+    {taskOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-md p-4 w-full max-w-lg">
+          <div className="text-lg font-semibold mb-2">{subtaskParentId ? 'Add Subtask' : 'Add Task'}</div>
+          {subtaskParentId && (
+            <div className="text-xs text-muted-foreground mb-2">This task will be created as a subtask of the selected task.</div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <div className="text-xs font-medium mb-1">Title</div>
+              <input className="border rounded-md p-2 w-full" value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs font-medium mb-1">Due Date</div>
+              <input className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={e=>setTaskDue(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs font-medium mb-1">Priority</div>
+              <select className="border rounded-md p-2 w-full" value={taskPriority} onChange={e=>setTaskPriority(e.target.value as any)}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <div className="text-xs font-medium mb-1">Description</div>
+              <textarea className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={e=>setTaskDesc(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={()=>{ setTaskOpen(false); setSubtaskParentId(null); }}>Cancel</Button>
+            <Button onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
           </div>
         </div>
       </div>

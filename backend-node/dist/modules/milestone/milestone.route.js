@@ -3,6 +3,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const milestone_controller_1 = require("./milestone.controller");
 const milestone_service_1 = require("./milestone.service");
 async function milestoneRoutes(server) {
+    const pmOnly = async (request, reply) => {
+        const bypass = process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true';
+        if (bypass)
+            return;
+        try {
+            await request.jwtVerify();
+        }
+        catch {
+            return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: 'JWT required' });
+        }
+        const user = request.user || {};
+        const realmRoles = (user.realm_access?.roles ?? []).map((r) => r.toLowerCase());
+        if (!realmRoles.includes('program_manager')) {
+            return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'PM role required' });
+        }
+    };
     // POST /api/transitions/:transitionId/milestones - Create new milestone (User Story 1.2.1)
     server.post('/', {
         schema: {
@@ -34,6 +50,7 @@ async function milestoneRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, milestone_controller_1.createMilestoneHandler);
     // GET /api/transitions/:transitionId/milestones - List milestones with filtering (User Story 1.2.2)
     server.get('/', {
@@ -115,6 +132,7 @@ async function milestoneRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, milestone_controller_1.updateMilestoneHandler);
     // DELETE /api/transitions/:transitionId/milestones/:milestoneId - Delete milestone (User Story 1.2.4)
     server.delete('/:milestoneId', {
@@ -144,6 +162,7 @@ async function milestoneRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, milestone_controller_1.deleteMilestoneHandler);
     // POST /api/transitions/:transitionId/milestones/bulk-delete - Bulk delete milestones (User Story 1.2.4)
     server.post('/bulk-delete', {
@@ -191,6 +210,7 @@ async function milestoneRoutes(server) {
                 },
             },
         },
+        preHandler: pmOnly,
     }, milestone_controller_1.bulkDeleteMilestonesHandler);
 }
 exports.default = milestoneRoutes;

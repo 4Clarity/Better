@@ -134,6 +134,10 @@ export interface Task {
   status: 'NOT_STARTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'ON_HOLD' | 'BLOCKED' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE';
   transitionId: string;
   milestoneId?: string | null;
+  parentTaskId?: string | null;
+  orderIndex?: number;
+  sequence?: string; // present in tree responses
+  children?: Task[]; // present in tree responses
   createdAt: string;
   updatedAt: string;
 }
@@ -210,6 +214,28 @@ export const taskApi = {
       try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
       throw new Error(message);
     }
+  },
+  async getTree(transitionId: string): Promise<{ data: Task[] }> {
+    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/tree`);
+    if (!res.ok) throw new Error(`Failed to fetch task tree: ${res.statusText}`);
+    return res.json();
+  },
+  async move(transitionId: string, taskId: string, body: { parentTaskId?: string | null; milestoneId?: string | null; beforeTaskId?: string; afterTaskId?: string; position?: number; }): Promise<Task> {
+    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/${taskId}/move`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-role': 'program_manager',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let message = 'Failed to move task';
+      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+      throw new Error(message);
+    }
+    return res.json();
   },
 };
 

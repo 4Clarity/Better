@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { createTask, getTasks, getTaskById, updateTask, deleteTask, CreateTaskInput, UpdateTaskInput, GetTasksQuery } from './task.service';
+import { createTask, getTasks, getTaskById, updateTask, deleteTask, CreateTaskInput, UpdateTaskInput, GetTasksQuery, getTaskTree, moveTask, MoveTaskInput } from './task.service';
 
 export async function createTaskHandler(
   request: FastifyRequest<{ Params: { transitionId: string }; Body: CreateTaskInput }>, reply: FastifyReply
@@ -55,3 +55,28 @@ export async function deleteTaskHandler(
   }
 }
 
+export async function getTaskTreeHandler(
+  request: FastifyRequest<{ Params: { transitionId: string } }>, reply: FastifyReply
+) {
+  try {
+    const { transitionId } = request.params;
+    const tree = await getTaskTree(transitionId);
+    return reply.code(200).send({ data: tree });
+  } catch (e: any) {
+    return reply.code(500).send({ statusCode: 500, error: 'Internal Server Error', message: 'Failed to fetch task tree' });
+  }
+}
+
+export async function moveTaskHandler(
+  request: FastifyRequest<{ Params: { transitionId: string; taskId: string }; Body: MoveTaskInput }>, reply: FastifyReply
+) {
+  try {
+    const { transitionId, taskId } = request.params;
+    const updated = await moveTask(transitionId, taskId, request.body);
+    return reply.code(200).send(updated);
+  } catch (e: any) {
+    const message = e?.message || 'Failed to move task';
+    const code = message.includes('not found') || message.includes('Parent task') ? 400 : 500;
+    return reply.code(code).send({ statusCode: code, error: code===400?'Bad Request':'Internal Server Error', message });
+  }
+}

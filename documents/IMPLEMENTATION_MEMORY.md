@@ -173,6 +173,20 @@ if (error.code === 'P2003') {
   - Safe delete removes related audit logs first.
 - Registered routes in server under transitions prefix.
 
+### Hierarchical Tasks & Planning View
+- Schema: `Task` extended with `parentTaskId` (self-relation), `orderIndex`, optional `sequencePath`, and relevant indexes; `Milestone.tasks` already present.
+- Services: Accept `parentTaskId` on create/update; add `GET /tasks/tree` (returns nested hierarchy with computed sequence numbers like 1.2.1) and `PATCH /tasks/:taskId/move` to reorder/reparent tasks.
+- Frontend: New `TasksAndMilestonesPage.tsx` with nested lists, Up/Down/Indent/Outdent controls, Add Subtask, and Add Task dialog.
+- API Client: Added `taskApi.getTree` and `taskApi.move`; extended Task type with `parentTaskId`, `orderIndex`, `sequence`, and `children` for tree responses.
+
+### Task ↔ Milestone Association and FK Fix
+- Frontend (Project Hub, Enhanced Transition Detail, Planning View): Add Task/Edit Task forms include a Milestone dropdown (Unassigned or specific Milestone). Only send `milestoneId` when a value is selected; clear with `null` on edit.
+- Backend (`task.service.ts`): Validate `milestoneId` on create/update – ensure the Milestone exists and belongs to the same Transition; otherwise return a descriptive 400 error. This prevents foreign key crashes like `Task_milestoneId_fkey`.
+- Subtasks: Enhanced Transition Detail adds “Add Subtask” button per task; dialog reflects subtask mode and passes `parentTaskId`.
+
+### Operations & Verification
+- Stack restarted (Traefik, backend, frontend, db). Prisma client regenerated and `db push` confirmed schema sync. Health checks passed via Traefik hosts.
+
 ### Startup Ordering and Health
 - Backend now waits for Postgres before applying Prisma schema (`nc db 5432` loop) to avoid race causing startup crashes and frontend “Failed to fetch”.
 - Added `/api/health` alias in addition to `/health` to ease proxy testing.

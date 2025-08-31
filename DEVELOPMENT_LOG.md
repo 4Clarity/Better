@@ -154,3 +154,68 @@ The user management system is production-ready with proper error handling, valid
 ### Known Follow-ups
 - Optional: enforce JWT-based ownership/role checks once Keycloak tokens are wired into the UI.
 - Optional: extend milestones with assignedTo, percentComplete, and dependencies per schema.
+
+## Epic 1 Progress: Tasks CRUD (Aug 31, 2025)
+
+### Summary
+- Implemented Tasks for Transitions end-to-end: Prisma model + Fastify routes + frontend UI.
+- Supports add, list with filters/pagination (backend), inline edit, and delete.
+
+### Backend Changes
+- Prisma schema: added `Task` model with enums and relations (`Transition.tasks`, `Milestone.tasks`, `AuditLog.task`).
+- Service (`backend-node/src/modules/task/task.service.ts`):
+  - Create: idempotency guard (same transitionId + title + dueDate returns existing) and due date validation against Transition window; disallow past due dates.
+  - Get: filtering by `status`, `priority`, plus `overdue` and `upcoming` helpers; pagination + sorting.
+  - Update/Delete: operate by task id; safe delete removes related audit logs first.
+- Routes (`backend-node/src/modules/task/task.route.ts`): nested under `/api/transitions/:transitionId/tasks` with `pmOnly` guard (honors `x-auth-bypass` or JWT PM role).
+- Server (`backend-node/src/server.ts`): registers Task JSON schemas and mounts nested task routes.
+
+### Frontend Changes
+- API client (`frontend/src/services/api.ts`): added `Task` type and `taskApi` with create/update/delete/getAll.
+- Project Hub (`frontend/src/pages/ProjectHubPage.tsx`):
+  - Tasks section with Add dialog (Title, Due Date, Priority, Description), inline Edit (Title, Due, Priority, Status, Description), and Delete.
+  - Sends `x-auth-bypass` header based on Auth Bypass toggle for protected routes.
+- Enhanced Transition Detail (`frontend/src/pages/EnhancedTransitionDetailPage.tsx`):
+  - Added Tasks section mirroring Project Hub (list, inline edit, delete) and Add Task dialog.
+  - Uses the same auth bypass header and date normalization (set due at local midday) as milestones.
+
+### Notes
+- No changes to counts surfaced on Enhanced Transition for tasks yet (`_count.tasks` not displayed).
+- E2E tests for Tasks pending; consider adding Cypress coverage for create/edit/delete flows.
+
+## Epic 1 Progress: Hierarchical Tasks & Planning View (Aug 31, 2025)
+
+### Backend
+- Prisma: Task model extended with `parentTaskId` (self-relation), `orderIndex`, and optional `sequencePath`; indexes added for `(transitionId, parentTaskId, orderIndex)`.
+- Services: Task create/update now accept `parentTaskId`; due-date/transition validations preserved.
+- New endpoints under `/api/transitions/:transitionId/tasks`:
+  - `GET /tree` returns hierarchical tasks with computed `sequence` field.
+  - `PATCH /:taskId/move` supports reordering and reparenting with `{ parentTaskId?, milestoneId?, beforeTaskId?, afterTaskId?, position? }`.
+- Delete compacts sibling `orderIndex` to keep sequences stable on next read.
+
+### Frontend
+- API client: `Task` type extended with `parentTaskId`, `orderIndex`, optional `sequence` and `children`. Added `taskApi.getTree` and `taskApi.move`.
+- New Planning View: `TasksAndMilestonesPage.tsx` with route `/transitions/:id/tasks-milestones` and menu entry `/tasks` (transition selector + redirect).
+  - Displays Unassigned Tasks and per-milestone task groups as nested lists.
+  - Inline reordering controls: Up, Down, Indent (reparent to previous sibling), Outdent (to grandparent), and Add Subtask.
+  - Add Task dialog supports creating root tasks or subtasks (with milestone association optional).
+
+### Follow-ups
+- Optional: add DnD for richer reordering UX; persist/display `sequencePath` if needed.
+- Add Cypress tests for move/tree and creation flows; document API in README.
+
+## Adjustments and Fixes (Aug 31, 2025)
+
+### Task ↔ Milestone Association
+- Enhanced Transition Detail and Project Hub now support selecting a Milestone when creating or editing a Task. “Unassigned” keeps the Task independent of any Milestone.
+- Planning View add dialog includes a Milestone selector; when adding within a milestone group, it can be left as-is or overridden.
+
+### Subtasks in Enhanced Detail
+- Added “Add Subtask” action per Task row on `EnhancedTransitionDetailPage.tsx`; the add dialog reflects “Add Subtask” and attaches `parentTaskId` on submit.
+
+### Backend Robustness for FK
+- `task.service.ts` validates `milestoneId` existence and ensures it belongs to the same Transition before create/update, returning clear errors instead of DB FK violations.
+- Frontend create flows only send `milestoneId` when provided, avoiding empty-string/null FK issues.
+
+### Operations
+- Restarted stack via `docker-compose up -d --build`. Synced DB schema with `prisma db push`. Verified backend `/api/health` and frontend via Traefik.

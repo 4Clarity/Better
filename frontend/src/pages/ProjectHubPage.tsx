@@ -101,12 +101,14 @@ export function ProjectHubPage() {
   const [taskPriority, setTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
   const [taskDesc, setTaskDesc] = useState('');
   const [taskSaving, setTaskSaving] = useState(false);
+  const [taskMilestoneId, setTaskMilestoneId] = useState<string>('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
   const [editTaskDue, setEditTaskDue] = useState('');
   const [editTaskPriority, setEditTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
   const [editTaskDesc, setEditTaskDesc] = useState('');
   const [editTaskStatus, setEditTaskStatus] = useState<'NOT_STARTED'|'ASSIGNED'|'IN_PROGRESS'|'ON_HOLD'|'BLOCKED'|'UNDER_REVIEW'|'COMPLETED'|'CANCELLED'|'OVERDUE'>('NOT_STARTED');
+  const [editTaskMilestoneId, setEditTaskMilestoneId] = useState<string>('');
 
   const fetchTransition = async () => {
     if (!id) {
@@ -188,6 +190,7 @@ export function ProjectHubPage() {
           dueDate: new Date(`${taskDue}T12:00:00`).toISOString(),
           priority: taskPriority,
           description: taskDesc || undefined,
+          milestoneId: taskMilestoneId || undefined,
         }),
       });
       if (!res.ok) {
@@ -196,7 +199,7 @@ export function ProjectHubPage() {
         throw new Error(message);
       }
       await fetchTasks();
-      setTaskTitle(''); setTaskDue(''); setTaskPriority('MEDIUM'); setTaskDesc(''); setTaskOpen(false);
+      setTaskTitle(''); setTaskDue(''); setTaskPriority('MEDIUM'); setTaskDesc(''); setTaskMilestoneId(''); setTaskOpen(false);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to create task');
     } finally {
@@ -211,6 +214,7 @@ export function ProjectHubPage() {
     setEditTaskPriority(t.priority);
     setEditTaskDesc(t.description || '');
     setEditTaskStatus(t.status);
+    setEditTaskMilestoneId(t.milestoneId || '');
   };
 
   const cancelEditTask = () => {
@@ -234,6 +238,7 @@ export function ProjectHubPage() {
           priority: editTaskPriority,
           description: editTaskDesc || undefined,
           status: editTaskStatus,
+          milestoneId: editTaskMilestoneId === '' ? null : editTaskMilestoneId,
         }),
       });
       if (!res.ok) {
@@ -1144,7 +1149,7 @@ export function ProjectHubPage() {
                           <Button size="sm" onClick={saveTask}>Save</Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
                         <div>
                           <Label>Priority</Label>
                           <select className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={(e)=>setEditTaskPriority(e.target.value as any)}>
@@ -1166,6 +1171,15 @@ export function ProjectHubPage() {
                             <option value="COMPLETED">Completed</option>
                             <option value="CANCELLED">Cancelled</option>
                             <option value="OVERDUE">Overdue</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label>Milestone</Label>
+                          <select className="border rounded-md p-2 w-full" value={editTaskMilestoneId} onChange={(e)=>setEditTaskMilestoneId(e.target.value)}>
+                            <option value="">Unassigned</option>
+                            {milestones.map(m => (
+                              <option key={m.id} value={m.id}>{m.title}</option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -1261,6 +1275,15 @@ export function ProjectHubPage() {
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
                 <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div>
+              <Label>Milestone</Label>
+              <select className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={(e)=>setTaskMilestoneId(e.target.value)}>
+                <option value="">Unassigned</option>
+                {milestones.map(m => (
+                  <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
               </select>
             </div>
             <div className="md:col-span-2">

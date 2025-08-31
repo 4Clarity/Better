@@ -10,6 +10,7 @@ import { EnhancedTransitionDetailPage } from './pages/EnhancedTransitionDetailPa
 import { EditBusinessOperationPage } from './pages/EditBusinessOperationPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { TransitionUserPage } from './pages/TransitionUserPage';
+import { TasksAndMilestonesPage } from './pages/TasksAndMilestonesPage';
 
 function App() {
   return (
@@ -102,12 +103,12 @@ function App() {
         } />
         <Route path="/tasks" element={
           <Layout pageTitle="Tasks & Milestones">
-            <div className="p-8">
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-semibold mb-4">Tasks & Milestones</h2>
-                <p className="text-muted-foreground">This section will contain task and milestone management features.</p>
-              </div>
-            </div>
+            <TasksAndMilestonesPage />
+          </Layout>
+        } />
+        <Route path="/transitions/:id/tasks-milestones" element={
+          <Layout pageTitle="Tasks & Milestones">
+            <TasksAndMilestonesPage />
           </Layout>
         } />
         <Route path="/artifacts" element={
