@@ -1,5 +1,17 @@
 // API service for user management operations
-const API_BASE_URL = 'http://localhost:3000/api/user-management';
+const inferDefaultUserMgmtBase = () => {
+  try {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:3000/api/user-management';
+    }
+    return 'http://api.tip.localhost/api/user-management';
+  } catch {
+    return 'http://api.tip.localhost/api/user-management';
+  }
+};
+
+const API_BASE_URL = (import.meta as any)?.env?.VITE_USER_MGMT_BASE_URL || inferDefaultUserMgmtBase();
 
 // Types based on the backend schemas
 export interface Person {

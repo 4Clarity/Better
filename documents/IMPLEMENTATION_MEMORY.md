@@ -118,6 +118,66 @@ if (error.code === 'P2003') {
 
 ### Frontend  
 - `src/components/NewBusinessOperationDialog.tsx` - Creation form with date/foreign key fixes
+
+---
+
+## Backend 502 via Traefik (Bad Gateway) — Root Cause and Fix
+
+### Symptom
+- UI requests to `http://api.tip.localhost/*` returned `502 Bad Gateway` from Traefik.
+- `curl http://api.tip.localhost/health` → 502.
+- Backend container logs showed: `ReferenceError: server is not defined` in `src/server.ts` and the app never bound to port 3000.
+
+### Root Cause
+- JWT plugin registration code in `backend-node/src/server.ts` executed outside `buildServer()`, referencing `server` at module scope. This threw at startup and prevented Fastify from starting, so Traefik had no upstream to route to.
+
+### Resolution
+- Move JWT registration into `buildServer()` before route registration and before returning the server.
+- File changed: `backend-node/src/server.ts`.
+
+### Verification
+- `docker-compose up -d --build` then:
+  - `docker-compose logs -f backend-node` shows “Server listening at http://0.0.0.0:3000”.
+  - `curl -i http://api.tip.localhost/health` → HTTP/200.
+  - UI pages (Dashboard, Transitions, Business Operations, Security) load.
+
+### Prevention
+- Keep all Fastify plugin registration scoped within the factory (`buildServer()`), avoid module‑level side effects.
+- Add a basic startup check in CI (curl `/:health`) after container boot.
+
+---
+
+## Epic 1: Milestones CRUD — Implementation Notes and Fixes
+
+### Frontend
+- Project Hub (`frontend/src/pages/ProjectHubPage.tsx`):
+  - Added full Milestones CRUD: Add dialog (Title, Due Date, Priority, Description), list with inline Edit (Title, Due Date, Priority, Status, Description), and Delete.
+  - Sends `x-auth-bypass` when the header toggle is ON to pass route guards in dev.
+  - Normalized dates: send dueDate as local midday (`YYYY-MM-DDT12:00:00Z`) to avoid UTC boundary issues.
+- Enhanced Transition Detail (`frontend/src/pages/EnhancedTransitionDetailPage.tsx`):
+  - Implemented Milestones CRUD mirroring Project Hub.
+  - Fixed JSX structure (single root + portal-like overlay for the dialog).
+
+### Backend
+- Milestone service (`backend-node/src/modules/milestone/milestone.service.ts`):
+  - Create: keeps transition date window validation; added idempotency guard (same transitionId + title + dueDate returns existing instead of duplicating).
+  - Delete: removes audit logs first to avoid FK errors, then deletes by milestone id.
+  - Update/Get: operate by milestone id; transition fetch is optional and only used for dueDate range validation.
+  - Bulk delete: deletes by ids and clears related audit logs.
+
+### Auth and Routing
+- Minimal RBAC guards (`pmOnly`) on protected routes accept either `AUTH_BYPASS=true` or `x-auth-bypass: true`, else verify JWT and require `program_manager` role.
+- Header toggle added to Layout to control `x-auth-bypass` during development.
+
+### API Base Host Handling
+- Frontend auto-detects API base: uses `http://localhost:3000/api` in pure localhost dev, or `http://api.tip.localhost/api` behind Traefik; override with `VITE_API_BASE_URL`.
+
+### CI Smoke Workflow
+- Added `.github/workflows/ci-smoke.yml`: starts db/redis/reverse-proxy/backend/frontend, waits for Postgres and backend health, checks frontend contains “Transitions Overview”, and dumps logs on failure.
+
+### Dependency and Build Fixes
+- Upgraded `cypress` to `^15` to satisfy `@cypress/vite-dev-server@7` peer requirements.
+- Avoid Cypress binary download in container builds (`CYPRESS_INSTALL_BINARY=0`).
 - `src/services/api.ts` - API client with enhanced error handling
 - `src/pages/BusinessOperationsPage.tsx` - Main dashboard
 

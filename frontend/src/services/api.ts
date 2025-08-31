@@ -1,4 +1,18 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+const inferDefaultApiBase = () => {
+  try {
+    const host = window.location.hostname;
+    // If running locally via Vite (localhost), prefer direct backend on 3000
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:3000/api';
+    }
+    // If accessing via Traefik hostnames, use proxy
+    return 'http://api.tip.localhost/api';
+  } catch {
+    return 'http://api.tip.localhost/api';
+  }
+};
+
+export const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || inferDefaultApiBase();
 
 // Types
 export interface BusinessOperation {

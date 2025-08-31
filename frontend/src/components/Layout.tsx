@@ -12,6 +12,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [authBypass, setAuthBypass] = useState<boolean>(() => localStorage.getItem('authBypass') === 'true');
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -31,6 +32,12 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
     setIsDarkMode(newDarkMode);
     document.documentElement.classList.toggle('dark', newDarkMode);
     localStorage.setItem('theme', newDarkMode ? 'dark' : 'light');
+  };
+
+  const toggleAuthBypass = () => {
+    const next = !authBypass;
+    setAuthBypass(next);
+    localStorage.setItem('authBypass', next ? 'true' : 'false');
   };
 
   const toggleSidebar = () => {
@@ -267,6 +274,16 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
 
             {/* Right side actions */}
             <div className="flex items-center space-x-4">
+              {/* Dev Auth Bypass toggle */}
+              <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded border text-xs" title="Sends x-auth-bypass: true header to backend">
+                <span className="opacity-70">Auth Bypass</span>
+                <label className="relative inline-block w-10 h-5 cursor-pointer">
+                  <input type="checkbox" checked={authBypass} onChange={toggleAuthBypass} className="opacity-0 w-0 h-0" />
+                  <span className={`absolute inset-0 ${authBypass ? 'bg-green-500' : 'bg-gray-300'} rounded-full`}>
+                    <span className={`absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${authBypass ? 'translate-x-5' : ''}`} />
+                  </span>
+                </label>
+              </div>
               {/* Search */}
               <div className="relative">
                 <button

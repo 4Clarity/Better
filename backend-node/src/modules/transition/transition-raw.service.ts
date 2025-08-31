@@ -6,10 +6,14 @@ const prisma = new PrismaClient();
 
 // Simple schemas matching current database
 const createTransitionSchema = z.object({
-  contractName: z.string().min(1, "Contract name is required").max(255),
-  contractNumber: z.string().min(1, "Contract number is required").max(100),
+  // Allow either explicit contract fields or a contractId to derive them
+  contractId: z.string().optional(),
+  contractName: z.string().min(1, "Contract name is required").max(255).optional(),
+  contractNumber: z.string().min(1, "Contract number is required").max(100).optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
+}).refine((val) => !!val.contractId || (!!val.contractName && !!val.contractNumber), {
+  message: 'Provide either contractId or both contractName and contractNumber',
 });
 
 export type CreateTransitionInput = z.infer<typeof createTransitionSchema>;
@@ -85,13 +89,35 @@ export async function createTransition(data: CreateTransitionInput) {
   }
 
   try {
+    // If contractId provided, fetch and derive contract fields and validate timeframe
+    let contractId: string | null = null;
+    let contractName = data.contractName ?? null;
+    let contractNumber = data.contractNumber ?? null;
+
+    if (data.contractId) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: data.contractId },
+        include: { businessOperation: true },
+      });
+      if (!contract) {
+        throw new Error('Contract not found');
+      }
+      contractId = contract.id;
+      contractName = contract.contractName;
+      contractNumber = contract.contractNumber;
+      // Validate within contract timeframe
+      if (startDate < contract.startDate || endDate > contract.endDate) {
+        throw new Error('Transition dates must be within contract timeframe');
+      }
+    }
+
     const id = `clz${generateCuid()}`;
     const now = new Date();
     
     const result = await prisma.$executeRaw`
       INSERT INTO "Transition" 
-      (id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt")
-      VALUES (${id}, ${data.contractName}, ${data.contractNumber}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
+      (id, "contractName", "contractNumber", "contractId", "startDate", "endDate", status, "createdAt", "updatedAt")
+      VALUES (${id}, ${contractName}, ${contractNumber}, ${contractId}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
     `;
 
     // Fetch the created transition

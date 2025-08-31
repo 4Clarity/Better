@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { enhancedTransitionApi, EnhancedTransition } from "@/services/api";
+import { enhancedTransitionApi, EnhancedTransition, API_BASE_URL } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,9 +25,34 @@ export function EnhancedTransitionDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const userRole = "director"; // TODO: Get from user context/auth
 
+  // Milestones state
+  type Milestone = {
+    id: string;
+    title: string;
+    description?: string | null;
+    dueDate: string;
+    priority: 'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';
+    status: 'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE';
+    transitionId: string;
+  };
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [msOpen, setMsOpen] = useState(false);
+  const [msTitle, setMsTitle] = useState("");
+  const [msDue, setMsDue] = useState("");
+  const [msPriority, setMsPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [msDesc, setMsDesc] = useState("");
+  const [msSaving, setMsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDue, setEditDue] = useState("");
+  const [editPriority, setEditPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [editDesc, setEditDesc] = useState("");
+  const [editStatus, setEditStatus] = useState<'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE'>('PENDING');
+
   useEffect(() => {
     if (id) {
       fetchTransitionDetails();
+      fetchMilestones();
     }
   }, [id]);
 
@@ -52,6 +77,118 @@ export function EnhancedTransitionDetailPage() {
     setTransition(updatedTransition);
     // Optionally refresh the data
     fetchTransitionDetails();
+  };
+
+  const fetchMilestones = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones?limit=100`);
+      if (!res.ok) throw new Error('Failed to load milestones');
+      const data = await res.json();
+      setMilestones(data.data || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const addMilestone = async () => {
+    if (!id || !msTitle || !msDue) return;
+    setMsSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          title: msTitle,
+          dueDate: new Date(`${msDue}T12:00:00`).toISOString(),
+          priority: msPriority,
+          description: msDesc || undefined,
+        }),
+      });
+      if (!res.ok) {
+        let message = 'Failed to add milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchMilestones();
+      setMsTitle(""); setMsDue(""); setMsPriority('MEDIUM'); setMsDesc(""); setMsOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to add milestone');
+    } finally {
+      setMsSaving(false);
+    }
+  };
+
+  const startEdit = (m: Milestone) => {
+    setEditingId(m.id);
+    setEditTitle(m.title);
+    setEditDue(m.dueDate.split('T')[0]);
+    setEditPriority(m.priority);
+    setEditDesc(m.description || '');
+    setEditStatus(m.status);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditTitle("");
+    setEditDue("");
+    setEditDesc("");
+  };
+
+  const saveMilestone = async () => {
+    if (!id || !editingId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones/${editingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          title: editTitle,
+          dueDate: new Date(`${editDue}T12:00:00`).toISOString(),
+          priority: editPriority,
+          description: editDesc || undefined,
+          status: editStatus,
+        }),
+      });
+      if (!res.ok) {
+        let message = 'Failed to update milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchMilestones();
+      cancelEdit();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to update milestone');
+    }
+  };
+
+  const deleteMilestone = async (mid: string) => {
+    if (!id) return;
+    if (!confirm('Delete this milestone?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones/${mid}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+      });
+      if (!res.ok) {
+        let message = 'Failed to delete milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchMilestones();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to delete milestone');
+    }
   };
 
   const getStatusColor = (status: EnhancedTransition['status']) => {
@@ -124,6 +261,7 @@ export function EnhancedTransitionDetailPage() {
   }
 
   return (
+    <>
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <Link to="/transitions">
@@ -312,6 +450,79 @@ export function EnhancedTransitionDetailPage() {
           </Card>
         </div>
 
+        {/* Milestones CRUD */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Milestones</CardTitle>
+              <Button variant="outline" onClick={() => setMsOpen(true)}>Add Milestone</Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {milestones.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No milestones yet.</div>
+            ) : (
+              <div className="border rounded-md divide-y">
+                {milestones.map(m => (
+                  <div key={m.id} className="p-3">
+                    {editingId === m.id ? (
+                      <div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                          <input className="border rounded-md p-2" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
+                          <input className="border rounded-md p-2" type="date" value={editDue} onChange={e=>setEditDue(e.target.value)} />
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
+                            <Button size="sm" onClick={saveMilestone}>Save</Button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                          <div>
+                            <div className="text-xs font-medium mb-1">Priority</div>
+                            <select className="border rounded-md p-2 w-full" value={editPriority} onChange={e=>setEditPriority(e.target.value as any)}>
+                              <option value="LOW">Low</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="HIGH">High</option>
+                              <option value="CRITICAL">Critical</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium mb-1">Status</div>
+                            <select className="border rounded-md p-2 w-full" value={editStatus} onChange={e=>setEditStatus(e.target.value as any)}>
+                              <option value="PENDING">Not Started</option>
+                              <option value="IN_PROGRESS">In Progress</option>
+                              <option value="BLOCKED">Blocked</option>
+                              <option value="COMPLETED">Completed</option>
+                              <option value="OVERDUE">Overdue</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium mb-1">Description</div>
+                            <textarea className="border rounded-md p-2 w-full" rows={2} value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{m.title}</div>
+                          <div className="text-xs text-muted-foreground">Due {new Date(m.dueDate).toLocaleDateString()} • {m.status} • Priority {m.priority}</div>
+                          {m.description && (
+                            <div className="text-xs text-muted-foreground mt-1">{m.description}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => startEdit(m)}>Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => deleteMilestone(m.id)}>Delete</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Additional Details */}
         <Card>
           <CardHeader>
@@ -341,5 +552,41 @@ export function EnhancedTransitionDetailPage() {
         </Card>
       </div>
     </div>
+    {/* Simple Add Milestone Dialog (portal-like) */}
+    {msOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-md p-4 w-full max-w-lg">
+          <div className="text-lg font-semibold mb-2">Add Milestone</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <div className="text-xs font-medium mb-1">Title</div>
+              <input className="border rounded-md p-2 w-full" value={msTitle} onChange={e=>setMsTitle(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs font-medium mb-1">Due Date</div>
+              <input className="border rounded-md p-2 w-full" type="date" value={msDue} onChange={e=>setMsDue(e.target.value)} />
+            </div>
+            <div>
+              <div className="text-xs font-medium mb-1">Priority</div>
+              <select className="border rounded-md p-2 w-full" value={msPriority} onChange={e=>setMsPriority(e.target.value as any)}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <div className="text-xs font-medium mb-1">Description</div>
+              <textarea className="border rounded-md p-2 w-full" rows={3} value={msDesc} onChange={e=>setMsDesc(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={()=>setMsOpen(false)}>Cancel</Button>
+            <Button onClick={addMilestone} disabled={msSaving || !msTitle || !msDue}>{msSaving ? 'Adding...' : 'Create Milestone'}</Button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

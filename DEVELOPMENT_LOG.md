@@ -120,3 +120,36 @@ curl "http://localhost:3000/api/user-management/security/dashboard"
 
 ## Deployment Ready
 The user management system is production-ready with proper error handling, validation, and security measures in place.
+
+---
+
+## Epic 1 Progress: Transition Setup & Milestones (Aug 30, 2025)
+
+### Summary
+- Implemented full Milestones CRUD in Project Hub and Enhanced Transition views.
+- Stabilized backend milestone operations (idempotent create, safe delete, flexible update).
+- Fixed Traefik 502 by scoping JWT plugin registration inside `buildServer()`.
+- Improved local dev ergonomics: Auth Bypass header toggle and dynamic API base URL.
+- Added CI smoke workflow to boot stack and verify health + UI content.
+
+### Frontend Changes
+- Project Hub (`frontend/src/pages/ProjectHubPage.tsx`): Add/Edit/Delete Milestones with dialog and inline edit; dates sent at midday; surfaces backend error messages.
+- Enhanced Transition Detail (`frontend/src/pages/EnhancedTransitionDetailPage.tsx`): Added Milestones CRUD; fixed JSX root and overlay structure.
+- Layout (`frontend/src/components/Layout.tsx`): “Auth Bypass” toggle stores `authBypass` in localStorage.
+- API base (`frontend/src/services/api.ts`, `frontend/src/services/userManagementApi.ts`): auto-detect host; configurable via `VITE_*` envs.
+
+### Backend Changes
+- Milestones service (`backend-node/src/modules/milestone/milestone.service.ts`):
+  - Create: idempotency guard; validates dueDate within transition timeframe.
+  - Delete: deletes related audit logs then the milestone by id.
+  - Update/Get: operate by milestone id (transition lookup optional for date validation).
+- Transition raw routes (`transition-raw.route.ts`) and milestone routes: `pmOnly` guard supports `x-auth-bypass` or JWT `program_manager` role.
+- Server bootstrap (`backend-node/src/server.ts`): moved JWT registration inside `buildServer()` to prevent startup crash.
+
+### CI & DevOps
+- `.github/workflows/ci-smoke.yml`: boots db/redis/reverse-proxy/backend/frontend, waits for Postgres and backend health, validates homepage contains “Transitions Overview”.
+- Cypress upgrade to `^15`; set `CYPRESS_INSTALL_BINARY=0` in frontend Dockerfile for leaner builds.
+
+### Known Follow-ups
+- Optional: enforce JWT-based ownership/role checks once Keycloak tokens are wired into the UI.
+- Optional: extend milestones with assignedTo, percentComplete, and dependencies per schema.

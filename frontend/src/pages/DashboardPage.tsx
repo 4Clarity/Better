@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { NewTransitionDialog } from "@/components/NewTransitionDialog";
+import { API_BASE_URL } from "@/services/api";
 
 interface Transition {
   id: string;
@@ -31,7 +32,7 @@ export function DashboardPage() {
   const fetchTransitions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3000/api/transitions');
+      const response = await fetch(`${API_BASE_URL}/transitions`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

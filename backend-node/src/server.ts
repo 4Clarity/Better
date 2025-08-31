@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import jwt from '@fastify/jwt';
 import cors from '@fastify/cors';
 import { ZodError } from 'zod';
 import { serializerCompiler, validatorCompiler } from 'fastify-zod';
@@ -15,6 +16,19 @@ export function buildServer() {
   const server = Fastify({
     logger: true,
   });
+
+  // JWT for Keycloak (non-bypass mode)
+  if (process.env.KEYCLOAK_JWT_PUBLIC_KEY) {
+    server.register(jwt, {
+      secret: {
+        public: process.env.KEYCLOAK_JWT_PUBLIC_KEY.replace(/\\n/g, '\n'),
+      },
+      decode: { complete: false },
+      sign: { algorithm: 'RS256' },
+    });
+  } else {
+    server.log.warn('KEYCLOAK_JWT_PUBLIC_KEY not set. Protected routes require AUTH_BYPASS or x-auth-bypass header.');
+  }
 
   // Add zod validation
   server.setValidatorCompiler(validatorCompiler);

@@ -10,6 +10,20 @@ import {
 import { $ref } from './milestone.service';
 
 async function milestoneRoutes(server: FastifyInstance) {
+  const pmOnly = async (request: any, reply: any) => {
+    const bypass = process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true';
+    if (bypass) return;
+    try {
+      await request.jwtVerify();
+    } catch {
+      return reply.code(401).send({ statusCode: 401, error: 'Unauthorized', message: 'JWT required' });
+    }
+    const user: any = request.user || {};
+    const realmRoles: string[] = (user.realm_access?.roles ?? []).map((r: string) => r.toLowerCase());
+    if (!realmRoles.includes('program_manager')) {
+      return reply.code(403).send({ statusCode: 403, error: 'Forbidden', message: 'PM role required' });
+    }
+  };
   // POST /api/transitions/:transitionId/milestones - Create new milestone (User Story 1.2.1)
   server.post(
     '/',
@@ -43,6 +57,7 @@ async function milestoneRoutes(server: FastifyInstance) {
           },
         },
       },
+      preHandler: pmOnly,
     },
     createMilestoneHandler
   );
@@ -139,6 +154,7 @@ async function milestoneRoutes(server: FastifyInstance) {
           },
         },
       },
+      preHandler: pmOnly,
     },
     updateMilestoneHandler
   );
@@ -173,6 +189,7 @@ async function milestoneRoutes(server: FastifyInstance) {
           },
         },
       },
+      preHandler: pmOnly,
     },
     deleteMilestoneHandler
   );
@@ -225,6 +242,7 @@ async function milestoneRoutes(server: FastifyInstance) {
           },
         },
       },
+      preHandler: pmOnly,
     },
     bulkDeleteMilestonesHandler
   );

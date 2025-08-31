@@ -177,6 +177,11 @@
 ## 1. Transition Project Management
 
 ### User Story 1.1.1: Create New Transition Project
+Status: Partially Implemented
+Verification Notes:
+- UI: NewTransitionDialog on DashboardPage with PM-only visibility; redirects to Project Hub on 201.
+- API: POST /api/transitions returns 201 and object; schema validation in service.
+- Gaps to close: Backend RBAC (Keycloak) for PM-only enforcement; stakeholder notifications; validate dates against Contract end; persist Contract/BusinessOperation linkage in Transition.
 
 **As a** Government PM (Brenda),
 **I want to** create a new transition project within the context of an existing Business Operation and Contract,
@@ -380,6 +385,11 @@
 ## 2. Milestone and Timeline Management
 
 ### User Story 1.2.1: Create Transition Milestones
+Status: Implemented (Pending QA)
+Verification Notes:
+- API present: POST/GET/PUT/DELETE nested under /api/transitions/:transitionId/milestones with Zod schemas and audit.
+- Validations: dueDate not past; within transition timeframe; pagination and filters.
+- UI: Project Hub page shows milestones; add, edit, and delete supported and wired to API.
 
 **As a** Government PM (Brenda),
 **I want to** create milestones with titles, descriptions, and due dates for my transition project,
@@ -568,6 +578,11 @@
 ## 3. Status and Dashboard Management
 
 ### User Story 1.3.1: Update Transition Status
+Status: Implemented (Pending QA)
+Verification Notes:
+- API present: PATCH /api/transitions/:id/status with audit logging.
+- UI added: Status Select on ProjectHubPage updates status via API and refreshes local state; badge colors align with style.
+- Next: Add Cypress E2E to assert badge and dashboard reflect updates.
 
 **As a** Government PM (Brenda),
 **I want to** manually update the high-level status of my transition project,

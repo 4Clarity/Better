@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { enhancedTransitionApi, EnhancedTransition } from "@/services/api";
+import { enhancedTransitionApi, EnhancedTransition, API_BASE_URL } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,7 @@ export function TransitionsPage() {
       // Fetch both enhanced and team member transitions
       const [enhancedResponse, legacyResponse] = await Promise.all([
         enhancedTransitionApi.getAll({ limit: 100 }),
-        fetch('http://localhost:3000/api/transitions?limit=100').then(res => res.json())
+        fetch(`${API_BASE_URL}/transitions?limit=100`).then(res => res.json())
       ]);
       
       setEnhancedTransitions(enhancedResponse.data);

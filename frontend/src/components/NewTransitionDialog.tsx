@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ContractSelector } from "@/components/ContractSelector";
-import { Contract } from "@/services/api";
+import { Contract, API_BASE_URL } from "@/services/api";
 
 interface NewTransitionFormData {
   contractName: string;
@@ -115,12 +115,16 @@ export function NewTransitionDialog({ onTransitionCreated, userRole }: NewTransi
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/transitions', {
+      const response = await fetch(`${API_BASE_URL}/transitions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Dev headers for RBAC
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
         body: JSON.stringify({
+          contractId: selectedContract?.id,
           contractName: formData.contractName,
           contractNumber: formData.contractNumber,
           startDate: new Date(formData.startDate).toISOString(),

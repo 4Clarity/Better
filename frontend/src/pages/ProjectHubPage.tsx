@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL } from "@/services/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,6 +13,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeft, Calendar, FileText, User, Edit2, Save, X } from "lucide-react";
+import { 
+  Select, 
+  SelectTrigger, 
+  SelectValue, 
+  SelectContent, 
+  SelectItem 
+} from "@/components/ui/select";
 
 interface Transition {
   id: string;
@@ -22,6 +30,15 @@ interface Transition {
   status: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface Milestone {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueDate: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' | 'OVERDUE';
 }
 
 interface EditFormData {
@@ -60,6 +77,21 @@ export function ProjectHubPage() {
   const [editErrors, setEditErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [msTitle, setMsTitle] = useState('');
+  const [msDue, setMsDue] = useState('');
+  const [msSaving, setMsSaving] = useState(false);
+  const [msDialogOpen, setMsDialogOpen] = useState(false);
+  const [msPriority, setMsPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [msDesc, setMsDesc] = useState('');
+
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+  const [editMsTitle, setEditMsTitle] = useState('');
+  const [editMsDue, setEditMsDue] = useState('');
+  const [editMsPriority, setEditMsPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [editMsDesc, setEditMsDesc] = useState('');
+  const [editMsStatus, setEditMsStatus] = useState<'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE'>('PENDING');
 
   const fetchTransition = async () => {
     if (!id) {
@@ -70,7 +102,7 @@ export function ProjectHubPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3000/api/transitions/${id}`);
+      const response = await fetch(`${API_BASE_URL}/transitions/${id}`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -93,6 +125,128 @@ export function ProjectHubPage() {
   useEffect(() => {
     fetchTransition();
   }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchMilestones();
+    }
+  }, [id]);
+
+  const fetchMilestones = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones?limit=100`);
+      if (!res.ok) throw new Error('Failed to load milestones');
+      const data = await res.json();
+      setMilestones(data.data || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const addMilestone = async () => {
+    if (!id || !msTitle || !msDue) return;
+    setMsSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          title: msTitle,
+          // Set time to midday to avoid timezone boundary issues
+          dueDate: new Date(`${msDue}T12:00:00`).toISOString(),
+          priority: msPriority,
+          description: msDesc || undefined,
+        }),
+      });
+      if (!res.ok) {
+        let message = 'Failed to add milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchMilestones();
+      setMsTitle('');
+      setMsDue('');
+      setMsPriority('MEDIUM');
+      setMsDesc('');
+      setMsDialogOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to add milestone');
+    } finally {
+      setMsSaving(false);
+    }
+  };
+
+  const deleteMilestone = async (milestoneId: string) => {
+    if (!id) return;
+    if (!confirm('Delete this milestone?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones/${milestoneId}`, {
+        method: 'DELETE',
+        headers: { 
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+      });
+      if (!res.ok) {
+        let message = 'Failed to delete milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchMilestones();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to delete milestone');
+    }
+  };
+
+  const startEditMilestone = (m: Milestone) => {
+    setEditingMilestoneId(m.id);
+    setEditMsTitle(m.title);
+    setEditMsDue(m.dueDate.split('T')[0]);
+    setEditMsPriority(m.priority);
+    setEditMsDesc(m.description || '');
+    setEditMsStatus(m.status);
+  };
+
+  const cancelEditMilestone = () => {
+    setEditingMilestoneId(null);
+    setEditMsTitle('');
+    setEditMsDue('');
+  };
+
+  const saveMilestone = async () => {
+    if (!id || !editingMilestoneId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones/${editingMilestoneId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({
+          title: editMsTitle,
+          dueDate: new Date(`${editMsDue}T12:00:00`).toISOString(),
+          priority: editMsPriority,
+          description: editMsDesc || undefined,
+          status: editMsStatus,
+        }),
+      });
+      if (!res.ok) {
+        let message = 'Failed to update milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
+      }
+      await fetchMilestones();
+      cancelEditMilestone();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to update milestone');
+    }
+  };
 
   // Initialize edit form when transition loads
   useEffect(() => {
@@ -198,10 +352,12 @@ export function ProjectHubPage() {
         endDate: new Date(editFormData.endDate).toISOString(),
       };
 
-      const response = await fetch(`http://localhost:3000/api/transitions/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/transitions/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
         body: JSON.stringify(updateData),
       });
@@ -225,6 +381,35 @@ export function ProjectHubPage() {
       alert('Failed to update transition: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Status change handler (User Story 1.3.1)
+  const handleStatusChange = async (newStatus: string) => {
+    if (!transition || !id || newStatus === transition.status) return;
+    setIsUpdatingStatus(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/transitions/${id}/status`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-user-role': 'program_manager',
+          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to update status');
+      }
+      const updated = await response.json();
+      setTransition(updated);
+      alert('Status updated');
+    } catch (e) {
+      console.error('Failed to update status', e);
+      alert('Failed to update status');
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -619,6 +804,120 @@ export function ProjectHubPage() {
               </p>
             </div>
           </div>
+
+          {/* Milestones Section */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-2">Milestones</h3>
+            {/* Add Milestone Dialog Trigger */}
+            <div className="mb-4">
+              <Button variant="outline" onClick={() => setMsDialogOpen(true)}>Add Milestone</Button>
+            </div>
+            <Dialog open={msDialogOpen} onOpenChange={setMsDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Milestone</DialogTitle>
+                  <DialogDescription>Create a milestone event for this transition.</DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Title</Label>
+                    <Input value={msTitle} onChange={(e)=>setMsTitle(e.target.value)} placeholder="e.g., Kickoff Meeting" />
+                  </div>
+                  <div>
+                    <Label>Due Date</Label>
+                    <Input type="date" value={msDue} onChange={(e)=>setMsDue(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Priority</Label>
+                    <Select value={msPriority} onValueChange={(v)=>setMsPriority(v as any)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
+                        <SelectItem value="CRITICAL">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Description</Label>
+                    <textarea className="w-full border rounded-md p-2" rows={3} value={msDesc} onChange={(e)=>setMsDesc(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={()=>setMsDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={addMilestone} disabled={msSaving || !msTitle || !msDue}>{msSaving ? 'Adding...' : 'Create Milestone'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            {milestones.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No milestones yet.</p>
+            ) : (
+              <div className="border rounded-md divide-y">
+                {milestones.map((m) => (
+                  <div key={m.id} className="p-3">
+                    {editingMilestoneId === m.id ? (
+                      <div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                          <Input value={editMsTitle} onChange={(e) => setEditMsTitle(e.target.value)} />
+                          <Input type="date" value={editMsDue} onChange={(e) => setEditMsDue(e.target.value)} />
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={cancelEditMilestone}>Cancel</Button>
+                            <Button size="sm" onClick={saveMilestone}>Save</Button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                          <div>
+                            <Label>Priority</Label>
+                            <Select value={editMsPriority} onValueChange={(v)=>setEditMsPriority(v as any)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="LOW">Low</SelectItem>
+                                <SelectItem value="MEDIUM">Medium</SelectItem>
+                                <SelectItem value="HIGH">High</SelectItem>
+                                <SelectItem value="CRITICAL">Critical</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Status</Label>
+                            <Select value={editMsStatus} onValueChange={(v)=>setEditMsStatus(v as any)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PENDING">Not Started</SelectItem>
+                                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                                <SelectItem value="BLOCKED">Blocked</SelectItem>
+                                <SelectItem value="COMPLETED">Completed</SelectItem>
+                                <SelectItem value="OVERDUE">Overdue</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Description</Label>
+                            <textarea className="w-full border rounded-md p-2" rows={2} value={editMsDesc} onChange={(e)=>setEditMsDesc(e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{m.title}</div>
+                          <div className="text-xs text-muted-foreground">Due {formatDate(m.dueDate)} • {m.status} • Priority {m.priority}</div>
+                          {m.description && (
+                            <div className="text-xs text-muted-foreground mt-1">{m.description}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => startEditMilestone(m)}>Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => deleteMilestone(m.id)}>Delete</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Project Management Card */}
@@ -657,14 +956,28 @@ export function ProjectHubPage() {
               <Edit2 className="h-4 w-4 mr-2" />
               Edit Project Details
             </Button>
-            <Button className="w-full" variant="outline" disabled>
-              Manage Timeline
-              <span className="ml-2 text-xs opacity-70">(Coming Soon)</span>
+            <Button className="w-full" variant="outline" onClick={() => setMsDialogOpen(true)}>
+              Add Milestone Event
             </Button>
-            <Button className="w-full" variant="outline" disabled>
-              Update Status
-              <span className="ml-2 text-xs opacity-70">(Coming Soon)</span>
-            </Button>
+            <div className="w-full">
+              <label className="block text-sm font-medium text-gray-500 mb-1">Update Status</label>
+              <Select 
+                value={transition.status}
+                onValueChange={(v) => handleStatusChange(v)}
+                disabled={isUpdatingStatus}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NOT_STARTED">Not Started</SelectItem>
+                  <SelectItem value="ON_TRACK">On Track</SelectItem>
+                  <SelectItem value="AT_RISK">At Risk</SelectItem>
+                  <SelectItem value="BLOCKED">Blocked</SelectItem>
+                  <SelectItem value="COMPLETED">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
