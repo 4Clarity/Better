@@ -20,6 +20,7 @@ declare global {
        * @example cy.loginAs('program_manager')
        */
       loginAs(role: 'program_manager' | 'director' | 'admin' | 'security_officer'): Chainable<Element>
+      toggleAuthBypass(enabled: boolean): Chainable<Element>
       
       /**
        * Custom command to create a test transition
@@ -31,6 +32,14 @@ declare global {
         startDate?: string
         endDate?: string
       }): Chainable<Element>
+
+      // API helpers
+      apiRequest<T = any>(method: string, path: string, body?: any): Chainable<T>
+      createTransitionAPI(data: { contractName: string; contractNumber: string; startDate: string; endDate: string }): Chainable<{ id: string }>
+      createMilestoneAPI(transitionId: string, data: { title: string; dueDate: string; priority?: 'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'; description?: string }): Chainable<{ id: string }>
+      createTaskAPI(transitionId: string, data: { title: string; dueDate: string; priority?: 'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'; description?: string; milestoneId?: string; parentTaskId?: string }): Chainable<{ id: string }>
+      deleteMilestoneAPI(transitionId: string, milestoneId: string): Chainable<void>
+      deleteTaskAPI(transitionId: string, taskId: string): Chainable<void>
       
       /**
        * Custom command to wait for API call to complete
@@ -53,6 +62,13 @@ Cypress.Commands.add('loginAs', (role: string) => {
     }))
   })
   cy.visit('/')
+})
+
+// Toggle Auth Bypass stored in localStorage (consumed by backend guards)
+Cypress.Commands.add('toggleAuthBypass', (enabled: boolean) => {
+  cy.window().then((win) => {
+    win.localStorage.setItem('authBypass', enabled ? 'true' : 'false')
+  })
 })
 
 // Create transition helper command
@@ -81,4 +97,39 @@ Cypress.Commands.add('createTransition', (transitionData) => {
 Cypress.Commands.add('waitForApiCall', (method: string, url: string) => {
   cy.intercept(method, url).as('apiCall')
   cy.wait('@apiCall')
+})
+
+// Generic API helper using configured apiUrl
+Cypress.Commands.add('apiRequest', (method: string, path: string, body?: any) => {
+  const apiUrl = Cypress.env('apiUrl') as string
+  return cy.request({
+    method: method as any,
+    url: `${apiUrl}${path}`,
+    headers: { 'x-user-role': 'program_manager', 'x-auth-bypass': 'true' },
+    failOnStatusCode: false,
+    body,
+  }).then((resp) => {
+    if (resp.status >= 200 && resp.status < 300) return resp.body
+    throw new Error(`API ${method} ${path} failed: ${resp.status} ${JSON.stringify(resp.body)}`)
+  })
+})
+
+Cypress.Commands.add('createTransitionAPI', (data) => {
+  return cy.apiRequest('POST', '/transitions', data)
+})
+
+Cypress.Commands.add('createMilestoneAPI', (transitionId, data) => {
+  return cy.apiRequest('POST', `/transitions/${transitionId}/milestones`, data)
+})
+
+Cypress.Commands.add('createTaskAPI', (transitionId, data) => {
+  return cy.apiRequest('POST', `/transitions/${transitionId}/tasks`, data)
+})
+
+Cypress.Commands.add('deleteMilestoneAPI', (transitionId, milestoneId) => {
+  return cy.apiRequest('DELETE', `/transitions/${transitionId}/milestones/${milestoneId}`)
+})
+
+Cypress.Commands.add('deleteTaskAPI', (transitionId, taskId) => {
+  return cy.apiRequest('DELETE', `/transitions/${transitionId}/tasks/${taskId}`)
 })

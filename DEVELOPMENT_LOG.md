@@ -150,6 +150,7 @@ The user management system is production-ready with proper error handling, valid
 - `.github/workflows/ci-smoke.yml`: boots db/redis/reverse-proxy/backend/frontend, waits for Postgres and backend health, validates homepage contains “Transitions Overview”.
 - Cypress upgrade to `^15`; set `CYPRESS_INSTALL_BINARY=0` in frontend Dockerfile for leaner builds.
  - Backend Dockerfile now waits for DB and pushes Prisma schema at startup to avoid transient 502/Failed-to-fetch on cold boot.
+ - Added initial Cypress E2E coverage for Epics 0 and 1 (smoke, security users, milestones CRUD, tasks CRUD + subtasks + milestone, planning view tree ops, auth bypass toggle). See `frontend/cypress/e2e/*` and plan in `documents/planning/epic-0-1-cypress-test-plan.md`.
 
 ### Known Follow-ups
 - Optional: enforce JWT-based ownership/role checks once Keycloak tokens are wired into the UI.
