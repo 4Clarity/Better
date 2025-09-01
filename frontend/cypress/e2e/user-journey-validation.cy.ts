@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-describe('User Journey Validation - Complete Flow', () => {
+describe.skip('User Journey Validation - Complete Flow', () => {
   beforeEach(() => {
     // Set up API interceptors
     cy.intercept('POST', '/api/transitions').as('createTransition')

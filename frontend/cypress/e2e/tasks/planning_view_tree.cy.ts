@@ -16,6 +16,7 @@ describe('Planning View: Task Tree operations', () => {
     cy.visit(`/transitions/${transition.id}/tasks-milestones`)
     cy.wait('@getTree')
     cy.contains('Tasks & Milestones Planning').should('be.visible')
+    cy.get('[data-testid="planning-add-root-task-btn"]').should('be.visible')
     cy.contains('Unassigned Tasks').parent().within(()=>{
       cy.get('[data-testid="planning-add-root-task-btn"]').click()
     })

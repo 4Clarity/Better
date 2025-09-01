@@ -19,8 +19,10 @@ describe('Enhanced Detail: Tasks CRUD + Subtasks + Milestone', () => {
 
   it('creates a task with milestone, adds a subtask, edits and deletes', () => {
     cy.intercept('GET', `/api/enhanced-transitions/${transition.id}`).as('getEnhanced')
+    cy.intercept('GET', `/api/transitions/${transition.id}/milestones*`).as('getMs')
+    cy.intercept('GET', `/api/transitions/${transition.id}/tasks*`).as('getTasks')
     cy.visit(`/enhanced-transitions/${transition.id}`)
-    cy.wait('@getEnhanced')
+    cy.wait(['@getEnhanced','@getMs','@getTasks'])
     cy.contains('Tasks').should('be.visible')
     cy.get('[data-testid="tasks-add-btn"]').click()
     cy.get('[data-testid="task-title"]').type('Prepare Documentation')

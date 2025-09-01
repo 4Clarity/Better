@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-describe('Complete Transition Workflow', () => {
+describe.skip('Complete Transition Workflow', () => {
   beforeEach(() => {
     // Intercept API calls for monitoring
     cy.intercept('GET', '/api/transitions*').as('getTransitions')

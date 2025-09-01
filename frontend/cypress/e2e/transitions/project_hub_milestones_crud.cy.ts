@@ -13,9 +13,12 @@ describe('Project Hub: Milestones CRUD', () => {
   })
 
   it('creates, edits, and deletes a milestone', () => {
+    cy.intercept('GET', `/api/transitions/${transition.id}`).as('getTransition')
+    cy.intercept('GET', `/api/transitions/${transition.id}/milestones*`).as('getMilestones')
     cy.visit(`/transitions/${transition.id}`)
+    cy.wait(['@getTransition','@getMilestones'])
     cy.contains('Milestones').should('be.visible')
-    cy.get('[data-testid="milestones-add-btn"]').click()
+    cy.get('[data-testid="milestones-add-btn"]').should('be.visible').click()
     cy.get('[data-testid="milestone-title"]').type('Kickoff Meeting')
     cy.get('[data-testid="milestone-date"]').type(inSeven.toISOString().split('T')[0])
     cy.get('[data-testid="milestone-desc"]').type('Initial transition kickoff')

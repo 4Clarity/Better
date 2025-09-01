@@ -80,10 +80,10 @@ describe('Transition status and milestones', () => {
     cy.wait(['@getTransition2', '@getMilestones']);
 
     // Open Add Milestone dialog and submit with testids
-    cy.get('[data-testid="milestones-add-btn"]').click();
-    cy.get('[data-testid="milestone-title"]').type('Kickoff');
+    cy.get('[data-testid="milestones-add-btn"]').should('be.visible').click();
+    cy.get('[data-testid="milestone-title"]').should('be.visible').type('Kickoff');
     cy.get('[data-testid="milestone-date"]').type('2025-09-05');
-    cy.get('[data-testid="milestone-create"]').click();
+    cy.get('[data-testid="milestone-create"]').should('be.enabled').click();
     cy.wait('@postMilestone');
 
     cy.intercept('GET', `/api/transitions/${transitionId}/milestones*`, { body: { data: [{
