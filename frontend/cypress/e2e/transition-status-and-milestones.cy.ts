@@ -79,9 +79,11 @@ describe('Transition status and milestones', () => {
     cy.contains('Aegis Support').click();
     cy.wait(['@getTransition2', '@getMilestones']);
 
-    cy.get('input[placeholder="Milestone title"]').type('Kickoff');
-    cy.get('input[type="date"]').last().type('2025-09-05');
-    cy.contains('Add Milestone').click();
+    // Open Add Milestone dialog and submit with testids
+    cy.get('[data-testid="milestones-add-btn"]').click();
+    cy.get('[data-testid="milestone-title"]').type('Kickoff');
+    cy.get('[data-testid="milestone-date"]').type('2025-09-05');
+    cy.get('[data-testid="milestone-create"]').click();
     cy.wait('@postMilestone');
 
     cy.intercept('GET', `/api/transitions/${transitionId}/milestones*`, { body: { data: [{
@@ -94,4 +96,3 @@ describe('Transition status and milestones', () => {
     cy.contains('Delete').click();
   });
 });
-

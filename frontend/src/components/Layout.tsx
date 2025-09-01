@@ -216,7 +216,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
                   }}
                   className={`flex items-center w-full p-2 space-x-2 rounded-lg transition-colors duration-200 text-left ${
                     isCurrentPath(item.path)
-                      ? 'bg-green-500 text-white'
+                      ? 'bg-primary text-primary-foreground'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
                 >
@@ -278,7 +278,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
                 <span className="opacity-70">Auth Bypass</span>
                 <label className="relative inline-block w-10 h-5 cursor-pointer">
                   <input type="checkbox" checked={authBypass} onChange={toggleAuthBypass} className="opacity-0 w-0 h-0" />
-                  <span className={`absolute inset-0 ${authBypass ? 'bg-green-500' : 'bg-gray-300'} rounded-full`}>
+                  <span className={`absolute inset-0 ${authBypass ? 'bg-primary' : 'bg-gray-300'} rounded-full`}>
                     <span className={`absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${authBypass ? 'translate-x-5' : ''}`} />
                   </span>
                 </label>
@@ -299,7 +299,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
                     id="search-input"
                     type="text"
                     placeholder="Search..."
-                    className="absolute right-0 top-full mt-2 w-48 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="absolute right-0 top-full mt-2 w-48 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     autoFocus
                   />
                 )}
@@ -320,7 +320,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
                   onChange={toggleDarkMode}
                   className="opacity-0 w-0 h-0"
                 />
-                <span className={`absolute inset-0 bg-gray-300 rounded-full transition-all duration-400 ${isDarkMode ? 'bg-green-500' : ''}`}>
+                <span className={`absolute inset-0 bg-gray-300 rounded-full transition-all duration-400 ${isDarkMode ? 'bg-primary' : ''}`}>
                   <span className={`absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-transform duration-400 ${isDarkMode ? 'translate-x-6' : ''}`} />
                 </span>
               </label>

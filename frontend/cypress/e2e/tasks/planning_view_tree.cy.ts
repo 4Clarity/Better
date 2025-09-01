@@ -12,7 +12,9 @@ describe('Planning View: Task Tree operations', () => {
   })
 
   it('adds tasks and reorders/indents/outdents', () => {
+    cy.intercept('GET', `/api/transitions/${transition.id}/tasks/tree`).as('getTree')
     cy.visit(`/transitions/${transition.id}/tasks-milestones`)
+    cy.wait('@getTree')
     cy.contains('Tasks & Milestones Planning').should('be.visible')
     cy.contains('Unassigned Tasks').parent().within(()=>{
       cy.get('[data-testid="planning-add-root-task-btn"]').click()

@@ -12,12 +12,15 @@ describe('Enhanced Detail: Tasks CRUD + Subtasks + Milestone', () => {
     const end = new Date(Date.now() + 90*24*60*60*1000).toISOString().split('T')[0]
     cy.createTransitionAPI({ contractName: `E2E Enh ${Date.now()}`, contractNumber: `E2E-ED-${Date.now()}`, startDate: start, endDate: end }).then((t:any)=> {
       transition = t
+      expect(transition).to.have.property('id')
       return cy.createMilestoneAPI(t.id, { title: 'Phase 1', dueDate: new Date(Date.now()+10*24*60*60*1000).toISOString(), priority: 'MEDIUM' })
     }).then((m:any)=> milestone = m)
   })
 
   it('creates a task with milestone, adds a subtask, edits and deletes', () => {
+    cy.intercept('GET', `/api/enhanced-transitions/${transition.id}`).as('getEnhanced')
     cy.visit(`/enhanced-transitions/${transition.id}`)
+    cy.wait('@getEnhanced')
     cy.contains('Tasks').should('be.visible')
     cy.get('[data-testid="tasks-add-btn"]').click()
     cy.get('[data-testid="task-title"]').type('Prepare Documentation')

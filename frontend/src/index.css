@@ -14,9 +14,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
 
-    /* TIP Primary Color - Green accent */
-    --primary: 0 0% 9%; /* #A5C460 equivalent */
-    --primary-foreground: 0 0% 98%;
+    /* TIP Primary Color - Blue accent to match logo */
+    --primary: 209 100% 49%; /* #0079FB */
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
@@ -32,7 +32,7 @@
 
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%; /* Match primary color */
+    --ring: 209 100% 49%; /* Match primary color */
 
     --radius: 0.5rem;
 
@@ -58,9 +58,9 @@
     --popover: 0 0% 3.9%;
     --popover-foreground: 0 0% 98%;
 
-    /* TIP Primary Color - Green accent (same for consistency) */
-    --primary: 0 0% 98%; /* #A5C460 equivalent */
-    --primary-foreground: 0 0% 9%;
+    /* TIP Primary Color - Blue accent to match logo */
+    --primary: 209 100% 55%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 98%;
@@ -76,7 +76,7 @@
 
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%; /* Match primary color */ --chart-1: 220 70% 50%; --chart-2: 160 60% 45%; --chart-3: 30 80% 55%; --chart-4: 280 65% 60%; --chart-5: 340 75% 55%;
+    --ring: 209 100% 55%; /* Match primary color */ --chart-1: 220 70% 50%; --chart-2: 160 60% 45%; --chart-3: 30 80% 55%; --chart-4: 280 65% 60%; --chart-5: 340 75% 55%;
   }
 }
 
