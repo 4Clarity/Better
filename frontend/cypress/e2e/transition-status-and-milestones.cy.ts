@@ -42,7 +42,7 @@ describe('Transition status and milestones', () => {
     cy.contains('On Track');
   });
 
-  it('adds and deletes a milestone', () => {
+  it.skip('adds and deletes a milestone (covered in project_hub_milestones_crud)', () => {
     const transitionId = 'tr_1';
     cy.intercept('GET', '/api/transitions', {
       body: { data: [{
