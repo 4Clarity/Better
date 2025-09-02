@@ -14,7 +14,7 @@ describe('Enhanced Detail: Tasks CRUD + Subtasks + Milestone', () => {
       transition = t
       expect(transition).to.have.property('id')
       return cy.createMilestoneAPI(t.id, { title: 'Phase 1', dueDate: new Date(Date.now()+10*24*60*60*1000).toISOString(), priority: 'MEDIUM' })
-    }).then((m:any)=> milestone = m)
+    }).then((m:any)=> { milestone = m; expect(milestone).to.have.property('id') })
   })
 
   it('creates a task with milestone, adds a subtask, edits and deletes', () => {
@@ -24,7 +24,7 @@ describe('Enhanced Detail: Tasks CRUD + Subtasks + Milestone', () => {
     cy.visit(`/enhanced-transitions/${transition.id}`)
     cy.wait(['@getEnhanced','@getMs','@getTasks'])
     cy.contains('Tasks').should('be.visible')
-    cy.get('[data-testid="tasks-add-btn"]').click()
+    cy.get('[data-testid="tasks-add-btn"]').should('be.visible').click()
     cy.get('[data-testid="task-title"]').type('Prepare Documentation')
     cy.get('[data-testid="task-date"]').type(due.toISOString().split('T')[0])
     cy.get('[data-testid="task-priority"]').select('MEDIUM')
