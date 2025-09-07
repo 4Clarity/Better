@@ -29,7 +29,10 @@ describe('Transition Workflow (current)', () => {
         cy.get('[data-testid="milestone-date"]').type(due)
         cy.get('[data-testid="milestone-create"]').should('be.enabled').click()
         cy.contains('Kickoff WF').should('be.visible')
+
+        // Assert controls visible for readiness
+        cy.get('[data-testid="milestones-add-btn"]').should('be.visible')
+        cy.get('[data-testid="tasks-add-btn"]').should('be.visible')
       })
   })
 })
-

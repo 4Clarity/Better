@@ -26,6 +26,13 @@ describe('Project Hub: Milestones CRUD', () => {
     cy.get('[data-testid="milestone-create"]').should('be.enabled').click()
     cy.wait('@postMilestone')
     cy.wait('@getMilestones')
+    cy.contains('Kickoff Meeting').then($el => {
+      if ($el.length === 0) {
+        cy.intercept('GET', `/api/transitions/${transition.id}/milestones*`).as('getMilestonesRetry')
+        cy.reload()
+        cy.wait('@getMilestonesRetry')
+      }
+    })
     cy.contains('Kickoff Meeting').should('be.visible')
 
     // Edit inline

@@ -22,6 +22,7 @@ describe('User Journey Validation (current)', () => {
         cy.visit(`/transitions/${transition.id}`)
         cy.wait('@getTransition')
         cy.contains('Milestones').should('be.visible')
+        cy.get('[data-testid="milestones-add-btn"]').should('be.visible')
 
         // Enhanced Transition Detail loads
         cy.intercept('GET', `/api/enhanced-transitions/${transition.id}`).as('getEnhanced')
@@ -34,4 +35,3 @@ describe('User Journey Validation (current)', () => {
       })
   })
 })
-

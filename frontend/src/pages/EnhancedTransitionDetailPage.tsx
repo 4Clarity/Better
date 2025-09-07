@@ -722,11 +722,11 @@ export function EnhancedTransitionDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
               <div className="text-xs font-medium mb-1">Title</div>
-              <input className="border rounded-md p-2 w-full" value={msTitle} onChange={e=>setMsTitle(e.target.value)} />
+              <input data-testid="milestone-title" className="border rounded-md p-2 w-full" value={msTitle} onChange={e=>setMsTitle(e.target.value)} />
             </div>
             <div>
               <div className="text-xs font-medium mb-1">Due Date</div>
-              <input className="border rounded-md p-2 w-full" type="date" value={msDue} onChange={e=>setMsDue(e.target.value)} />
+              <input data-testid="milestone-date" className="border rounded-md p-2 w-full" type="date" value={msDue} onChange={e=>setMsDue(e.target.value)} />
             </div>
             <div>
               <div className="text-xs font-medium mb-1">Priority</div>
@@ -748,12 +748,12 @@ export function EnhancedTransitionDetailPage() {
             </div>
             <div className="md:col-span-2">
               <div className="text-xs font-medium mb-1">Description</div>
-              <textarea className="border rounded-md p-2 w-full" rows={3} value={msDesc} onChange={e=>setMsDesc(e.target.value)} />
+              <textarea data-testid="milestone-desc" className="border rounded-md p-2 w-full" rows={3} value={msDesc} onChange={e=>setMsDesc(e.target.value)} />
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={()=>setMsOpen(false)}>Cancel</Button>
-            <Button onClick={addMilestone} disabled={msSaving || !msTitle || !msDue}>{msSaving ? 'Adding...' : 'Create Milestone'}</Button>
+            <Button data-testid="milestone-cancel" variant="outline" onClick={()=>setMsOpen(false)}>Cancel</Button>
+            <Button data-testid="milestone-create" onClick={addMilestone} disabled={msSaving || !msTitle || !msDue}>{msSaving ? 'Adding...' : 'Create Milestone'}</Button>
           </div>
         </div>
       </div>

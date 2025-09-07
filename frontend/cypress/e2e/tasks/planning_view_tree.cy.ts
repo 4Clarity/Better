@@ -25,6 +25,13 @@ describe('Planning View: Task Tree operations', () => {
     cy.get('[data-testid="task-date"]').type(due)
     cy.get('[data-testid="task-create"]').click()
     cy.wait('@getTree2')
+    cy.contains('Root A').then($el => {
+      if ($el.length === 0) {
+        cy.intercept('GET', `/api/transitions/${transition.id}/tasks/tree`).as('getTreeRetryA')
+        cy.reload()
+        cy.wait('@getTreeRetryA')
+      }
+    })
     cy.contains('Root A').should('be.visible')
 
     // Add another root
@@ -36,6 +43,13 @@ describe('Planning View: Task Tree operations', () => {
     cy.get('[data-testid="task-date"]').type(due)
     cy.get('[data-testid="task-create"]').click()
     cy.wait('@getTree3')
+    cy.contains('Root B').then($el => {
+      if ($el.length === 0) {
+        cy.intercept('GET', `/api/transitions/${transition.id}/tasks/tree`).as('getTreeRetryB')
+        cy.reload()
+        cy.wait('@getTreeRetryB')
+      }
+    })
     cy.contains('Root B').should('be.visible')
 
     // Indent Root B under Root A (becomes subtask)

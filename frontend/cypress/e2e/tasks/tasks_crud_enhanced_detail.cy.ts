@@ -24,6 +24,14 @@ describe('Enhanced Detail: Tasks CRUD + Subtasks + Milestone', () => {
     cy.visit(`/enhanced-transitions/${transition.id}`)
     cy.wait(['@getEnhanced','@getMs','@getTasks'])
     cy.contains('Tasks').should('be.visible')
+
+    // Create milestone via UI on Enhanced Detail for determinism
+    const due = new Date(Date.now()+10*24*60*60*1000).toISOString().split('T')[0]
+    cy.get('[data-testid=\"milestones-add-btn\"]').should('be.visible').click()
+    cy.get('[data-testid=\"milestone-title\"]').should('be.visible').type('Phase 1')
+    cy.get('[data-testid=\"milestone-date\"]').type(due)
+    cy.get('[data-testid=\"milestone-create\"]').should('be.enabled').click()
+    cy.contains('Phase 1').should('be.visible')
     cy.get('[data-testid="tasks-add-btn"]').should('be.visible').click()
     cy.get('[data-testid="task-title"]').type('Prepare Documentation')
     cy.get('[data-testid="task-date"]').type(due.toISOString().split('T')[0])
