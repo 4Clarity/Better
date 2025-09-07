@@ -13,6 +13,7 @@ import contractRoutes from './modules/contract/contract.route';
 import enhancedTransitionRoutes from './modules/transition/enhanced-transition.route';
 import { userManagementRoutes } from './modules/user-management/user-management.routes';
 import taskRoutes from './modules/task/task.route';
+import { authRoutes, registerAuthDecorators } from './modules/auth';
 
 export function buildServer() {
   const server = Fastify({
@@ -45,6 +46,9 @@ export function buildServer() {
     origin: '*', // In production, you should restrict this to your frontend's domain
   });
 
+  // Register authentication decorators
+  server.register(registerAuthDecorators);
+
   // Global error handler for Zod validation errors
   server.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
@@ -60,6 +64,7 @@ export function buildServer() {
   });
 
   // Register routes
+  server.register(authRoutes, { prefix: '/api/auth' });
   server.register(transitionRoutes, { prefix: '/api/transitions' });
   server.register(businessOperationRoutes, { prefix: '/api/business-operations' });
   server.register(contractRoutes, { prefix: '/api/contracts' });

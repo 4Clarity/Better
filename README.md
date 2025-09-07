@@ -152,7 +152,7 @@ The schema implements a hub-and-spoke model with **Transitions** as the central 
 
 This architecture supports enterprise-scale government contract transitions while maintaining strict compliance, security, and auditability requirements essential for federal contracting environments.
 
-## 5. Build Challenges & Solutions
+## 6. Build Challenges & Solutions
 
 This section documents the key challenges encountered during the setup of the local development environment and the solutions that were implemented.
 
@@ -219,7 +219,93 @@ This section documents the key challenges encountered during the setup of the lo
     -   Created proper Prisma schema with `Transition` and `Milestone` models
     -   Ran `npx prisma db push --accept-data-loss` to synchronize schema with database
 
-## 5. Testing
+## 5. Authentication System
+
+The Transition Intelligence Platform implements a comprehensive authentication system with JWT tokens, role-based access control, and Keycloak SSO integration.
+
+### Authentication Methods
+
+The system supports multiple authentication methods for different environments:
+
+1. **Demo Login** (Development) - One-click authentication with admin privileges
+2. **Username/Password** - Direct credential authentication (demo/demo)
+3. **Keycloak SSO** - Production-ready single sign-on integration
+
+### Available Endpoints
+
+- **Health Check**: `GET /api/auth/health` - Authentication service status
+- **Demo Login**: `POST /api/auth/demo-login` - Development authentication
+- **Login**: `POST /api/auth/login` - Regular authentication (Keycloak or credentials)
+- **Profile**: `GET /api/auth/me` - Current user profile
+- **Admin Test**: `GET /api/auth/admin/test` - Admin role verification
+
+### Quick Start Authentication
+
+1. **Access the application**: Navigate to [http://tip.localhost](http://tip.localhost)
+2. **Login**: Use the "Demo Login" button for instant access with admin privileges
+3. **Alternative**: Use username `demo` and password `demo` for manual login
+
+### Authentication Features
+
+- ✅ **JWT Token Management**: Access tokens (15min) + refresh tokens (7 days)
+- ✅ **Role-Based Access Control**: Admin, program_manager, and user roles
+- ✅ **Session Management**: Secure session handling with database storage
+- ✅ **Development Bypass**: Auth bypass mode for development (`AUTH_BYPASS=true`)
+- ✅ **Keycloak Integration**: Production-ready SSO with token validation
+- ✅ **Security Headers**: CORS configuration and secure token handling
+
+### User Roles & Permissions
+
+The system implements three primary roles:
+
+- **Admin**: Full system access including user management
+- **Program Manager**: Project oversight and milestone management
+- **User**: Basic access to assigned transitions and tasks
+
+### Development Configuration
+
+For development, authentication bypass is enabled by default:
+
+```env
+AUTH_BYPASS=true
+JWT_SECRET=your-jwt-secret-key-here-change-in-production
+JWT_REFRESH_SECRET=your-refresh-token-secret-key-here-change-in-production
+KEYCLOAK_JWT_PUBLIC_KEY=your-keycloak-public-key-here
+```
+
+### Testing Authentication
+
+Test the authentication endpoints directly:
+
+```bash
+# Health check
+curl -X GET http://api.tip.localhost/api/auth/health
+
+# Demo login
+curl -X POST http://api.tip.localhost/api/auth/demo-login \
+  -H "Content-Type: application/json" -d "{}"
+
+# Username/password login
+curl -X POST http://api.tip.localhost/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "demo", "password": "demo"}'
+
+# Get current user (with auth bypass)
+curl -X GET http://api.tip.localhost/api/auth/me \
+  -H "x-auth-bypass: true"
+```
+
+### Production Deployment
+
+For production deployment:
+
+1. Set `AUTH_BYPASS=false` in your environment
+2. Configure proper Keycloak public key for token validation
+3. Use strong JWT secrets (minimum 32 characters)
+4. Enable HTTPS for all authentication endpoints
+5. Configure proper CORS origins for your domain
+
+## 7. Testing
 
 This project uses Cypress for end-to-end (E2E) testing of the UI and integrated backend flows.
 

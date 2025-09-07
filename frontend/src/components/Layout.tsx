@@ -1,5 +1,7 @@
 import React, { useState, useEffect, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import UserMenu from './auth/UserMenu';
 import tipLogo from '@/assets/tip-logo-blue.svg';
 
 interface LayoutProps {
@@ -10,7 +12,6 @@ interface LayoutProps {
 export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [authBypass, setAuthBypass] = useState<boolean>(() => localStorage.getItem('authBypass') === 'true');
@@ -152,10 +153,6 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
       
-      // Close user menu if clicking outside
-      if (isUserMenuOpen && !target.closest('#user-menu-btn') && !target.closest('#user-menu')) {
-        setIsUserMenuOpen(false);
-      }
       
       // Close search if clicking outside
       if (isSearchOpen && !target.closest('#search-btn') && !target.closest('#search-input')) {
@@ -165,7 +162,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [isUserMenuOpen, isSearchOpen]);
+  }, [isSearchOpen]);
 
   return (
     <div className={`flex min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -326,43 +323,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
               </label>
 
               {/* User menu */}
-              <div className="relative">
-                <button
-                  id="user-menu-btn"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center focus:outline-none"
-                >
-                  <img 
-                    className="w-8 h-8 rounded-full object-cover" 
-                    src="https://placehold.co/100x100/A0AEC0/000000?text=JD" 
-                    alt="User Profile" 
-                  />
-                </button>
-                
-                {isUserMenuOpen && (
-                  <div id="user-menu" className="absolute right-0 z-50 w-48 py-2 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-                    <button className="flex items-center w-full px-4 py-2 space-x-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                      <span>Account</span>
-                    </button>
-                    <button className="flex items-center w-full px-4 py-2 space-x-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-                      </svg>
-                      <span>Settings</span>
-                    </button>
-                    <div className="my-1 border-t border-gray-200 dark:border-gray-600" />
-                    <button className="flex items-center w-full px-4 py-2 space-x-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h5a1 1 0 000-2H4V4h4a1 1 0 100-2H3zm7 3a1 1 0 00-1 1v3.586l-.293-.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l2-2a1 1 0 10-1.414-1.414L11 10.586V7a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                      <span>Log Out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              <UserMenu />
             </div>
           </div>
         </header>
