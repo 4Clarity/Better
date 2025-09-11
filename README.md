@@ -5,6 +5,7 @@ This repository contains the source code for the Transition Intelligence Platfor
 ## 1. Prerequisites
 
 Before you begin, ensure you have the following installed:
+
 - **Docker and Docker Compose:** The entire development environment is containerized. [Install Docker](https://docs.docker.com/get-docker/).
 - **Node.js and npm:** Required for local development and package management. [Install Node.js](https://nodejs.org/).
 
@@ -28,13 +29,15 @@ The local environment is orchestrated using Docker Compose. It includes the fron
 
 Before starting the services, you need to configure the necessary ports for your environment and create a local environment file. We've provided a script to automate this process.
 
-1.  **Run the setup script:**
+1. **Run the setup script:**
+
     ```bash
     bash setup.sh
     ```
+
     This script will check for available ports, generate a `.env` file with the correct configuration, and notify you of the ports being used.
 
-2.  **Review the variables:** Open the newly created `.env` file. The script automatically assigns available ports, but you can review the generated configuration.
+2. **Review the variables:** Open the newly created `.env` file. The script automatically assigns available ports, but you can review the generated configuration.
 
 ### Step 2: Build and Start the Services
 
@@ -44,8 +47,9 @@ To build the Docker images and start all the services, run the following command
 docker-compose up --build
 ```
 
-to stop services..
-``` bash
+to stop services:
+
+```bash
 docker-compose down
 ```
 
@@ -70,7 +74,8 @@ Once the containers are running, you can access the different parts of the appli
 - **MinIO (S3 Storage):** [http://localhost:9001](http://localhost:9001)
 
 **Note:** You may need to add entries to your `/etc/hosts` file to map these hostnames to your localhost IP address (`127.0.0.1`):
-```
+
+```text
 127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost
 ```
 
@@ -89,53 +94,63 @@ The Transition Intelligence Platform implements a comprehensive data schema desi
 
 ### Core Data Entities
 
-**🏢 Organization & Access Management**
+#### 🏢 Organization & Access Management
+
 - **Organizations**: Government agencies and contractor companies with hierarchical structure
 - **Transitions**: Central workspace entities for contract transition projects
 - **TransitionUsers**: Role-based access control with security clearance progression tracking
 
-**📋 Work Management**
+#### 📋 Work Management
+
 - **Milestones**: High-level transition deliverables and checkpoints
 - **Tasks**: Granular work assignments with dependencies, progress tracking, and time management
 - **TaskComments**: Contextual communication threads for task collaboration
 
-**📄 Document & Knowledge Management**
+#### 📄 Document & Knowledge Management
+
 - **Artifacts**: Version-controlled documents with approval workflows and security classification
 - **DeliverableQualityReviews**: Multi-dimensional quality assessment (completeness, accuracy, clarity, security) with approval gates
 - **KnowledgeChunks**: AI-processed text segments from approved documents
 - **VectorEmbeddings**: Semantic search capabilities using pgvector for natural language queries
 
-**📧 Communication & Calendar**
+#### 📧 Communication & Calendar
+
 - **Communications**: Centralized logging of emails, chat messages, and notifications across platforms (Teams, Slack, Email)
 - **CalendarEvents**: Integrated calendar system with Outlook/Teams synchronization and automated event generation
 - **NotificationPreferences**: User-configurable multi-channel notification settings
 
-**🎓 Contractor Readiness**
+#### 🎓 Contractor Readiness
+
 - **ContractorProficiencyAssessments**: Comprehensive skill evaluations across technical, domain, and soft skills
 - **ProficiencyProgressTracking**: Longitudinal analytics with learning velocity, trend analysis, and predictive modeling
 
-**🔍 AI & Analytics**
+#### 🔍 AI & Analytics
+
 - **QuerySessions**: Natural language question-answering audit trail with user feedback
 - **ArtifactAuditLog**: Immutable audit trail for all document actions ensuring compliance
 
 ### Key Architectural Features
 
-**🔐 Security-First Design**
+#### 🔐 Security-First Design
+
 - Role-based access control with explicit security clearance requirements
 - Immutable audit trails for all actions and communications
 - Data encryption at rest and in transit with classification handling
 
-**🤖 AI Integration**
+#### 🤖 AI Integration
+
 - Vector embeddings for semantic search and knowledge discovery
 - Quality-gated content processing ensuring only approved deliverables become searchable
 - Natural language query capabilities with source citation and confidence scoring
 
-**📊 Enterprise Integration**
+#### 📊 Enterprise Integration
+
 - Microsoft Graph API integration for Outlook/Teams calendar synchronization
 - Multi-platform communication logging (Teams, Slack, Email, SMS)
 - External tool integration while maintaining centralized audit trails
 
-**📈 Analytics & Insights**
+#### 📈 Analytics & Insights
+
 - Real-time contractor readiness tracking with predictive completion modeling
 - Quality metrics for deliverable assessment and improvement
 - Learning velocity analysis with automated intervention triggers
@@ -144,6 +159,7 @@ The Transition Intelligence Platform implements a comprehensive data schema desi
 ### Data Relationships
 
 The schema implements a hub-and-spoke model with **Transitions** as the central entity, connected to:
+
 - User management through **TransitionUsers** junction table
 - Work breakdown via **Milestones** and **Tasks** hierarchy  
 - Document lifecycle through **Artifacts** → **Quality Reviews** → **Knowledge Processing**

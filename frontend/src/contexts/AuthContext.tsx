@@ -86,6 +86,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 // Context
 interface AuthContextType extends AuthState {
   login: (loginData: LoginRequest) => Promise<void>;
+  authenticateWithPassword: (email: string, password: string) => Promise<void>;
   demoLogin: () => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
@@ -192,6 +193,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  // Password authentication function
+  async function authenticateWithPassword(email: string, password: string) {
+    try {
+      dispatch({ type: 'AUTH_START' });
+      
+      const result = await authApi.authenticateWithPassword(email, password);
+      
+      // Store tokens
+      authApi.storeTokens(result.data.sessionToken, result.data.refreshToken);
+      
+      dispatch({ type: 'AUTH_SUCCESS', payload: result.data.user });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Password authentication failed';
+      dispatch({ type: 'AUTH_ERROR', payload: message });
+      throw error;
+    }
+  }
+
   // Logout function
   async function logout() {
     try {
@@ -289,6 +308,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value: AuthContextType = {
     ...state,
     login,
+    authenticateWithPassword,
     demoLogin,
     logout,
     refreshSession,

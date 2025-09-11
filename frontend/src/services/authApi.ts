@@ -22,6 +22,26 @@ export interface LoginRequest {
   };
 }
 
+export interface EmailLookupRequest {
+  email: string;
+}
+
+export interface EmailLookupResponse {
+  message: string;
+  data: {
+    email: string;
+    displayName: string;
+    authMethods: string[];
+    requiresChallenge: boolean;
+  };
+}
+
+export interface PasswordAuthRequest {
+  email: string;
+  password: string;
+  method: 'password';
+}
+
 export interface LoginResponse {
   success: boolean;
   message: string;
@@ -105,6 +125,60 @@ export class AuthenticationApi {
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.message || 'Login failed');
+    }
+
+    // Transform response to match expected format
+    return {
+      success: true,
+      message: result.message,
+      data: {
+        user: result.user,
+        sessionToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+        expiresIn: result.tokens.expiresIn,
+      },
+    };
+  }
+
+  /**
+   * Look up user by email and get available auth methods
+   */
+  async lookupUserByEmail(email: string): Promise<EmailLookupResponse> {
+    const response = await fetch(`${this.baseUrl}/lookup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Email lookup failed');
+    }
+
+    return result;
+  }
+
+  /**
+   * Authenticate user with password
+   */
+  async authenticateWithPassword(email: string, password: string): Promise<LoginResponse> {
+    const response = await fetch(`${this.baseUrl}/authenticate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        method: 'password',
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Authentication failed');
     }
 
     // Transform response to match expected format

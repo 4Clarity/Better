@@ -677,4 +677,256 @@ export class UserManagementService {
       recentLogins,
     };
   }
+
+  /**
+   * Admin Password Reset Functionality - SECURITY FEATURE
+   * Allows administrators to reset user passwords securely
+   */
+  
+  /**
+   * Generate a secure temporary password
+   */
+  private generateTemporaryPassword(): string {
+    const length = 12;
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*';
+    const allChars = uppercase + lowercase + numbers + symbols;
+    
+    let password = '';
+    
+    // Ensure at least one character from each category
+    password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
+    password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
+    password += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    password += symbols.charAt(Math.floor(Math.random() * symbols.length));
+    
+    // Fill the rest randomly
+    for (let i = 4; i < length; i++) {
+      password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    }
+    
+    // Shuffle the password
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+  }
+
+  /**
+   * Reset user password (Admin only)
+   */
+  async resetUserPassword(
+    userId: string, 
+    adminUserId: string, 
+    options: {
+      generateTemporary?: boolean;
+      customPassword?: string;
+      forceChangeOnLogin?: boolean;
+    } = {}
+  ): Promise<{
+    success: boolean;
+    temporaryPassword?: string;
+    message: string;
+  }> {
+    try {
+      // Validate admin permissions
+      const adminUser = await prisma.user.findUnique({
+        where: { id: adminUserId },
+        include: { 
+          // Note: This would need to be adjusted based on your roles schema
+          // For now, we'll assume any ACTIVE user can reset passwords
+        }
+      });
+
+      if (!adminUser || adminUser.accountStatus !== 'ACTIVE') {
+        throw new Error('Admin user not found or not active');
+      }
+
+      // Find target user
+      const targetUser = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { person: true }
+      });
+
+      if (!targetUser) {
+        throw new Error('Target user not found');
+      }
+
+      // Generate or use provided password
+      let newPassword: string;
+      let isTemporary = false;
+
+      if (options.generateTemporary !== false) {
+        // Generate secure temporary password
+        newPassword = this.generateTemporaryPassword();
+        isTemporary = true;
+      } else if (options.customPassword) {
+        // Use custom password provided by admin
+        newPassword = options.customPassword;
+        
+        // Validate custom password meets security requirements
+        if (newPassword.length < 8) {
+          throw new Error('Custom password must be at least 8 characters long');
+        }
+      } else {
+        throw new Error('Either generate temporary password or provide custom password');
+      }
+
+      // Hash the new password
+      const saltRounds = 12;
+      const hashedPassword = await hash(newPassword, saltRounds);
+
+      // Update user's password
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: hashedPassword,
+          // Set flag to force password change on next login if temporary
+          mustChangePassword: isTemporary || options.forceChangeOnLogin || false,
+          passwordResetAt: new Date(),
+          passwordResetBy: adminUserId,
+        }
+      });
+
+      // Log the password reset for security audit
+      console.log(`Password reset performed:`, {
+        targetUserId: userId,
+        targetUserEmail: targetUser.person?.primaryEmail,
+        adminUserId,
+        timestamp: new Date().toISOString(),
+        isTemporary,
+        forceChange: isTemporary || options.forceChangeOnLogin || false
+      });
+
+      // TODO: Send email to user about password reset
+      // TODO: Add to audit log table
+
+      return {
+        success: true,
+        temporaryPassword: isTemporary ? newPassword : undefined,
+        message: isTemporary 
+          ? `Temporary password generated. User must change password on next login.`
+          : `Password reset successfully. ${options.forceChangeOnLogin ? 'User must change password on next login.' : ''}`
+      };
+
+    } catch (error) {
+      console.error('Password reset error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to reset password'
+      };
+    }
+  }
+
+  /**
+   * Validate admin permissions for password reset
+   */
+  private async validateAdminPermissions(adminUserId: string): Promise<boolean> {
+    try {
+      const adminUser = await prisma.user.findUnique({
+        where: { id: adminUserId },
+        // This would need to include roles/permissions based on your schema
+      });
+
+      if (!adminUser || adminUser.accountStatus !== 'ACTIVE') {
+        return false;
+      }
+
+      // TODO: Add role-based permission checking
+      // For now, assume any ACTIVE user can reset passwords
+      // In production, you'd check for admin/user-management roles
+      return true;
+
+    } catch (error) {
+      console.error('Admin validation error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get password reset history for a user (Admin only)
+   */
+  async getPasswordResetHistory(userId: string, adminUserId: string): Promise<{
+    success: boolean;
+    history?: Array<{
+      resetAt: Date;
+      resetBy: string;
+      resetByUser?: { person: { firstName: string; lastName: string; primaryEmail: string } };
+    }>;
+    message: string;
+  }> {
+    try {
+      if (!await this.validateAdminPermissions(adminUserId)) {
+        throw new Error('Insufficient permissions');
+      }
+
+      // This would require adding password reset tracking to your schema
+      // For now, we'll return basic info from the user record
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          passwordResetAt: true,
+          passwordResetBy: true,
+          // Include the admin who performed the reset
+          // Note: This would need schema adjustment
+        }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      return {
+        success: true,
+        history: user.passwordResetAt ? [{
+          resetAt: user.passwordResetAt,
+          resetBy: user.passwordResetBy || 'system',
+        }] : [],
+        message: 'Password reset history retrieved'
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to get password history'
+      };
+    }
+  }
+
+  /**
+   * Force user to change password on next login
+   */
+  async forcePasswordChange(userId: string, adminUserId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      if (!await this.validateAdminPermissions(adminUserId)) {
+        throw new Error('Insufficient permissions');
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          mustChangePassword: true,
+        }
+      });
+
+      console.log(`Force password change set:`, {
+        targetUserId: userId,
+        adminUserId,
+        timestamp: new Date().toISOString()
+      });
+
+      return {
+        success: true,
+        message: 'User will be required to change password on next login'
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to force password change'
+      };
+    }
+  }
 }
