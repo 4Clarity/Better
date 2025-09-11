@@ -55,6 +55,7 @@ interface FormErrors {
   contractNumber?: string;
   startDate?: string;
   endDate?: string;
+  description?: string;
 }
 
 export function ProjectHubPage() {

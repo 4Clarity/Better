@@ -179,7 +179,7 @@ export class UserManagementApi {
     
     // Check if response is already in expected format (has pagination object)
     if ((backendResponse as any).pagination) {
-      return backendResponse as UsersResponse;
+      return backendResponse as unknown as UsersResponse;
     }
     
     // Transform backend response to match frontend expected format
@@ -250,6 +250,23 @@ export class UserManagementApi {
     return this.request(`/users/${userId}/status`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Reactivate suspended user account
+  static async reactivateUser(userId: string, reason?: string): Promise<{
+    message: string;
+    user: {
+      id: string;
+      accountStatus: string;
+      statusReason?: string;
+      reactivatedBy: string;
+      reactivatedAt: string;
+    };
+  }> {
+    return this.request(`/users/${userId}/reactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   }
 

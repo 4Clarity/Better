@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from '../components/auth/LoginForm';
+import EmailFirstLoginForm from '../components/auth/EmailFirstLoginForm';
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
@@ -8,6 +9,7 @@ interface LoginPageProps {
 
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const { isAuthenticated, isLoading } = useAuth();
+  const [useEmailFirst, setUseEmailFirst] = useState(true);
 
   useEffect(() => {
     // If already authenticated, call success callback
@@ -72,11 +74,46 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
           </p>
         </div>
 
+        {/* Login Method Toggle */}
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex rounded-md shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => setUseEmailFirst(true)}
+              className={`px-4 py-2 text-sm font-medium border rounded-l-md ${
+                useEmailFirst
+                  ? 'text-white bg-blue-600 border-blue-600'
+                  : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Email Login
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseEmailFirst(false)}
+              className={`px-4 py-2 text-sm font-medium border-t border-b border-r rounded-r-md ${
+                !useEmailFirst
+                  ? 'text-white bg-blue-600 border-blue-600'
+                  : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Token Login
+            </button>
+          </div>
+        </div>
+
         {/* Login Form */}
-        <LoginForm 
-          onSuccess={onLoginSuccess}
-          className="w-full"
-        />
+        {useEmailFirst ? (
+          <EmailFirstLoginForm 
+            onSuccess={onLoginSuccess}
+            className="w-full"
+          />
+        ) : (
+          <LoginForm 
+            onSuccess={onLoginSuccess}
+            className="w-full"
+          />
+        )}
 
         {/* Footer */}
         <div className="mt-8 text-center">

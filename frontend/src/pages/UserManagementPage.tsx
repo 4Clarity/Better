@@ -165,6 +165,17 @@ export function UserManagementPage() {
     }
   };
 
+  const handleReactivateUser = async (userId: string, reason?: string) => {
+    try {
+      await UserManagementApi.reactivateUser(userId, reason);
+      loadUsers(); // Reload users to show the updated status
+      loadSecurityData(); // Reload dashboard data
+    } catch (err) {
+      console.error('Error reactivating user:', err);
+      alert(err instanceof Error ? err.message : 'Failed to reactivate user account');
+    }
+  };
+
   const getStatusCounts = () => {
     if (!securityData) {
       return {
@@ -336,6 +347,7 @@ export function UserManagementPage() {
                     onViewDetails={handleViewDetails}
                     onManageAccess={handleManageAccess}
                     onUpdateStatus={handleUpdateStatus}
+                    onReactivateUser={handleReactivateUser}
                   />
                 ))}
               </div>

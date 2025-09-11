@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, Mail, Phone, Building, Clock, AlertTriangle, Check, X, Eye } from 'lucide-react';
+import { Shield, Mail, Phone, Building, Clock, AlertTriangle, Check, X, Eye, RotateCcw } from 'lucide-react';
 import { type User } from '@/services/userManagementApi';
 
 interface UserCardProps {
@@ -8,10 +8,11 @@ interface UserCardProps {
   onViewDetails: (userId: string) => void;
   onManageAccess: (userId: string) => void;
   onUpdateStatus: (userId: string, status: string, reason?: string) => void;
+  onReactivateUser?: (userId: string, reason?: string) => void;
   showActions?: boolean;
 }
 
-export function UserCard({ user, onViewDetails, onManageAccess, onUpdateStatus, showActions = true }: UserCardProps) {
+export function UserCard({ user, onViewDetails, onManageAccess, onUpdateStatus, onReactivateUser, showActions = true }: UserCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE': return 'success';
@@ -196,6 +197,18 @@ export function UserCard({ user, onViewDetails, onManageAccess, onUpdateStatus, 
             >
               <X className="w-4 h-4" />
               <span>Suspend</span>
+            </Button>
+          )}
+          
+          {user.accountStatus === 'SUSPENDED' && onReactivateUser && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onReactivateUser(user.id, 'Reactivated by administrator')}
+              className="flex items-center space-x-1 text-green-600 border-green-200 hover:bg-green-50"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reactivate</span>
             </Button>
           )}
         </div>

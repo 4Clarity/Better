@@ -97,7 +97,7 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
     try {
       setSaving(true);
       const response = await UserManagementApi.updatePerson(user.person.id, personalFormData);
-      const updatedUser = { ...user, person: { ...user.person, ...response.person } };
+      const updatedUser = { ...user, person: { ...user.person, ...response.person } } as User;
       setUser(updatedUser);
       setEditingPersonal(false);
       onUserUpdate?.(updatedUser);
@@ -118,7 +118,7 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
         clearanceExpirationDate: securityFormData.clearanceExpirationDate || undefined,
         pivExpirationDate: securityFormData.pivExpirationDate || undefined,
       });
-      const updatedUser = { ...user, person: { ...user.person, ...response.person } };
+      const updatedUser = { ...user, person: { ...user.person, ...response.person } } as User;
       setUser(updatedUser);
       setEditingSecurity(false);
       onUserUpdate?.(updatedUser);

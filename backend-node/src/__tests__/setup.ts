@@ -1,0 +1,44 @@
+import { PrismaClient } from '@prisma/client';
+
+// Mock Prisma for testing
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn(() => ({
+    user: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    userSession: {
+      findMany: jest.fn(),
+      create: jest.fn(),
+      delete: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    $disconnect: jest.fn(),
+  })),
+}));
+
+// Mock environment variables for testing
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only-32-chars';
+process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-key-for-testing-only-32-chars';
+process.env.KEYCLOAK_JWT_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4qiXIh0HN0eKnVc8NtOa
+test-key-for-testing-purposes-only
+-----END PUBLIC KEY-----`;
+
+// Global test utilities
+global.console = {
+  ...console,
+  // Suppress console.log in tests but keep errors and warnings
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+};
+
+// Cleanup after each test
+afterEach(() => {
+  jest.clearAllMocks();
+});

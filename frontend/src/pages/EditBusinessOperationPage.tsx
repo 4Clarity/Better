@@ -66,10 +66,10 @@ export function EditBusinessOperationPage() {
         description: operationData.description || '',
         scope: operationData.scope || '',
         objectives: operationData.objectives || '',
-        performanceMetrics: operationData.performanceMetrics || {
-          operational: [],
-          quality: [],
-          compliance: [],
+        performanceMetrics: {
+          operational: operationData.performanceMetrics?.operational || [],
+          quality: operationData.performanceMetrics?.quality || [],
+          compliance: operationData.performanceMetrics?.compliance || [],
         },
         supportPeriodStart: operationData.supportPeriodStart 
           ? new Date(operationData.supportPeriodStart).toISOString().split('T')[0] 

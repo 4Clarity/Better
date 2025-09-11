@@ -117,6 +117,45 @@ async function userManagementRoutes(fastify) {
             return reply.code(500).send({ error: 'Failed to update user status' });
         }
     });
+    // Reactivate suspended user account
+    fastify.post('/users/:id/reactivate', async (request, reply) => {
+        try {
+            const { id } = request.params;
+            const { reason } = request.body;
+            const reactivatedBy = 'current-user-id'; // This should come from JWT token
+            // First check if user exists and is suspended
+            const existingUser = await userService.getUserById(id);
+            if (!existingUser) {
+                return reply.code(404).send({ error: 'User not found' });
+            }
+            if (existingUser.accountStatus !== 'SUSPENDED') {
+                return reply.code(400).send({
+                    error: 'Invalid operation',
+                    message: `Cannot reactivate user with status: ${existingUser.accountStatus}. Only SUSPENDED users can be reactivated.`
+                });
+            }
+            const user = await userService.updateUserStatus({
+                userId: id,
+                accountStatus: 'ACTIVE',
+                statusReason: reason || 'Account reactivated',
+                deactivatedBy: undefined, // Clear the deactivation info
+            });
+            return reply.code(200).send({
+                message: 'User account reactivated successfully',
+                user: {
+                    id: user.id,
+                    accountStatus: user.accountStatus,
+                    statusReason: user.statusReason,
+                    reactivatedBy,
+                    reactivatedAt: new Date(),
+                },
+            });
+        }
+        catch (error) {
+            fastify.log.error(error);
+            return reply.code(500).send({ error: 'Failed to reactivate user account' });
+        }
+    });
     // Update user security information
     fastify.put('/users/:id/security', async (request, reply) => {
         try {
@@ -283,6 +322,63 @@ async function userManagementRoutes(fastify) {
         catch (error) {
             fastify.log.error(error);
             return reply.code(500).send({ error: 'Failed to record failed login' });
+        }
+    });
+    // Admin password reset functionality
+    fastify.post('/admin/users/:userId/reset-password', async (request, reply) => {
+        try {
+            const { userId } = request.params;
+            const { generateTemporary, customPassword, forceChangeOnLogin } = request.body;
+            const adminUserId = 'current-user-id'; // This should come from JWT token
+            const result = await userService.resetUserPassword(userId, adminUserId, {
+                generateTemporary,
+                customPassword,
+                forceChangeOnLogin: forceChangeOnLogin !== false, // Default to true
+            });
+            return reply.code(200).send(result);
+        }
+        catch (error) {
+            fastify.log.error(error);
+            if (error instanceof Error && error.message.includes('not found')) {
+                return reply.code(404).send({ error: error.message });
+            }
+            if (error instanceof Error && error.message.includes('not authorized')) {
+                return reply.code(403).send({ error: error.message });
+            }
+            return reply.code(500).send({ error: 'Failed to reset user password' });
+        }
+    });
+    // Get password reset history for admin
+    fastify.get('/admin/users/:userId/password-reset-history', async (request, reply) => {
+        try {
+            const { userId } = request.params;
+            const history = await userService.getPasswordResetHistory(userId);
+            return reply.code(200).send(history);
+        }
+        catch (error) {
+            fastify.log.error(error);
+            return reply.code(500).send({ error: 'Failed to fetch password reset history' });
+        }
+    });
+    // Force password change for user
+    fastify.post('/admin/users/:userId/force-password-change', async (request, reply) => {
+        try {
+            const { userId } = request.params;
+            const adminUserId = 'current-user-id'; // This should come from JWT token
+            await userService.forcePasswordChange(userId, adminUserId);
+            return reply.code(200).send({
+                message: 'User will be required to change password on next login',
+            });
+        }
+        catch (error) {
+            fastify.log.error(error);
+            if (error instanceof Error && error.message.includes('not found')) {
+                return reply.code(404).send({ error: error.message });
+            }
+            if (error instanceof Error && error.message.includes('not authorized')) {
+                return reply.code(403).send({ error: error.message });
+            }
+            return reply.code(500).send({ error: 'Failed to force password change' });
         }
     });
 }

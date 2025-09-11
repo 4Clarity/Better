@@ -21,8 +21,8 @@ const createTaskSchema = zod_1.z.object({
     dueDate: zod_1.z.string().datetime(),
     priority: PriorityEnum.default('MEDIUM'),
     status: TaskStatusEnum.default('NOT_STARTED'),
-    milestoneId: zod_1.z.string().optional(),
-    parentTaskId: zod_1.z.string().optional(),
+    milestoneId: zod_1.z.string().nullable().optional(),
+    parentTaskId: zod_1.z.string().nullable().optional(),
 });
 const updateTaskSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).max(255).optional(),
@@ -100,9 +100,19 @@ async function createTask(transitionId, data) {
             throw new Error('Parent task must belong to the same transition');
         parentTaskId = parent.id;
     }
+    // Validate milestone if provided
+    let milestoneId = null;
+    if (data.milestoneId) {
+        const ms = await prisma.milestone.findUnique({ where: { id: data.milestoneId } });
+        if (!ms)
+            throw new Error('Milestone not found');
+        if (ms.transitionId !== transitionId)
+            throw new Error('Milestone must belong to the same transition');
+        milestoneId = ms.id;
+    }
     const lastSibling = await prisma.task.findFirst({ where: { transitionId, parentTaskId }, orderBy: { orderIndex: 'desc' } });
     const orderIndex = lastSibling ? lastSibling.orderIndex + 1 : 0;
-    const task = await prisma.task.create({ data: { title: data.title, description: data.description, dueDate, priority: data.priority ?? 'MEDIUM', status: data.status ?? 'NOT_STARTED', transitionId, milestoneId: data.milestoneId, parentTaskId, orderIndex } });
+    const task = await prisma.task.create({ data: { title: data.title, description: data.description, dueDate, priority: data.priority ?? 'MEDIUM', status: data.status ?? 'NOT_STARTED', transitionId, milestoneId, parentTaskId, orderIndex } });
     return task;
 }
 async function getTasks(transitionId, query) {
@@ -154,6 +164,14 @@ async function updateTask(taskId, data) {
         const parent = await prisma.task.findUnique({ where: { id: data.parentTaskId } });
         if (!parent || parent.transitionId !== existing.transitionId)
             throw new Error('Parent task must belong to the same transition');
+    }
+    // Validate milestone changes if provided
+    if (data.milestoneId !== undefined && data.milestoneId !== null) {
+        const ms = await prisma.milestone.findUnique({ where: { id: data.milestoneId } });
+        if (!ms)
+            throw new Error('Milestone not found');
+        if (ms.transitionId !== existing.transitionId)
+            throw new Error('Milestone must belong to the same transition');
     }
     const updateData = { title: data.title, description: data.description, priority: data.priority, status: data.status, milestoneId: data.milestoneId ?? undefined, parentTaskId: data.parentTaskId ?? undefined };
     if (data.dueDate)
