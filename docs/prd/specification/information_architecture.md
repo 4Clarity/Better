@@ -111,6 +111,8 @@ TIP Enterprise Platform Root
     ├── System Configuration
     └── Comprehensive Audit Logs
 ```
+**File Source Tree Reference** 
+docs/prd/specification/source-tree-integration.md
 
 ### 1.2 Page-Level Detail Structure
 

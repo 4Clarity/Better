@@ -53,6 +53,8 @@ The color palette is designed to be professional, accessible, and clear. It uses
 - Semantic color usage on light backgrounds is WCAG AA compliant.
 - Critical interactions should target a 7:1 contrast ratio where possible.
 
+### **ShadCDN_ Theme**
+- docs/prd/specification/shadcn_theme.md
 ---
 
 ## **2. Typography System**
