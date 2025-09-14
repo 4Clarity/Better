@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Under Review - TIP Platform</title>
+    <style>
+        /* Reset styles */
+        body, table, td, p, a, li, blockquote {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+        }
+
+        /* Main styles */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header p {
+            color: #fef3c7;
+            margin: 8px 0 0 0;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .pending-message {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .pending-message h2 {
+            color: #333333;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .pending-message p {
+            color: #666666;
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .status-section {
+            background-color: #fffbeb;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .status-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border-radius: 50%;
+            margin: 0 auto 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .clock-icon {
+            color: #ffffff;
+            font-size: 24px;
+        }
+
+        .timeline-section {
+            margin: 30px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+
+        .timeline-icon.completed {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .timeline-icon.current {
+            background-color: #f59e0b;
+            color: white;
+        }
+
+        .timeline-icon.pending {
+            background-color: #e5e7eb;
+            color: #9ca3af;
+        }
+
+        .timeline-content h4 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .timeline-content p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .info-section {
+            background-color: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .info-section h3 {
+            color: #0369a1;
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+
+        .info-section p {
+            color: #0369a1;
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }
+
+        .footer p {
+            color: #999999;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #f59e0b;
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+
+            .content {
+                padding: 30px 20px !important;
+            }
+
+            .header {
+                padding: 30px 20px !important;
+            }
+
+            .status-section,
+            .info-section {
+                padding: 20px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>TIP Platform</h1>
+            <p>Transition Intelligence Platform</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Pending Message -->
+            <div class="pending-message">
+                <h2>Registration Under Review</h2>
+                <p>Thank you for verifying your email. Your registration is now under review by our administrators.</p>
+            </div>
+
+            <!-- Status Section -->
+            <div class="status-section">
+                <div class="status-icon">
+                    <span class="clock-icon">⏱</span>
+                </div>
+                <h3 style="color: #92400e; margin: 0 0 10px 0;">Awaiting Approval</h3>
+                <p style="color: #92400e; margin: 0 0 20px 0;">Your registration is being reviewed by our team. You'll receive an email notification once your account is approved.</p>
+                <p style="color: #666; margin: 0; font-size: 14px;"><strong>Typical review time:</strong> 1-2 business days</p>
+            </div>
+
+            <!-- Timeline -->
+            <div class="timeline-section">
+                <h3 style="color: #333; margin: 0 0 20px 0;">Registration Progress</h3>
+
+                <div class="timeline-item">
+                    <div class="timeline-icon completed">✓</div>
+                    <div class="timeline-content">
+                        <h4>Registration Submitted</h4>
+                        <p>Your registration request was successfully submitted on {{submissionDate}}.</p>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-icon completed">✓</div>
+                    <div class="timeline-content">
+                        <h4>Email Verified</h4>
+                        <p>Your email address has been successfully verified.</p>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-icon current">⏱</div>
+                    <div class="timeline-content">
+                        <h4>Admin Review</h4>
+                        <p>Your registration is currently being reviewed by our administrators. This typically takes 1-2 business days.</p>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-icon pending">📧</div>
+                    <div class="timeline-content">
+                        <h4>Account Activation</h4>
+                        <p>Once approved, you'll receive an email with instructions to access your account.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Registration Details -->
+            <div style="margin: 30px 0;">
+                <h3 style="color: #333; margin: 0 0 15px 0;">Your Registration Details</h3>
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; background-color: #f8f9fa; font-weight: 600; color: #333;">Name</th>
+                        <td style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; color: #666;">{{firstName}} {{lastName}}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; background-color: #f8f9fa; font-weight: 600; color: #333;">Email</th>
+                        <td style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; color: #666;">{{email}}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; background-color: #f8f9fa; font-weight: 600; color: #333;">Organization</th>
+                        <td style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; color: #666;">{{organizationName}}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; background-color: #f8f9fa; font-weight: 600; color: #333;">Position</th>
+                        <td style="padding: 12px; text-align: left; border-bottom: 1px solid #eee; color: #666;">{{position}}</td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 12px; text-align: left; background-color: #f8f9fa; font-weight: 600; color: #333;">Submitted</th>
+                        <td style="padding: 12px; text-align: left; color: #666;">{{submissionDate}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Info Section -->
+            <div class="info-section">
+                <h3>💡 What happens next?</h3>
+                <p>Our administrators will review your registration request and verify your eligibility for TIP Platform access. You'll receive an email notification once your account is approved or if additional information is needed.</p>
+            </div>
+
+            <!-- Contact Info -->
+            <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
+                <h3 style="color: #333; margin: 0 0 10px 0;">Questions?</h3>
+                <p style="color: #666; margin: 0; font-size: 14px;">
+                    If you have questions about your registration status, please contact our support team at
+                    <a href="mailto:support@tip-platform.gov" style="color: #f59e0b;">support@tip-platform.gov</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>TIP Platform</strong> - Transition Intelligence Platform</p>
+            <p>Secure access for authorized personnel only</p>
+            <p style="margin-top: 20px;">
+                <a href="mailto:support@tip-platform.gov">Contact Support</a> |
+                <a href="#">Privacy Policy</a>
+            </p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                This is an automated message. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

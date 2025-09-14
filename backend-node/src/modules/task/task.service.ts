@@ -1,10 +1,10 @@
-import { PrismaClient, PriorityLevel, TaskStatus } from '@prisma/client';
+import { PrismaClient, Priority, TaskStatus } from '@prisma/client';
 import { z } from 'zod';
 import { buildJsonSchemas } from 'fastify-zod';
 
 const prisma = new PrismaClient();
 
-const PriorityEnum = z.nativeEnum(PriorityLevel);
+const PriorityEnum = z.nativeEnum(Priority);
 const TaskStatusEnum = z.nativeEnum(TaskStatus);
 
 const createTaskSchema = z.object({

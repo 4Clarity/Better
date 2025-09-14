@@ -13,7 +13,7 @@ const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
 const fastify_zod_1 = require("fastify-zod");
 const prisma = new client_1.PrismaClient();
-const PriorityEnum = zod_1.z.nativeEnum(client_1.PriorityLevel);
+const PriorityEnum = zod_1.z.nativeEnum(client_1.Priority);
 const TaskStatusEnum = zod_1.z.nativeEnum(client_1.TaskStatus);
 const createTaskSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).max(255),

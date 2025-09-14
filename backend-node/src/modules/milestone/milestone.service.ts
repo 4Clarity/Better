@@ -1,4 +1,4 @@
-import { PrismaClient, MilestoneStatus, PriorityLevel } from '@prisma/client';
+import { PrismaClient, MilestoneStatus, Priority } from '@prisma/client';
 import { z } from 'zod';
 import { buildJsonSchemas } from 'fastify-zod';
 
@@ -6,14 +6,14 @@ const prisma = new PrismaClient();
 
 // Base Schemas
 const MilestoneStatusEnum = z.nativeEnum(MilestoneStatus);
-const PriorityLevelEnum = z.nativeEnum(PriorityLevel);
+const PriorityEnum = z.nativeEnum(Priority);
 
 // Create Milestone Schema
 const createMilestoneSchema = z.object({
   title: z.string().min(1, "Title is required").max(255),
   description: z.string().optional(),
   dueDate: z.string().datetime(),
-  priority: PriorityLevelEnum.default('MEDIUM'),
+  priority: PriorityEnum.default('MEDIUM'),
 });
 
 export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
@@ -23,7 +23,7 @@ const updateMilestoneSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
   dueDate: z.string().datetime().optional(),
-  priority: PriorityLevelEnum.optional(),
+  priority: PriorityEnum.optional(),
   status: MilestoneStatusEnum.optional(),
 });
 
@@ -32,7 +32,7 @@ export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;
 // Query Schemas
 const getMilestonesQuerySchema = z.object({
   status: MilestoneStatusEnum.optional(),
-  priority: PriorityLevelEnum.optional(),
+  priority: PriorityEnum.optional(),
   overdue: z.boolean().optional(),
   upcoming: z.coerce.number().int().min(1).optional(), // Days ahead
   page: z.coerce.number().int().min(1).default(1),
@@ -49,7 +49,7 @@ const milestoneResponseSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   dueDate: z.string(),
-  priority: PriorityLevelEnum,
+  priority: PriorityEnum,
   status: MilestoneStatusEnum,
   transitionId: z.string(),
   createdAt: z.string(),

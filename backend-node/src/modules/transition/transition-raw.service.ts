@@ -115,7 +115,7 @@ export async function createTransition(data: CreateTransitionInput) {
     const now = new Date();
     
     const result = await prisma.$executeRaw`
-      INSERT INTO "Transition" 
+      INSERT INTO "transitions" 
       (id, "contractName", "contractNumber", "contractId", "startDate", "endDate", status, "createdAt", "updatedAt")
       VALUES (${id}, ${contractName}, ${contractNumber}, ${contractId}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
     `;
@@ -123,7 +123,7 @@ export async function createTransition(data: CreateTransitionInput) {
     // Fetch the created transition
     const transition = await prisma.$queryRaw`
       SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-      FROM "Transition" 
+      FROM "transitions" 
       WHERE id = ${id}
     `;
 
@@ -151,14 +151,14 @@ export async function getTransitions(query: GetTransitionsQuery) {
   // Get data with pagination
   const dataQuery = `
     SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "Transition" 
+    FROM "transitions" 
     ${whereClause}
     ORDER BY "${sortBy}" ${sortOrder.toUpperCase()}
     LIMIT $${searchValues.length + 1} OFFSET $${searchValues.length + 2}
   `;
 
   // Get count
-  const countQuery = `SELECT COUNT(*) as count FROM "Transition" ${whereClause}`;
+  const countQuery = `SELECT COUNT(*) as count FROM "transitions" ${whereClause}`;
 
   const data = await prisma.$queryRawUnsafe(dataQuery, ...searchValues, limit, skip);
   const countResult = await prisma.$queryRawUnsafe(countQuery, ...searchValues);
@@ -178,7 +178,7 @@ export async function getTransitions(query: GetTransitionsQuery) {
 export async function getTransitionById(id: string) {
   const transition = await prisma.$queryRaw`
     SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "Transition" 
+    FROM "transitions" 
     WHERE id = ${id}
   `;
 
@@ -233,7 +233,7 @@ export async function updateTransition(id: string, data: UpdateTransitionInput) 
   updateValues.push(id); // id for WHERE clause
 
   const updateQuery = `
-    UPDATE "Transition" 
+    UPDATE "transitions" 
     SET ${updateFields.join(', ')}
     WHERE id = $${valueIndex}
   `;
@@ -254,7 +254,7 @@ export async function updateTransitionStatus(id: string, data: UpdateTransitionS
   await getTransitionById(id);
 
   await prisma.$executeRaw`
-    UPDATE "Transition" 
+    UPDATE "transitions" 
     SET status = ${data.status}, "updatedAt" = ${new Date()}
     WHERE id = ${id}
   `;
@@ -267,7 +267,7 @@ export async function deleteTransition(id: string) {
   await getTransitionById(id);
 
   await prisma.$executeRaw`
-    DELETE FROM "Transition" 
+    DELETE FROM "transitions" 
     WHERE id = ${id}
   `;
 

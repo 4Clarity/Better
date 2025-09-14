@@ -8,6 +8,13 @@ import {
   createMilestone,
   updateMilestoneStatus,
   getLegacyTransitions,
+  createMajorTransition,
+  createPersonnelTransition,
+  createOperationalChange,
+  getMajorTransitions,
+  getPersonnelTransitions,
+  getOperationalChanges,
+  getTransitionCounts,
   CreateEnhancedTransitionInput,
   UpdateEnhancedTransitionInput,
   GetEnhancedTransitionsQuery,
@@ -232,6 +239,177 @@ export async function getLegacyTransitionsHandler(
       statusCode: 500,
       error: 'Internal Server Error',
       message: 'Failed to fetch legacy transitions' 
+    });
+  }
+}
+
+// Level-specific handlers
+export async function createMajorTransitionHandler(
+  request: FastifyRequest<{ Body: Omit<CreateEnhancedTransitionInput, 'transitionLevel'> }>,
+  reply: FastifyReply
+) {
+  try {
+    const transition = await createMajorTransition(request.body);
+    return reply.code(201).send(transition);
+  } catch (error: any) {
+    console.error('Create major transition error:', error);
+    
+    if (error.message === 'Contract not found') {
+      return reply.code(404).send({ 
+        statusCode: 404,
+        error: 'Not Found',
+        message: error.message 
+      });
+    }
+
+    if (error.message === 'End date must be after start date') {
+      return reply.code(400).send({ 
+        statusCode: 400,
+        error: 'Bad Request',
+        message: error.message 
+      });
+    }
+    
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to create major transition' 
+    });
+  }
+}
+
+export async function createPersonnelTransitionHandler(
+  request: FastifyRequest<{ Body: Omit<CreateEnhancedTransitionInput, 'transitionLevel'> }>,
+  reply: FastifyReply
+) {
+  try {
+    const transition = await createPersonnelTransition(request.body);
+    return reply.code(201).send(transition);
+  } catch (error: any) {
+    console.error('Create personnel transition error:', error);
+    
+    if (error.message === 'Contract not found') {
+      return reply.code(404).send({ 
+        statusCode: 404,
+        error: 'Not Found',
+        message: error.message 
+      });
+    }
+
+    if (error.message === 'End date must be after start date') {
+      return reply.code(400).send({ 
+        statusCode: 400,
+        error: 'Bad Request',
+        message: error.message 
+      });
+    }
+    
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to create personnel transition' 
+    });
+  }
+}
+
+export async function createOperationalChangeHandler(
+  request: FastifyRequest<{ Body: Omit<CreateEnhancedTransitionInput, 'transitionLevel'> }>,
+  reply: FastifyReply
+) {
+  try {
+    const transition = await createOperationalChange(request.body);
+    return reply.code(201).send(transition);
+  } catch (error: any) {
+    console.error('Create operational change error:', error);
+    
+    if (error.message === 'Contract not found') {
+      return reply.code(404).send({ 
+        statusCode: 404,
+        error: 'Not Found',
+        message: error.message 
+      });
+    }
+
+    if (error.message === 'End date must be after start date') {
+      return reply.code(400).send({ 
+        statusCode: 400,
+        error: 'Bad Request',
+        message: error.message 
+      });
+    }
+    
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to create operational change' 
+    });
+  }
+}
+
+export async function getMajorTransitionsHandler(
+  request: FastifyRequest<{ Querystring: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'> }>,
+  reply: FastifyReply
+) {
+  try {
+    const result = await getMajorTransitions(request.query);
+    return reply.code(200).send(result);
+  } catch (error: any) {
+    console.error('Get major transitions error:', error);
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch major transitions' 
+    });
+  }
+}
+
+export async function getPersonnelTransitionsHandler(
+  request: FastifyRequest<{ Querystring: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'> }>,
+  reply: FastifyReply
+) {
+  try {
+    const result = await getPersonnelTransitions(request.query);
+    return reply.code(200).send(result);
+  } catch (error: any) {
+    console.error('Get personnel transitions error:', error);
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch personnel transitions' 
+    });
+  }
+}
+
+export async function getOperationalChangesHandler(
+  request: FastifyRequest<{ Querystring: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'> }>,
+  reply: FastifyReply
+) {
+  try {
+    const result = await getOperationalChanges(request.query);
+    return reply.code(200).send(result);
+  } catch (error: any) {
+    console.error('Get operational changes error:', error);
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch operational changes' 
+    });
+  }
+}
+
+export async function getTransitionCountsHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const counts = await getTransitionCounts();
+    return reply.code(200).send(counts);
+  } catch (error: any) {
+    console.error('Get transition counts error:', error);
+    return reply.code(500).send({ 
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch transition counts' 
     });
   }
 }

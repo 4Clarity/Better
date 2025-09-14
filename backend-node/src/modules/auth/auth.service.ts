@@ -17,6 +17,9 @@ export interface AuthUser {
     firstName: string;
     lastName: string;
     displayName: string;
+    profilePictureUrl?: string;
+    organizationName?: string;
+    position?: string;
   };
 }
 
@@ -182,17 +185,21 @@ export class AuthenticationService {
       const decoded = jwt.verify(refreshToken, this.refreshSecret) as any;
       
       // Verify session is still active
-      const session = await prisma.userSession.findFirst({
+      const session = await prisma.user_sessions.findFirst({
         where: {
           refreshToken,
           isActive: true,
           expiresAt: { gt: new Date() },
         },
         include: {
-          user: {
+          users: {
             include: {
-              person: true,
-              roles: true,
+              persons: true,
+              user_roles_user_roles_userIdTousers: {
+                include: {
+                  roles: true,
+                },
+              },
             },
           },
         },
@@ -204,16 +211,16 @@ export class AuthenticationService {
 
       // Generate new access token
       const user: AuthUser = {
-        id: session.user.id,
-        keycloakId: session.user.keycloakId || undefined,
-        username: session.user.username,
-        email: session.user.person?.primaryEmail || session.user.username,
-        roles: session.user.roles.map(r => r.name),
-        person: session.user.person ? {
-          id: session.user.person.id,
-          firstName: session.user.person.firstName,
-          lastName: session.user.person.lastName,
-          displayName: session.user.person.displayName,
+        id: session.users.id,
+        keycloakId: session.users.keycloakId || undefined,
+        username: session.users.username,
+        email: session.users.persons?.primaryEmail || session.users.username,
+        roles: session.users.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name),
+        person: session.users.persons ? {
+          id: session.users.persons.id,
+          firstName: session.users.persons.firstName,
+          lastName: session.users.persons.lastName,
+          displayName: `${session.users.persons.firstName} ${session.users.persons.lastName}`,
         } : undefined,
       };
 
@@ -246,11 +253,15 @@ export class AuthenticationService {
       const decoded = jwt.verify(token, this.jwtSecret) as TokenPayload;
       
       // Get fresh user data from database
-      const user = await prisma.user.findUnique({
+      const user = await prisma.users.findUnique({
         where: { id: decoded.userId },
         include: {
-          person: true,
-          roles: true,
+          persons: true,
+          user_roles_user_roles_userIdTousers: {
+            include: {
+              roles: true,
+            },
+          },
         },
       });
 
@@ -262,13 +273,13 @@ export class AuthenticationService {
         id: user.id,
         keycloakId: user.keycloakId || undefined,
         username: user.username,
-        email: user.person?.primaryEmail || user.username,
-        roles: user.roles.map(r => r.name),
-        person: user.person ? {
-          id: user.person.id,
-          firstName: user.person.firstName,
-          lastName: user.person.lastName,
-          displayName: user.person.displayName,
+        email: user.persons?.primaryEmail || user.username,
+        roles: user.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name),
+        person: user.persons ? {
+          id: user.persons.id,
+          firstName: user.persons.firstName,
+          lastName: user.persons.lastName,
+          displayName: `${user.persons.firstName} ${user.persons.lastName}`,
         } : undefined,
       };
     } catch (error) {
@@ -281,7 +292,7 @@ export class AuthenticationService {
    */
   async logout(refreshToken: string): Promise<void> {
     try {
-      await prisma.userSession.updateMany({
+      await prisma.user_sessions.updateMany({
         where: { refreshToken },
         data: { isActive: false },
       });
@@ -295,11 +306,15 @@ export class AuthenticationService {
    * Get current user profile
    */
   async getCurrentUser(userId: string): Promise<AuthUser | null> {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: userId },
       include: {
-        person: true,
-        roles: true,
+        persons: true,
+        user_roles_user_roles_userIdTousers: {
+          include: {
+            roles: true,
+          },
+        },
       },
     });
 
@@ -309,13 +324,13 @@ export class AuthenticationService {
       id: user.id,
       keycloakId: user.keycloakId || undefined,
       username: user.username,
-      email: user.person?.primaryEmail || user.username,
-      roles: user.roles.map(r => r.name),
-      person: user.person ? {
-        id: user.person.id,
-        firstName: user.person.firstName,
-        lastName: user.person.lastName,
-        displayName: user.person.displayName,
+      email: user.persons?.primaryEmail || user.username,
+      roles: user.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name),
+      person: user.persons ? {
+        id: user.persons.id,
+        firstName: user.persons.firstName,
+        lastName: user.persons.lastName,
+        displayName: `${user.persons.firstName} ${user.persons.lastName}`,
       } : undefined,
     };
   }
@@ -331,7 +346,7 @@ export class AuthenticationService {
   ): Promise<string> {
     // SECURITY FIX: Limit concurrent sessions per user
     const maxConcurrentSessions = 5;
-    const existingSessions = await prisma.userSession.findMany({
+    const existingSessions = await prisma.user_sessions.findMany({
       where: { userId, isActive: true },
       orderBy: { createdAt: 'asc' }
     });
@@ -339,7 +354,7 @@ export class AuthenticationService {
     // Remove oldest sessions if at limit
     if (existingSessions.length >= maxConcurrentSessions) {
       const sessionsToRemove = existingSessions.slice(0, existingSessions.length - maxConcurrentSessions + 1);
-      await prisma.userSession.deleteMany({
+      await prisma.user_sessions.deleteMany({
         where: { id: { in: sessionsToRemove.map(s => s.id) } }
       });
     }
@@ -347,7 +362,7 @@ export class AuthenticationService {
     // SECURITY FIX: Generate secure session fingerprint
     const sessionFingerprint = this.generateSessionFingerprint(userAgent, ipAddress);
 
-    const session = await prisma.userSession.create({
+    const session = await prisma.user_sessions.create({
       data: {
         userId,
         refreshToken,
@@ -355,10 +370,8 @@ export class AuthenticationService {
         isActive: true,
         userAgent,
         ipAddress,
-        createdAt: new Date(),
+        sessionFingerprint,
         lastUsedAt: new Date(),
-        // Store session fingerprint for security validation
-        // Note: This would require adding fingerprint field to database schema
       },
     });
     
@@ -378,7 +391,7 @@ export class AuthenticationService {
    */
   private async validateSessionSecurity(sessionId: string, ipAddress?: string, userAgent?: string): Promise<boolean> {
     try {
-      const session = await prisma.userSession.findUnique({
+      const session = await prisma.user_sessions.findUnique({
         where: { id: sessionId }
       });
 
@@ -446,7 +459,7 @@ export class AuthenticationService {
     multipleBrowsers: boolean;
     riskScore: number;
   }> {
-    const sessions = await prisma.userSession.findMany({
+    const sessions = await prisma.user_sessions.findMany({
       where: { 
         userId, 
         isActive: true,
@@ -479,7 +492,7 @@ export class AuthenticationService {
    */
   async cleanupExpiredSessions(): Promise<number> {
     try {
-      const result = await prisma.userSession.deleteMany({
+      const result = await prisma.user_sessions.deleteMany({
         where: {
           OR: [
             { expiresAt: { lt: new Date() } },
@@ -534,26 +547,398 @@ export class AuthenticationService {
   }
 
   /**
-   * Find or create user from Keycloak token data
+   * Find or create user from Keycloak token data - FIXED IMPLEMENTATION
    */
   private async findOrCreateUserFromKeycloak(keycloakData: any): Promise<AuthUser> {
-    // This would integrate with your existing user management system
-    // For now, return a demo user for development
-    const demoUser: AuthUser = {
-      id: 'demo-user-id',
-      keycloakId: keycloakData.sub || 'demo-keycloak-id',
-      username: keycloakData.email || 'demo@example.com',
-      email: keycloakData.email || 'demo@example.com',
-      roles: keycloakData.realm_access?.roles || ['user'],
-      person: {
-        id: 'demo-person-id',
-        firstName: keycloakData.given_name || 'Demo',
-        lastName: keycloakData.family_name || 'User',
-        displayName: keycloakData.name || 'Demo User',
-      },
+    try {
+      // Validate required Keycloak data
+      if (!keycloakData.sub) {
+        throw new Error('Keycloak token missing required subject (sub) claim');
+      }
+
+      // Log Keycloak user login attempt for audit
+      console.log(`Keycloak user authentication attempt: ${keycloakData.email || keycloakData.sub} (${keycloakData.sub})`);
+
+      // 1. Look for existing user by keycloakId
+      let user = await prisma.users.findFirst({
+        where: { keycloakId: keycloakData.sub },
+        include: {
+          persons: true,
+          user_roles_user_roles_userIdTousers: {
+            include: { roles: true }
+          }
+        }
+      });
+
+      if (user) {
+        console.log(`Found existing user by keycloakId: ${user.id} (${user.username})`);
+      }
+
+      // 2. If not found, look by email
+      if (!user && keycloakData.email) {
+        user = await prisma.users.findFirst({
+          where: {
+            persons: { primaryEmail: keycloakData.email?.toLowerCase() }
+          },
+          include: {
+            persons: true,
+            user_roles_user_roles_userIdTousers: {
+              include: { roles: true }
+            }
+          }
+        });
+
+        // If found by email, link Keycloak ID
+        if (user) {
+          console.log(`Found existing user by email, linking Keycloak ID: ${user.id} (${user.username})`);
+          user = await prisma.users.update({
+            where: { id: user.id },
+            data: { keycloakId: keycloakData.sub },
+            include: {
+              persons: true,
+              user_roles_user_roles_userIdTousers: {
+                include: { roles: true }
+              }
+            }
+          });
+        }
+      }
+
+      // 3. Create new user if not found
+      if (!user) {
+        console.log(`Creating new user from Keycloak data for: ${keycloakData.email || keycloakData.sub}`);
+        user = await this.createUserFromKeycloak(keycloakData);
+        console.log(`Successfully created new user: ${user.id} (${user.username})`);
+      } else {
+        // 4. Update existing user with latest Keycloak data
+        console.log(`Updating existing user with latest Keycloak data: ${user.id}`);
+        await this.updateUserFromKeycloak(user.id, keycloakData);
+        // Refresh user data after update
+        user = await prisma.users.findUnique({
+          where: { id: user.id },
+          include: {
+            persons: true,
+            user_roles_user_roles_userIdTousers: {
+              include: { roles: true }
+            }
+          }
+        });
+      }
+
+      // 5. Return formatted user
+      const authUser = this.formatAuthUser(user!);
+      console.log(`Keycloak authentication successful for user: ${authUser.id} (${authUser.username}) with roles: [${authUser.roles.join(', ')}]`);
+      return authUser;
+    } catch (error) {
+      console.error('Keycloak user creation/lookup failed:', error);
+      throw new Error(`Keycloak integration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Create new user from Keycloak data
+   */
+  private async createUserFromKeycloak(keycloakData: any): Promise<any> {
+    // Check if this should be the first admin user
+    const userCount = await prisma.users.count();
+    const isFirstUser = userCount === 0;
+
+    if (isFirstUser) {
+      console.log('This is the first user in the system - granting admin privileges');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Create person record
+      const personId = randomUUID();
+      const person = await tx.persons.create({
+        data: {
+          id: personId,
+          firstName: keycloakData.given_name || 'Unknown',
+          lastName: keycloakData.family_name || 'User',
+          primaryEmail: keycloakData.email?.toLowerCase() || `user-${keycloakData.sub}@unknown.local`,
+          alternateEmail: keycloakData.email !== keycloakData.preferred_username ? keycloakData.preferred_username : null,
+          profileImageUrl: keycloakData.picture,
+          workPhone: keycloakData.phone_number,
+          biography: keycloakData.bio,
+          title: keycloakData.job_title || keycloakData.position,
+          workLocation: keycloakData.organization || keycloakData.company,
+          skills: keycloakData.skills ? JSON.parse(JSON.stringify(keycloakData.skills)) : null,
+        }
+      });
+
+      // 2. Create user record
+      const userId = randomUUID();
+      const user = await tx.users.create({
+        data: {
+          id: userId,
+          keycloakId: keycloakData.sub,
+          username: keycloakData.preferred_username || keycloakData.email || `user-${keycloakData.sub}`,
+          personId: person.id,
+          accountStatus: 'Active',
+          isFirstUser,
+          emailVerified: keycloakData.email_verified || false,
+          emailVerifiedAt: keycloakData.email_verified ? new Date() : null,
+          lastLoginAt: new Date(),
+          accountApprovalStatus: 'APPROVED', // Keycloak users are pre-approved
+        }
+      });
+
+      // 3. Assign roles based on Keycloak claims and first user logic
+      const roles = this.extractRolesFromKeycloak(keycloakData, isFirstUser);
+      await this.assignRolesToUser(tx, user.id, roles);
+
+      return {
+        ...user,
+        persons: person,
+        user_roles_user_roles_userIdTousers: []
+      };
+    });
+  }
+
+  /**
+   * Update existing user with Keycloak data
+   */
+  private async updateUserFromKeycloak(userId: string, keycloakData: any): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      // Update user record
+      await tx.users.update({
+        where: { id: userId },
+        data: {
+          lastLoginAt: new Date(),
+          emailVerified: keycloakData.email_verified || false,
+          emailVerifiedAt: keycloakData.email_verified ? new Date() : null,
+        }
+      });
+
+      // Update person record with latest info from Keycloak
+      const user = await tx.users.findUnique({
+        where: { id: userId },
+        include: { persons: true }
+      });
+
+      if (user?.persons) {
+        await tx.persons.update({
+          where: { id: user.persons.id },
+          data: {
+            firstName: keycloakData.given_name || user.persons.firstName,
+            lastName: keycloakData.family_name || user.persons.lastName,
+            profileImageUrl: keycloakData.picture || user.persons.profileImageUrl,
+            workPhone: keycloakData.phone_number || user.persons.workPhone,
+          }
+        });
+      }
+
+      // Update roles if they've changed
+      const newRoles = this.extractRolesFromKeycloak(keycloakData, user?.isFirstUser || false);
+      await this.syncUserRoles(tx, userId, newRoles);
+    });
+  }
+
+  /**
+   * Extract roles from Keycloak token claims
+   */
+  private extractRolesFromKeycloak(keycloakData: any, isFirstUser: boolean): string[] {
+    const roles = new Set<string>();
+
+    // Default role for all users
+    roles.add('user');
+
+    // First user gets admin privileges
+    if (isFirstUser) {
+      roles.add('admin');
+      roles.add('program_manager');
+    }
+
+    // Extract realm roles
+    if (keycloakData.realm_access?.roles) {
+      keycloakData.realm_access.roles.forEach((role: string) => {
+        // Map Keycloak roles to application roles
+        const mappedRole = this.mapKeycloakRole(role);
+        if (mappedRole) {
+          roles.add(mappedRole);
+        }
+      });
+    }
+
+    // Extract client roles
+    if (keycloakData.resource_access?.[process.env.KEYCLOAK_CLIENT_ID || 'tip-backend']?.roles) {
+      keycloakData.resource_access[process.env.KEYCLOAK_CLIENT_ID || 'tip-backend'].roles.forEach((role: string) => {
+        const mappedRole = this.mapKeycloakRole(role);
+        if (mappedRole) {
+          roles.add(mappedRole);
+        }
+      });
+    }
+
+    return Array.from(roles);
+  }
+
+  /**
+   * Map Keycloak roles to application roles
+   */
+  private mapKeycloakRole(keycloakRole: string): string | null {
+    const roleMapping: Record<string, string> = {
+      'tip-admin': 'admin',
+      'tip-program-manager': 'program_manager',
+      'tip-program_manager': 'program_manager',
+      'tip-user': 'user',
+      'admin': 'admin',
+      'program_manager': 'program_manager',
+      'user': 'user',
+      'security_officer': 'security_officer',
+      'observer': 'observer'
     };
 
-    return demoUser;
+    return roleMapping[keycloakRole.toLowerCase()] || null;
+  }
+
+  /**
+   * Sync user roles with new role list
+   */
+  private async syncUserRoles(tx: any, userId: string, newRoles: string[]): Promise<void> {
+    // Ensure default roles exist
+    await this.ensureDefaultRoles(tx);
+
+    // Get current roles
+    const currentUserRoles = await tx.user_roles.findMany({
+      where: { userId, isActive: true },
+      include: { roles: true }
+    });
+
+    const currentRoleNames = currentUserRoles.map((ur: any) => ur.roles.name);
+
+    // Remove roles not in new list
+    const rolesToRemove = currentRoleNames.filter((role: string) => !newRoles.includes(role));
+    if (rolesToRemove.length > 0) {
+      // Get role IDs to remove
+      const rolesToRemoveIds = await tx.roles.findMany({
+        where: { name: { in: rolesToRemove } },
+        select: { id: true }
+      });
+
+      await tx.user_roles.updateMany({
+        where: {
+          userId,
+          roleId: { in: rolesToRemoveIds.map((r: any) => r.id) },
+          isActive: true
+        },
+        data: { isActive: false }
+      });
+    }
+
+    // Add new roles
+    const rolesToAdd = newRoles.filter((role: string) => !currentRoleNames.includes(role));
+    for (const roleName of rolesToAdd) {
+      const role = await tx.roles.findFirst({ where: { name: roleName } });
+      if (role) {
+        // Check if inactive role exists first
+        const existingUserRole = await tx.user_roles.findFirst({
+          where: { userId, roleId: role.id }
+        });
+
+        if (existingUserRole) {
+          // Reactivate existing role
+          await tx.user_roles.update({
+            where: { id: existingUserRole.id },
+            data: { isActive: true }
+          });
+        } else {
+          // Create new role assignment
+          await tx.user_roles.create({
+            data: {
+              id: randomUUID(),
+              userId,
+              roleId: role.id,
+              assignedBy: userId, // System assignment
+              isActive: true
+            }
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Assign roles to user during creation
+   */
+  private async assignRolesToUser(tx: any, userId: string, roleNames: string[]): Promise<void> {
+    // Ensure default roles exist
+    await this.ensureDefaultRoles(tx);
+
+    for (const roleName of roleNames) {
+      const role = await tx.roles.findFirst({
+        where: { name: roleName, isActive: true }
+      });
+
+      if (role) {
+        await tx.user_roles.create({
+          data: {
+            id: randomUUID(),
+            userId,
+            roleId: role.id,
+            assignedBy: userId, // System assignment during creation
+            isActive: true
+          }
+        });
+        console.log(`Assigned role '${roleName}' to user ${userId}`);
+      } else {
+        console.warn(`Role '${roleName}' not found in database. Skipping assignment.`);
+      }
+    }
+  }
+
+  /**
+   * Ensure default system roles exist in the database
+   */
+  private async ensureDefaultRoles(tx: any): Promise<void> {
+    const defaultRoles = [
+      { name: 'admin', description: 'Administrator with full system access' },
+      { name: 'program_manager', description: 'Program manager with transition management access' },
+      { name: 'user', description: 'Standard user with basic access' },
+      { name: 'security_officer', description: 'Security officer with security-related permissions' },
+      { name: 'observer', description: 'Observer with read-only access' }
+    ];
+
+    for (const roleData of defaultRoles) {
+      const existingRole = await tx.roles.findFirst({
+        where: { name: roleData.name }
+      });
+
+      if (!existingRole) {
+        await tx.roles.create({
+          data: {
+            id: randomUUID(),
+            name: roleData.name,
+            description: roleData.description,
+            permissions: JSON.stringify([]),
+            isActive: true
+          }
+        });
+        console.log(`Created default role: ${roleData.name}`);
+      }
+    }
+  }
+
+  /**
+   * Format user data for AuthUser interface
+   */
+  private formatAuthUser(user: any): AuthUser {
+    return {
+      id: user.id,
+      keycloakId: user.keycloakId,
+      username: user.username,
+      email: user.persons?.primaryEmail || user.username,
+      roles: user.user_roles_user_roles_userIdTousers?.map((ur: any) => ur.roles.name) || [],
+      person: user.persons ? {
+        id: user.persons.id,
+        firstName: user.persons.firstName,
+        lastName: user.persons.lastName,
+        displayName: user.persons.preferredName || `${user.persons.firstName} ${user.persons.lastName}`,
+        profilePictureUrl: user.persons.profileImageUrl,
+        organizationName: user.persons.workLocation, // Using workLocation as organization fallback
+        position: user.persons.title,
+      } : undefined,
+    };
   }
 
   /**
@@ -566,18 +951,18 @@ export class AuthenticationService {
   }> {
     try {
       // Find user in database by email
-      const user = await prisma.user.findFirst({
+      const user = await prisma.users.findFirst({
         where: {
-          person: {
+          persons: {
             primaryEmail: email.toLowerCase(),
           },
         },
         include: {
-          person: true,
+          persons: true,
         },
       });
 
-      if (!user || !user.person) {
+      if (!user || !user.persons) {
         return {
           user: null,
           authMethods: [],
@@ -602,17 +987,29 @@ export class AuthenticationService {
       // In production, this would check if user has password set
       authMethods.push('password');
 
+      // Get user roles from new relational structure
+      const userWithRoles = await prisma.users.findUnique({
+        where: { id: user.id },
+        include: {
+          user_roles_user_roles_userIdTousers: {
+            include: {
+              roles: true,
+            },
+          },
+        },
+      });
+
       const authUser: AuthUser = {
         id: user.id,
         keycloakId: user.keycloakId || undefined,
-        username: user.person.primaryEmail, // Use email as username per our change
-        email: user.person.primaryEmail,
-        roles: Array.isArray(user.roles) ? user.roles : [],
+        username: user.persons.primaryEmail, // Use email as username per our change
+        email: user.persons.primaryEmail,
+        roles: userWithRoles?.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name) || [],
         person: {
-          id: user.person.id,
-          firstName: user.person.firstName,
-          lastName: user.person.lastName,
-          displayName: user.person.displayName,
+          id: user.persons.id,
+          firstName: user.persons.firstName,
+          lastName: user.persons.lastName,
+          displayName: `${user.persons.firstName} ${user.persons.lastName}`,
         },
       };
 
@@ -721,7 +1118,7 @@ export class AuthenticationService {
       }
 
       // Get user's password hash from database
-      const userRecord = await prisma.user.findUnique({
+      const userRecord = await prisma.users.findUnique({
         where: { id: user.id },
         select: { passwordHash: true }
       });
@@ -883,7 +1280,7 @@ export class AuthenticationService {
    */
   async recordLogin(userId: string, ipAddress?: string, userAgent?: string): Promise<void> {
     try {
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: userId },
         data: { lastLoginAt: new Date() },
       });

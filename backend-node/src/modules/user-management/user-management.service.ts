@@ -95,7 +95,7 @@ export class UserManagementService {
    * Create a new person record
    */
   async createPerson(data: CreatePersonInput): Promise<Person> {
-    return prisma.person.create({
+    return prisma.persons.create({
       data: {
         ...data,
         skills: data.skills || [],
@@ -109,7 +109,7 @@ export class UserManagementService {
    * Get person by ID with optional user information
    */
   async getPersonById(id: string, includeUser = false): Promise<Person & { user?: User } | null> {
-    return prisma.person.findUnique({
+    return prisma.persons.findUnique({
       where: { id },
       include: {
         user: includeUser,
@@ -126,7 +126,7 @@ export class UserManagementService {
    * Get person by email
    */
   async getPersonByEmail(email: string, includeUser = false): Promise<Person & { user?: User } | null> {
-    return prisma.person.findUnique({
+    return prisma.persons.findUnique({
       where: { primaryEmail: email },
       include: {
         user: includeUser,
@@ -138,7 +138,7 @@ export class UserManagementService {
    * Update person information
    */
   async updatePerson(id: string, data: Partial<CreatePersonInput>): Promise<Person> {
-    return prisma.person.update({
+    return prisma.persons.update({
       where: { id },
       data: {
         ...data,
@@ -165,7 +165,7 @@ export class UserManagementService {
     // Start transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create person
-      const person = await tx.person.create({
+      const person = await tx.persons.create({
         data: {
           ...invitationData.personData,
           skills: invitationData.personData.skills || [],
@@ -228,7 +228,7 @@ export class UserManagementService {
     twoFactorEnabled?: boolean; 
     deviceFingerprint?: string 
   }): Promise<User> {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.users.findFirst({
       where: {
         invitationToken,
         invitationStatus: 'INVITATION_SENT',
@@ -242,7 +242,7 @@ export class UserManagementService {
       throw new Error('Invalid or expired invitation token');
     }
 
-    return prisma.user.update({
+    return prisma.users.update({
       where: { id: user.id },
       data: {
         keycloakId,
@@ -268,7 +268,7 @@ export class UserManagementService {
     const invitationExpiresAt = new Date();
     invitationExpiresAt.setHours(invitationExpiresAt.getHours() + this.INVITATION_EXPIRY_HOURS);
 
-    const user = await prisma.user.update({
+    const user = await prisma.users.update({
       where: { id: userId },
       data: {
         invitationToken,
@@ -287,7 +287,7 @@ export class UserManagementService {
    * Get user by ID with related data
    */
   async getUserById(id: string, includeRelations = true): Promise<any> {
-    return prisma.user.findUnique({
+    return prisma.users.findUnique({
       where: { id },
       include: includeRelations ? {
         person: {
@@ -314,7 +314,7 @@ export class UserManagementService {
    * Get user by username
    */
   async getUserByUsername(username: string): Promise<User | null> {
-    return prisma.user.findUnique({
+    return prisma.users.findUnique({
       where: { username },
       include: {
         person: true,
@@ -326,7 +326,7 @@ export class UserManagementService {
    * Get user by Keycloak ID
    */
   async getUserByKeycloakId(keycloakId: string): Promise<User | null> {
-    return prisma.user.findUnique({
+    return prisma.users.findUnique({
       where: { keycloakId },
       include: {
         person: true,
@@ -338,7 +338,7 @@ export class UserManagementService {
    * Update user account status
    */
   async updateUserStatus(data: UpdateUserStatusInput): Promise<User> {
-    return prisma.user.update({
+    return prisma.users.update({
       where: { id: data.userId },
       data: {
         accountStatus: data.accountStatus,
@@ -354,7 +354,7 @@ export class UserManagementService {
    * Update user security information
    */
   async updateUserSecurity(data: UpdateSecurityStatusInput): Promise<Person> {
-    return prisma.person.update({
+    return prisma.persons.update({
       where: { 
         user: { 
           id: data.userId 
@@ -375,7 +375,7 @@ export class UserManagementService {
    */
   async updateUserRoles(userId: string, roles: string[], updatedBy: string): Promise<User> {
     // TODO: Implement approval workflow for sensitive role changes
-    return prisma.user.update({
+    return prisma.users.update({
       where: { id: userId },
       data: {
         roles,
@@ -458,34 +458,20 @@ export class UserManagementService {
     }
 
     const [users, totalCount] = await Promise.all([
-      prisma.user.findMany({
+      prisma.users.findMany({
         where,
         skip,
         take: pageSize,
         orderBy: [
           { accountStatus: 'asc' },
-          { person: { lastName: 'asc' } },
-          { person: { firstName: 'asc' } },
+          { persons: { lastName: 'asc' } },
+          { persons: { firstName: 'asc' } },
         ],
         include: {
-          person: {
-            include: {
-              organizationAffiliations: {
-                where: { isActive: true },
-                include: {
-                  organization: true,
-                },
-              },
-            },
-          },
-          transitionUsers: {
-            include: {
-              transition: true,
-            },
-          },
+          persons: true,
         },
       }),
-      prisma.user.count({ where }),
+      prisma.users.count({ where }),
     ]);
 
     return {
@@ -578,7 +564,7 @@ export class UserManagementService {
    * Record user login
    */
   async recordUserLogin(userId: string, ipAddress?: string, userAgent?: string): Promise<void> {
-    await prisma.user.update({
+    await prisma.users.update({
       where: { id: userId },
       data: {
         lastLoginAt: new Date(),
@@ -593,7 +579,7 @@ export class UserManagementService {
    * Record failed login attempt
    */
   async recordFailedLogin(username: string): Promise<void> {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { username },
     });
 
@@ -601,7 +587,7 @@ export class UserManagementService {
       const failedAttempts = user.failedLoginAttempts + 1;
       const shouldLock = failedAttempts >= 5;
 
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: user.id },
         data: {
           failedLoginAttempts: failedAttempts,
@@ -620,7 +606,6 @@ export class UserManagementService {
     activeUsers: number;
     pendingUsers: number;
     suspendedUsers: number;
-    pivExpiringUsers: number;
     clearanceExpiringUsers: number;
     recentLogins: any[];
   }> {
@@ -629,23 +614,14 @@ export class UserManagementService {
       activeUsers,
       pendingUsers,
       suspendedUsers,
-      pivExpiringUsers,
       clearanceExpiringUsers,
       recentLogins,
     ] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { accountStatus: 'ACTIVE' } }),
-      prisma.user.count({ where: { accountStatus: 'PENDING' } }),
-      prisma.user.count({ where: { accountStatus: 'SUSPENDED' } }),
-      prisma.person.count({
-        where: {
-          pivExpirationDate: {
-            lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-            gte: new Date(),
-          },
-        },
-      }),
-      prisma.person.count({
+      prisma.users.count(),
+      prisma.users.count({ where: { accountStatus: 'Active' } }),
+      prisma.users.count({ where: { accountStatus: 'Pending' } }),
+      prisma.users.count({ where: { accountStatus: 'Suspended' } }),
+      prisma.persons.count({
         where: {
           clearanceExpirationDate: {
             lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
@@ -653,7 +629,7 @@ export class UserManagementService {
           },
         },
       }),
-      prisma.user.findMany({
+      prisma.users.findMany({
         where: {
           lastLoginAt: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
@@ -662,7 +638,7 @@ export class UserManagementService {
         orderBy: { lastLoginAt: 'desc' },
         take: 10,
         include: {
-          person: true,
+          persons: true,
         },
       }),
     ]);
@@ -672,7 +648,6 @@ export class UserManagementService {
       activeUsers,
       pendingUsers,
       suspendedUsers,
-      pivExpiringUsers,
       clearanceExpiringUsers,
       recentLogins,
     };
@@ -729,7 +704,7 @@ export class UserManagementService {
   }> {
     try {
       // Validate admin permissions
-      const adminUser = await prisma.user.findUnique({
+      const adminUser = await prisma.users.findUnique({
         where: { id: adminUserId },
         include: { 
           // Note: This would need to be adjusted based on your roles schema
@@ -742,7 +717,7 @@ export class UserManagementService {
       }
 
       // Find target user
-      const targetUser = await prisma.user.findUnique({
+      const targetUser = await prisma.users.findUnique({
         where: { id: userId },
         include: { person: true }
       });
@@ -776,7 +751,7 @@ export class UserManagementService {
       const hashedPassword = await hash(newPassword, saltRounds);
 
       // Update user's password
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: userId },
         data: {
           passwordHash: hashedPassword,
@@ -822,7 +797,7 @@ export class UserManagementService {
    */
   private async validateAdminPermissions(adminUserId: string): Promise<boolean> {
     try {
-      const adminUser = await prisma.user.findUnique({
+      const adminUser = await prisma.users.findUnique({
         where: { id: adminUserId },
         // This would need to include roles/permissions based on your schema
       });
@@ -861,7 +836,7 @@ export class UserManagementService {
 
       // This would require adding password reset tracking to your schema
       // For now, we'll return basic info from the user record
-      const user = await prisma.user.findUnique({
+      const user = await prisma.users.findUnique({
         where: { id: userId },
         select: {
           passwordResetAt: true,
@@ -904,7 +879,7 @@ export class UserManagementService {
         throw new Error('Insufficient permissions');
       }
 
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: userId },
         data: {
           mustChangePassword: true,

@@ -45,6 +45,7 @@ services:
     depends_on:
       - db
       - redis
+      - mailhog
 
   backend-python:
     build:
@@ -77,6 +78,24 @@ services:
     image: redis:7-alpine
     ports:
       - "${REDIS_PORT}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    platform: linux/amd64
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    environment:
+      - MH_STORAGE=memory
+      - MH_MAILDIR_PATH=/tmp
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailhog.rule=Host(`mail.tip.localhost`)"
+      - "traefik.http.routers.mailhog.entrypoints=web"
+      - "traefik.http.services.mailhog.loadbalancer.server.port=8025"
 
   minio:
     image: minio/minio
@@ -118,5 +137,6 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   minio_data:
   n8n_data:

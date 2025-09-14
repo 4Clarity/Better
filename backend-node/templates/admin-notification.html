@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>New User Registration - TIP Platform</title>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; line-height: 1.6; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .user-info { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin: 20px 0; }
+        .button { background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+        .footer { background-color: #f3f4f6; padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>New User Registration Pending</h1>
+        </div>
+
+        <div class="content">
+            <p>Hello Administrator,</p>
+
+            <p>A new user has registered on the TIP Platform and is awaiting approval. Please review the following details:</p>
+
+            <div class="user-info">
+                <h3>User Information</h3>
+                <p><strong>Name:</strong> {{firstName}} {{lastName}}</p>
+                <p><strong>Email:</strong> {{email}}</p>
+                <p><strong>Organization:</strong> {{organizationName}}</p>
+                <p><strong>Position:</strong> {{position}}</p>
+                <p><strong>Registration Date:</strong> {{registrationDate}}</p>
+            </div>
+
+            <div style="text-align: center;">
+                <a href="{{approvalUrl}}" class="button">Review Registration</a>
+            </div>
+
+            <p>To approve or reject this registration, please log in to the admin dashboard and navigate to the user management section.</p>
+
+            <p><strong>Note:</strong> The user has already verified their email address and is waiting for administrative approval to access the platform.</p>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 TIP Platform. All rights reserved.</p>
+            <p>This is an automated notification from the TIP Platform user management system.</p>
+        </div>
+    </div>
+</body>
+</html>

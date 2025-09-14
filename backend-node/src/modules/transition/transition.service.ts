@@ -1,4 +1,4 @@
-import { PrismaClient, TransitionStatus, PriorityLevel, MilestoneStatus } from '@prisma/client';
+import { PrismaClient, TransitionStatus, Priority, MilestoneStatus } from '@prisma/client';
 import { z } from 'zod';
 import { buildJsonSchemas } from 'fastify-zod';
 
@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 // Base Schemas
 const TransitionStatusEnum = z.nativeEnum(TransitionStatus);
-const PriorityLevelEnum = z.nativeEnum(PriorityLevel);
+const PriorityLevelEnum = z.nativeEnum(Priority);
 const MilestoneStatusEnum = z.nativeEnum(MilestoneStatus);
 
 // Create Transition Schema

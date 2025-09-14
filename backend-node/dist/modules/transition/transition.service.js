@@ -14,7 +14,7 @@ const fastify_zod_1 = require("fastify-zod");
 const prisma = new client_1.PrismaClient();
 // Base Schemas
 const TransitionStatusEnum = zod_1.z.nativeEnum(client_1.TransitionStatus);
-const PriorityLevelEnum = zod_1.z.nativeEnum(client_1.PriorityLevel);
+const PriorityLevelEnum = zod_1.z.nativeEnum(client_1.Priority);
 const MilestoneStatusEnum = zod_1.z.nativeEnum(client_1.MilestoneStatus);
 // Create Transition Schema
 const createTransitionSchema = zod_1.z.object({

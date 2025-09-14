@@ -132,7 +132,7 @@ class UserManagementService {
      * Accept user invitation and complete registration
      */
     async acceptInvitation(invitationToken, keycloakId, confirmationData) {
-        const user = await prisma.user.findFirst({
+        const user = await prisma.users.findFirst({
             where: {
                 invitationToken,
                 invitationStatus: 'INVITATION_SENT',
@@ -144,7 +144,7 @@ class UserManagementService {
         if (!user) {
             throw new Error('Invalid or expired invitation token');
         }
-        return prisma.user.update({
+        return prisma.users.update({
             where: { id: user.id },
             data: {
                 keycloakId,
@@ -168,7 +168,7 @@ class UserManagementService {
         const invitationToken = this.generateInvitationToken();
         const invitationExpiresAt = new Date();
         invitationExpiresAt.setHours(invitationExpiresAt.getHours() + this.INVITATION_EXPIRY_HOURS);
-        const user = await prisma.user.update({
+        const user = await prisma.users.update({
             where: { id: userId },
             data: {
                 invitationToken,
@@ -185,7 +185,7 @@ class UserManagementService {
      * Get user by ID with related data
      */
     async getUserById(id, includeRelations = true) {
-        return prisma.user.findUnique({
+        return prisma.users.findUnique({
             where: { id },
             include: includeRelations ? {
                 person: {
@@ -211,7 +211,7 @@ class UserManagementService {
      * Get user by username
      */
     async getUserByUsername(username) {
-        return prisma.user.findUnique({
+        return prisma.users.findUnique({
             where: { username },
             include: {
                 person: true,
@@ -222,7 +222,7 @@ class UserManagementService {
      * Get user by Keycloak ID
      */
     async getUserByKeycloakId(keycloakId) {
-        return prisma.user.findUnique({
+        return prisma.users.findUnique({
             where: { keycloakId },
             include: {
                 person: true,
@@ -233,7 +233,7 @@ class UserManagementService {
      * Update user account status
      */
     async updateUserStatus(data) {
-        return prisma.user.update({
+        return prisma.users.update({
             where: { id: data.userId },
             data: {
                 accountStatus: data.accountStatus,
@@ -268,7 +268,7 @@ class UserManagementService {
      */
     async updateUserRoles(userId, roles, updatedBy) {
         // TODO: Implement approval workflow for sensitive role changes
-        return prisma.user.update({
+        return prisma.users.update({
             where: { id: userId },
             data: {
                 roles,
@@ -337,7 +337,7 @@ class UserManagementService {
             ];
         }
         const [users, totalCount] = await Promise.all([
-            prisma.user.findMany({
+            prisma.users.findMany({
                 where,
                 skip,
                 take: pageSize,
@@ -364,7 +364,7 @@ class UserManagementService {
                     },
                 },
             }),
-            prisma.user.count({ where }),
+            prisma.users.count({ where }),
         ]);
         return {
             users,
@@ -441,7 +441,7 @@ class UserManagementService {
      * Record user login
      */
     async recordUserLogin(userId, ipAddress, userAgent) {
-        await prisma.user.update({
+        await prisma.users.update({
             where: { id: userId },
             data: {
                 lastLoginAt: new Date(),
@@ -455,13 +455,13 @@ class UserManagementService {
      * Record failed login attempt
      */
     async recordFailedLogin(username) {
-        const user = await prisma.user.findUnique({
+        const user = await prisma.users.findUnique({
             where: { username },
         });
         if (user) {
             const failedAttempts = user.failedLoginAttempts + 1;
             const shouldLock = failedAttempts >= 5;
-            await prisma.user.update({
+            await prisma.users.update({
                 where: { id: user.id },
                 data: {
                     failedLoginAttempts: failedAttempts,
@@ -476,10 +476,10 @@ class UserManagementService {
      */
     async getSecurityDashboard() {
         const [totalUsers, activeUsers, pendingUsers, suspendedUsers, pivExpiringUsers, clearanceExpiringUsers, recentLogins,] = await Promise.all([
-            prisma.user.count(),
-            prisma.user.count({ where: { accountStatus: 'ACTIVE' } }),
-            prisma.user.count({ where: { accountStatus: 'PENDING' } }),
-            prisma.user.count({ where: { accountStatus: 'SUSPENDED' } }),
+            prisma.users.count(),
+            prisma.users.count({ where: { accountStatus: 'ACTIVE' } }),
+            prisma.users.count({ where: { accountStatus: 'PENDING' } }),
+            prisma.users.count({ where: { accountStatus: 'SUSPENDED' } }),
             prisma.person.count({
                 where: {
                     pivExpirationDate: {
@@ -496,7 +496,7 @@ class UserManagementService {
                     },
                 },
             }),
-            prisma.user.findMany({
+            prisma.users.findMany({
                 where: {
                     lastLoginAt: {
                         gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
@@ -552,7 +552,7 @@ class UserManagementService {
     async resetUserPassword(userId, adminUserId, options = {}) {
         try {
             // Validate admin permissions
-            const adminUser = await prisma.user.findUnique({
+            const adminUser = await prisma.users.findUnique({
                 where: { id: adminUserId },
                 include: {
                 // Note: This would need to be adjusted based on your roles schema
@@ -563,7 +563,7 @@ class UserManagementService {
                 throw new Error('Admin user not found or not active');
             }
             // Find target user
-            const targetUser = await prisma.user.findUnique({
+            const targetUser = await prisma.users.findUnique({
                 where: { id: userId },
                 include: { person: true }
             });
@@ -593,7 +593,7 @@ class UserManagementService {
             const saltRounds = 12;
             const hashedPassword = await (0, bcryptjs_1.hash)(newPassword, saltRounds);
             // Update user's password
-            await prisma.user.update({
+            await prisma.users.update({
                 where: { id: userId },
                 data: {
                     passwordHash: hashedPassword,
@@ -635,7 +635,7 @@ class UserManagementService {
      */
     async validateAdminPermissions(adminUserId) {
         try {
-            const adminUser = await prisma.user.findUnique({
+            const adminUser = await prisma.users.findUnique({
                 where: { id: adminUserId },
                 // This would need to include roles/permissions based on your schema
             });
@@ -662,7 +662,7 @@ class UserManagementService {
             }
             // This would require adding password reset tracking to your schema
             // For now, we'll return basic info from the user record
-            const user = await prisma.user.findUnique({
+            const user = await prisma.users.findUnique({
                 where: { id: userId },
                 select: {
                     passwordResetAt: true,
@@ -698,7 +698,7 @@ class UserManagementService {
             if (!await this.validateAdminPermissions(adminUserId)) {
                 throw new Error('Insufficient permissions');
             }
-            await prisma.user.update({
+            await prisma.users.update({
                 where: { id: userId },
                 data: {
                     mustChangePassword: true,

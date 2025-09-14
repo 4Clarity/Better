@@ -1,0 +1,1 @@
+export { registrationManagementRoutes } from './registration-management.routes';

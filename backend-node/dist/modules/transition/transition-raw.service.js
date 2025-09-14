@@ -102,14 +102,14 @@ async function createTransition(data) {
         const id = `clz${generateCuid()}`;
         const now = new Date();
         const result = await prisma.$executeRaw `
-      INSERT INTO "Transition" 
+      INSERT INTO "transitions" 
       (id, "contractName", "contractNumber", "contractId", "startDate", "endDate", status, "createdAt", "updatedAt")
       VALUES (${id}, ${contractName}, ${contractNumber}, ${contractId}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
     `;
         // Fetch the created transition
         const transition = await prisma.$queryRaw `
       SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-      FROM "Transition" 
+      FROM "transitions" 
       WHERE id = ${id}
     `;
         return transition[0];
@@ -133,13 +133,13 @@ async function getTransitions(query) {
     // Get data with pagination
     const dataQuery = `
     SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "Transition" 
+    FROM "transitions" 
     ${whereClause}
     ORDER BY "${sortBy}" ${sortOrder.toUpperCase()}
     LIMIT $${searchValues.length + 1} OFFSET $${searchValues.length + 2}
   `;
     // Get count
-    const countQuery = `SELECT COUNT(*) as count FROM "Transition" ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) as count FROM "transitions" ${whereClause}`;
     const data = await prisma.$queryRawUnsafe(dataQuery, ...searchValues, limit, skip);
     const countResult = await prisma.$queryRawUnsafe(countQuery, ...searchValues);
     const total = Number(countResult[0].count);
@@ -156,7 +156,7 @@ async function getTransitions(query) {
 async function getTransitionById(id) {
     const transition = await prisma.$queryRaw `
     SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "Transition" 
+    FROM "transitions" 
     WHERE id = ${id}
   `;
     if (!Array.isArray(transition) || transition.length === 0) {
@@ -201,7 +201,7 @@ async function updateTransition(id, data) {
     updateValues.push(new Date());
     updateValues.push(id); // id for WHERE clause
     const updateQuery = `
-    UPDATE "Transition" 
+    UPDATE "transitions" 
     SET ${updateFields.join(', ')}
     WHERE id = $${valueIndex}
   `;
@@ -220,7 +220,7 @@ async function updateTransitionStatus(id, data) {
     // Check if transition exists
     await getTransitionById(id);
     await prisma.$executeRaw `
-    UPDATE "Transition" 
+    UPDATE "transitions" 
     SET status = ${data.status}, "updatedAt" = ${new Date()}
     WHERE id = ${id}
   `;
@@ -230,7 +230,7 @@ async function deleteTransition(id) {
     // Check if transition exists
     await getTransitionById(id);
     await prisma.$executeRaw `
-    DELETE FROM "Transition" 
+    DELETE FROM "transitions" 
     WHERE id = ${id}
   `;
     return { message: 'Transition deleted successfully' };

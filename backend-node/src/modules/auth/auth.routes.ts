@@ -241,6 +241,61 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Token refresh endpoint - SECURITY FIX: Proper refresh token validation
+  fastify.post('/refresh', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { refreshToken } = request.body as any;
+
+      if (!refreshToken) {
+        return reply.code(400).send({
+          error: 'Missing refresh token',
+          message: 'Refresh token is required',
+        });
+      }
+
+      // Validate refresh token format and length
+      if (typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+        return reply.code(400).send({
+          error: 'Invalid refresh token format',
+          message: 'Refresh token must be a non-empty string',
+        });
+      }
+
+      try {
+        // Use the auth service to refresh the token
+        const tokenData = await authService.refreshToken(refreshToken.trim());
+
+        return reply.code(200).send({
+          message: 'Token refreshed successfully',
+          tokens: {
+            accessToken: tokenData.accessToken,
+            expiresIn: tokenData.expiresIn,
+            tokenType: 'Bearer',
+          },
+        });
+      } catch (refreshError) {
+        // Log failed refresh attempt for security monitoring
+        fastify.log.warn('Token refresh failed', {
+          error: refreshError instanceof Error ? refreshError.message : 'Unknown error',
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+          timestamp: new Date().toISOString()
+        });
+
+        return reply.code(401).send({
+          error: 'Token refresh failed',
+          message: 'Invalid or expired refresh token',
+        });
+      }
+    } catch (error) {
+      fastify.log.error('Refresh endpoint error:', error);
+      return reply.code(500).send({
+        error: 'Internal server error',
+        message: 'Failed to process token refresh',
+      });
+    }
+  });
+
   // Get current user profile - SECURITY FIX: Complete token validation implementation
   fastify.get('/me', async (request: FastifyRequest, reply: FastifyReply) => {
     try {

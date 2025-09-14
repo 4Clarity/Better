@@ -66,7 +66,7 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
     // Check if currentManagerId is a valid User ID, otherwise set to null
     let validCurrentManagerId = null;
     if (data.currentManagerId) {
-      const userExists = await prisma.user.findUnique({
+      const userExists = await prisma.users.findUnique({
         where: { id: data.currentManagerId }
       });
       validCurrentManagerId = userExists ? data.currentManagerId : null;
@@ -311,7 +311,7 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
     // Check if currentManagerId is a valid User ID, otherwise set to null
     if ('currentManagerId' in data) {
       if (data.currentManagerId) {
-        const userExists = await prisma.user.findUnique({
+        const userExists = await prisma.users.findUnique({
           where: { id: data.currentManagerId }
         });
         updateData.currentManagerId = userExists ? data.currentManagerId : null;

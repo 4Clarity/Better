@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Verify Your Email - TIP Platform</title>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; line-height: 1.6; }
+        .header { background-color: #1e3a8a; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .button { background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+        .footer { background-color: #f3f4f6; padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to TIP Platform</h1>
+        </div>
+
+        <div class="content">
+            <p>Hi {{firstName}},</p>
+
+            <p>Thank you for registering with TIP Platform. To complete your registration, please verify your email address by clicking the button below:</p>
+
+            <div style="text-align: center;">
+                <a href="{{verificationUrl}}" class="button">Verify Email Address</a>
+            </div>
+
+            <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #3b82f6;">{{verificationUrl}}</p>
+
+            <p><strong>Important:</strong> This verification link will expire in 24 hours.</p>
+
+            <p>After email verification, your account will be reviewed by an administrator before you can access the platform.</p>
+
+            <p>If you didn't create an account with us, please ignore this email.</p>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 TIP Platform. All rights reserved.</p>
+            <p>This is an automated message. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>

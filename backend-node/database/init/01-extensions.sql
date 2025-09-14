@@ -42,7 +42,13 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE STRICT;
 
 -- Create service account
-CREATE USER IF NOT EXISTS better_service WITH PASSWORD 'better_service_2024!';
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'better_service') THEN
+        CREATE USER better_service WITH PASSWORD 'better_service_2024!';
+    END IF;
+END
+$$;
 
 -- Grant necessary permissions to service account
 GRANT USAGE ON SCHEMA public TO better_service;

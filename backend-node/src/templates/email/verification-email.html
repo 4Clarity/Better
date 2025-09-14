@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - TIP Platform</title>
+    <style>
+        /* Reset styles */
+        body, table, td, p, a, li, blockquote {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+        }
+
+        /* Main styles */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header p {
+            color: #e8f0ff;
+            margin: 8px 0 0 0;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .welcome-message {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .welcome-message h2 {
+            color: #333333;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .welcome-message p {
+            color: #666666;
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .verification-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .verification-button {
+            display: inline-block;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 20px 0;
+            transition: transform 0.2s ease;
+        }
+
+        .verification-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .details-section {
+            margin: 30px 0;
+        }
+
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .details-table th,
+        .details-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .details-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .details-table td {
+            color: #666;
+        }
+
+        .security-notice {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .security-notice h3 {
+            color: #856404;
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+
+        .security-notice p {
+            color: #856404;
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }
+
+        .footer p {
+            color: #999999;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+
+            .content {
+                padding: 30px 20px !important;
+            }
+
+            .header {
+                padding: 30px 20px !important;
+            }
+
+            .verification-section {
+                padding: 20px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>TIP Platform</h1>
+            <p>Transition Intelligence Platform</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Welcome Message -->
+            <div class="welcome-message">
+                <h2>Verify Your Email Address</h2>
+                <p>Thank you for registering with the TIP Platform. Please verify your email address to continue with your registration.</p>
+            </div>
+
+            <!-- Verification Section -->
+            <div class="verification-section">
+                <p style="margin: 0 0 20px 0; color: #333; font-size: 16px;">Click the button below to verify your email address:</p>
+                <a href="{{verificationUrl}}" class="verification-button">Verify Email Address</a>
+                <p style="margin: 20px 0 0 0; color: #666; font-size: 14px;">This verification link will expire in 24 hours.</p>
+            </div>
+
+            <!-- Registration Details -->
+            <div class="details-section">
+                <h3 style="color: #333; margin: 0 0 15px 0;">Registration Details</h3>
+                <table class="details-table">
+                    <tr>
+                        <th>Name</th>
+                        <td>{{firstName}} {{lastName}}</td>
+                    </tr>
+                    <tr>
+                        <th>Email</th>
+                        <td>{{email}}</td>
+                    </tr>
+                    <tr>
+                        <th>Organization</th>
+                        <td>{{organizationName}}</td>
+                    </tr>
+                    <tr>
+                        <th>Position</th>
+                        <td>{{position}}</td>
+                    </tr>
+                    <tr>
+                        <th>Registration Date</th>
+                        <td>{{registrationDate}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Security Notice -->
+            <div class="security-notice">
+                <h3>🔒 Security Notice</h3>
+                <p>If you didn't create an account with TIP Platform, please ignore this email. Your email address will not be used for any further communications unless you complete the verification process.</p>
+            </div>
+
+            <!-- Alternative Link -->
+            <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 6px;">
+                <p style="margin: 0 0 10px 0; color: #333; font-size: 14px; font-weight: 600;">Can't click the button?</p>
+                <p style="margin: 0; color: #666; font-size: 14px;">Copy and paste this link into your browser:</p>
+                <p style="margin: 10px 0 0 0; word-break: break-all; color: #667eea; font-size: 14px;">{{verificationUrl}}</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>TIP Platform</strong> - Transition Intelligence Platform</p>
+            <p>Secure access for authorized personnel only</p>
+            <p style="margin-top: 20px;">
+                <a href="mailto:support@tip-platform.gov">Contact Support</a> |
+                <a href="#">Privacy Policy</a>
+            </p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                This is an automated message. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -8,626 +8,1398 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum TransitionStatus {
-  NOT_STARTED
-  ON_TRACK
-  AT_RISK
-  BLOCKED
-  COMPLETED
+model artifact_audit_logs {
+  id            String      @id
+  artifactId    String
+  transitionId  String
+  action        AuditAction
+  performedBy   String
+  performedAt   DateTime    @default(now())
+  previousValue Json?
+  newValue      Json?
+  comments      String?
+  ipAddress     String?
+  userAgent     String?
+  sessionId     String?     @db.VarChar(255)
+  artifacts     artifacts   @relation(fields: [artifactId], references: [id])
+  users         users       @relation(fields: [performedBy], references: [id])
+  transitions   transitions @relation(fields: [transitionId], references: [id])
+
+  @@index([artifactId], map: "idx_artifact_audit_artifact_id")
+  @@index([performedAt], map: "idx_artifact_audit_performed_at")
+  @@index([performedBy], map: "idx_artifact_audit_performed_by")
+  @@index([transitionId], map: "idx_artifact_audit_transition_id")
 }
 
-enum ContractStatus {
-  PLANNING
-  ACTIVE
-  RENEWAL
-  EXPIRING
-  EXPIRED
-  EXTENDED
+model artifacts {
+  id                                 String                        @id
+  transitionId                       String
+  name                               String                        @db.VarChar(255)
+  description                        String?
+  type                               ArtifactType
+  mimeType                           String                        @db.VarChar(100)
+  filePath                           String                        @db.VarChar(500)
+  fileSize                           BigInt
+  checksum                           String                        @db.VarChar(64)
+  version                            Int                           @default(1)
+  status                             ArtifactStatus                @default(Draft)
+  isRequired                         Boolean                       @default(false)
+  submittedBy                        String
+  submittedAt                        DateTime?
+  reviewedBy                         String?
+  reviewedAt                         DateTime?
+  approvalComments                   String?
+  parentId                           String?
+  expiresAt                          DateTime?
+  securityClassification             SecurityClassification        @default(Unclassified)
+  createdAt                          DateTime                      @default(now())
+  updatedAt                          DateTime
+  artifact_audit_logs                artifact_audit_logs[]
+  artifacts                          artifacts?                    @relation("artifactsToartifacts", fields: [parentId], references: [id])
+  other_artifacts                    artifacts[]                   @relation("artifactsToartifacts")
+  users_artifacts_reviewedByTousers  users?                        @relation("artifacts_reviewedByTousers", fields: [reviewedBy], references: [id])
+  users_artifacts_submittedByTousers users                         @relation("artifacts_submittedByTousers", fields: [submittedBy], references: [id])
+  transitions                        transitions                   @relation(fields: [transitionId], references: [id])
+  deliverable_quality_reviews        deliverable_quality_reviews[]
+  knowledge_chunks                   knowledge_chunks[]
+
+  @@unique([transitionId, name, version])
+  @@index([checksum], map: "idx_artifacts_checksum")
+  @@index([status], map: "idx_artifacts_status")
+  @@index([submittedBy], map: "idx_artifacts_submitted_by")
+  @@index([transitionId], map: "idx_artifacts_transition_id")
+  @@index([type], map: "idx_artifacts_type")
 }
 
-enum StakeholderType {
-  INTERNAL_PROGRAM
-  INTERNAL_TECHNICAL
-  INTERNAL_EXECUTIVE
-  EXTERNAL_VENDOR
-  EXTERNAL_SERVICE
-  EXTERNAL_SME_RESOURCE
-  INCOMING_CONTRACTOR
+model calendar_events {
+  id                                       String             @id
+  transitionId                             String
+  title                                    String             @db.VarChar(255)
+  description                              String?
+  eventType                                EventType
+  startDateTime                            DateTime
+  endDateTime                              DateTime
+  timeZone                                 String             @db.VarChar(50)
+  isAllDay                                 Boolean            @default(false)
+  location                                 String?            @db.VarChar(500)
+  meetingUrl                               String?            @db.VarChar(500)
+  meetingId                                String?            @db.VarChar(100)
+  organizerId                              String
+  attendees                                Json
+  requiredAttendees                        Json?
+  optionalAttendees                        Json?
+  recurrenceRule                           String?
+  recurrenceExceptions                     Json?
+  reminderMinutes                          Int?
+  status                                   EventStatus        @default(Scheduled)
+  visibility                               EventVisibility    @default(Internal)
+  category                                 String?            @db.VarChar(100)
+  priority                                 Priority           @default(Medium)
+  relatedEntityType                        RelatedEntityType?
+  relatedEntityId                          String?
+  externalCalendarId                       String?            @db.VarChar(255)
+  externalPlatform                         ExternalPlatform?
+  syncStatus                               SyncStatus         @default(Not_Synced)
+  lastSyncAt                               DateTime?
+  syncError                                String?
+  metadata                                 Json?
+  createdBy                                String
+  createdAt                                DateTime           @default(now())
+  updatedAt                                DateTime
+  cancelledAt                              DateTime?
+  cancelledBy                              String?
+  users_calendar_events_cancelledByTousers users?             @relation("calendar_events_cancelledByTousers", fields: [cancelledBy], references: [id])
+  users_calendar_events_createdByTousers   users              @relation("calendar_events_createdByTousers", fields: [createdBy], references: [id])
+  users_calendar_events_organizerIdTousers users              @relation("calendar_events_organizerIdTousers", fields: [organizerId], references: [id])
+  transitions                              transitions        @relation(fields: [transitionId], references: [id])
+
+  @@index([endDateTime], map: "idx_calendar_events_end_time")
+  @@index([eventType], map: "idx_calendar_events_event_type")
+  @@index([externalCalendarId], map: "idx_calendar_events_external_id")
+  @@index([organizerId], map: "idx_calendar_events_organizer_id")
+  @@index([relatedEntityType, relatedEntityId], map: "idx_calendar_events_related_entity")
+  @@index([startDateTime], map: "idx_calendar_events_start_time")
+  @@index([status], map: "idx_calendar_events_status")
+  @@index([syncStatus], map: "idx_calendar_events_sync_status")
+  @@index([transitionId], map: "idx_calendar_events_transition_id")
 }
 
-// User Management Enums
-enum SecurityClearanceLevel {
-  NONE
-  PUBLIC_TRUST
-  CONFIDENTIAL
-  SECRET
-  TOP_SECRET
-  TS_SCI
+model communications {
+  id                                     String                 @id
+  transitionId                           String
+  communicationType                      CommunicationType
+  direction                              CommunicationDirection
+  platform                               CommunicationPlatform
+  externalId                             String?                @db.VarChar(255)
+  threadId                               String?                @db.VarChar(255)
+  fromUserId                             String?
+  fromEmail                              String?                @db.VarChar(255)
+  fromName                               String?                @db.VarChar(255)
+  toUsers                                Json
+  toEmails                               Json
+  ccEmails                               Json?
+  bccEmails                              Json?
+  subject                                String?                @db.VarChar(500)
+  content                                String
+  contentType                            ContentType            @default(Text)
+  attachments                            Json?
+  priority                               Priority               @default(Normal)
+  isRead                                 Boolean                @default(false)
+  readAt                                 DateTime?
+  readBy                                 String?
+  relatedEntityType                      RelatedEntityType?
+  relatedEntityId                        String?
+  status                                 CommStatus             @default(Delivered)
+  errorMessage                           String?
+  metadata                               Json?
+  sentAt                                 DateTime
+  receivedAt                             DateTime?
+  createdAt                              DateTime               @default(now())
+  users_communications_fromUserIdTousers users?                 @relation("communications_fromUserIdTousers", fields: [fromUserId], references: [id])
+  users_communications_readByTousers     users?                 @relation("communications_readByTousers", fields: [readBy], references: [id])
+  transitions                            transitions            @relation(fields: [transitionId], references: [id])
+
+  @@index([externalId], map: "idx_communications_external_id")
+  @@index([fromUserId], map: "idx_communications_from_user_id")
+  @@index([relatedEntityType, relatedEntityId], map: "idx_communications_related_entity")
+  @@index([sentAt], map: "idx_communications_sent_at")
+  @@index([status], map: "idx_communications_status")
+  @@index([threadId], map: "idx_communications_thread_id")
+  @@index([transitionId], map: "idx_communications_transition_id")
+  @@index([communicationType, platform], map: "idx_communications_type_platform")
 }
 
-enum InvitationStatus {
-  NOT_INVITED
-  INVITED
-  INVITATION_SENT
-  INVITATION_EXPIRED
-  INVITATION_ACCEPTED
-  INVITATION_DECLINED
+model contractor_proficiency_assessments {
+  id                                                                                                                   String                          @id
+  contractorId                                                                                                         String
+  transitionId                                                                                                         String
+  assessmentType                                                                                                       AssessmentType
+  assessmentCategory                                                                                                   AssessmentCategory
+  skillArea                                                                                                            String                          @db.VarChar(255)
+  assessorId                                                                                                           String
+  assessmentMethod                                                                                                     AssessmentMethod
+  currentLevel                                                                                                         ProficiencyLevel
+  targetLevel                                                                                                          ProficiencyLevel
+  score                                                                                                                Decimal?                        @db.Decimal(5, 2)
+  maxScore                                                                                                             Decimal?                        @db.Decimal(5, 2)
+  percentage                                                                                                           Decimal?                        @db.Decimal(5, 2)
+  assessmentNotes                                                                                                      String?
+  strengths                                                                                                            String?
+  weaknesses                                                                                                           String?
+  knowledgeGaps                                                                                                        Json?
+  recommendedTraining                                                                                                  String?
+  learningResources                                                                                                    Json?
+  practiceAreas                                                                                                        String?
+  mentorshipNeeds                                                                                                      String?
+  isCompleted                                                                                                          Boolean                         @default(false)
+  isPassing                                                                                                            Boolean?
+  certificationRequired                                                                                                Boolean                         @default(false)
+  certificationStatus                                                                                                  CertificationStatus?
+  certificationDate                                                                                                    DateTime?
+  validUntil                                                                                                           DateTime?
+  reassessmentRequired                                                                                                 Boolean                         @default(false)
+  nextAssessmentDate                                                                                                   DateTime?
+  progressSinceLastAssessment                                                                                          String?
+  overallReadiness                                                                                                     OverallReadiness?
+  readinessNotes                                                                                                       String?
+  riskFactors                                                                                                          Json?
+  mitigationPlans                                                                                                      String?
+  assessmentDate                                                                                                       DateTime                        @default(now())
+  createdBy                                                                                                            String
+  createdAt                                                                                                            DateTime                        @default(now())
+  updatedAt                                                                                                            DateTime
+  users_contractor_proficiency_assessments_assessorIdTousers                                                           users                           @relation("contractor_proficiency_assessments_assessorIdTousers", fields: [assessorId], references: [id])
+  users_contractor_proficiency_assessments_contractorIdTousers                                                         users                           @relation("contractor_proficiency_assessments_contractorIdTousers", fields: [contractorId], references: [id])
+  users_contractor_proficiency_assessments_createdByTousers                                                            users                           @relation("contractor_proficiency_assessments_createdByTousers", fields: [createdBy], references: [id])
+  transitions                                                                                                          transitions                     @relation(fields: [transitionId], references: [id])
+  proficiency_progress_tracking_proficiency_progress_tracking_baselineAssessmentIdTocontractor_proficiency_assessments proficiency_progress_tracking[] @relation("proficiency_progress_tracking_baselineAssessmentIdTocontractor_proficiency_assessments")
+  proficiency_progress_tracking_proficiency_progress_tracking_currentAssessmentIdTocontractor_proficiency_assessments  proficiency_progress_tracking[] @relation("proficiency_progress_tracking_currentAssessmentIdTocontractor_proficiency_assessments")
+
+  @@unique([contractorId, transitionId, skillArea, assessmentDate], map: "contractor_proficiency_assessments_contractorId_transitionId_sk")
+  @@index([assessmentDate], map: "idx_proficiency_assessment_date")
+  @@index([assessorId], map: "idx_proficiency_assessor_id")
+  @@index([assessmentCategory, skillArea], map: "idx_proficiency_category_skill")
+  @@index([certificationStatus], map: "idx_proficiency_certification_status")
+  @@index([contractorId], map: "idx_proficiency_contractor_id")
+  @@index([currentLevel], map: "idx_proficiency_current_level")
+  @@index([overallReadiness], map: "idx_proficiency_overall_readiness")
+  @@index([reassessmentRequired, nextAssessmentDate], map: "idx_proficiency_reassessment")
+  @@index([transitionId], map: "idx_proficiency_transition_id")
+}
+
+model deliverable_quality_reviews {
+  id                                                  String              @id
+  artifactId                                          String
+  transitionId                                        String
+  reviewerId                                          String
+  reviewType                                          ReviewType
+  reviewStatus                                        ReviewStatus        @default(Pending)
+  overallScore                                        Decimal?            @db.Decimal(3, 2)
+  completenessScore                                   Decimal?            @db.Decimal(3, 2)
+  accuracyScore                                       Decimal?            @db.Decimal(3, 2)
+  clarityScore                                        Decimal?            @db.Decimal(3, 2)
+  usabilityScore                                      Decimal?            @db.Decimal(3, 2)
+  complianceScore                                     Decimal?            @db.Decimal(3, 2)
+  securityScore                                       Decimal?            @db.Decimal(3, 2)
+  qualityChecklist                                    Json?
+  strengths                                           String?
+  weaknesses                                          String?
+  recommendations                                     String?
+  correctiveActions                                   String?
+  publishingDecision                                  PublishingDecision?
+  publishingNotes                                     String?
+  reviewDuration                                      Int?
+  reviewCriteria                                      Json
+  isSignedOff                                         Boolean             @default(false)
+  signOffBy                                           String?
+  signOffAt                                           DateTime?
+  requiredActions                                     Json?
+  followUpRequired                                    Boolean             @default(false)
+  nextReviewDate                                      DateTime?
+  reviewStartedAt                                     DateTime            @default(now())
+  reviewCompletedAt                                   DateTime?
+  createdAt                                           DateTime            @default(now())
+  updatedAt                                           DateTime
+  artifacts                                           artifacts           @relation(fields: [artifactId], references: [id])
+  users_deliverable_quality_reviews_reviewerIdTousers users               @relation("deliverable_quality_reviews_reviewerIdTousers", fields: [reviewerId], references: [id])
+  users_deliverable_quality_reviews_signOffByTousers  users?              @relation("deliverable_quality_reviews_signOffByTousers", fields: [signOffBy], references: [id])
+  transitions                                         transitions         @relation(fields: [transitionId], references: [id])
+
+  @@index([artifactId], map: "idx_quality_reviews_artifact_id")
+  @@index([followUpRequired, nextReviewDate], map: "idx_quality_reviews_follow_up")
+  @@index([overallScore], map: "idx_quality_reviews_overall_score")
+  @@index([publishingDecision], map: "idx_quality_reviews_publishing_decision")
+  @@index([reviewerId], map: "idx_quality_reviews_reviewer_id")
+  @@index([reviewStatus], map: "idx_quality_reviews_status")
+  @@index([transitionId], map: "idx_quality_reviews_transition_id")
+}
+
+model knowledge_chunks {
+  id                String             @id
+  artifactId        String
+  transitionId      String
+  content           String
+  contentHash       String             @db.VarChar(64)
+  chunkIndex        Int
+  startOffset       Int?
+  endOffset         Int?
+  pageNumber        Int?
+  sectionTitle      String?            @db.VarChar(255)
+  contentType       ContentType        @default(Text)
+  processingModel   String             @db.VarChar(100)
+  confidence        Decimal            @db.Decimal(3, 2)
+  isActive          Boolean            @default(true)
+  processedAt       DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+  artifacts         artifacts          @relation(fields: [artifactId], references: [id])
+  transitions       transitions        @relation(fields: [transitionId], references: [id])
+  // vector_embeddings vector_embeddings? // Temporarily disabled - requires vector extension
+
+  @@unique([artifactId, chunkIndex])
+  @@index([artifactId], map: "idx_knowledge_chunks_artifact_id")
+  @@index([contentHash], map: "idx_knowledge_chunks_content_hash")
+  @@index([isActive], map: "idx_knowledge_chunks_is_active")
+  @@index([transitionId], map: "idx_knowledge_chunks_transition_id")
+}
+
+model milestones {
+  id                                 String          @id
+  transitionId                       String
+  title                              String          @db.VarChar(255)
+  description                        String?
+  dueDate                            DateTime
+  completedDate                      DateTime?
+  status                             MilestoneStatus @default(Not_Started)
+  priority                           Priority        @default(Medium)
+  assignedTo                         String?
+  percentComplete                    Int             @default(0) @db.SmallInt
+  dependencies                       Json?
+  notes                              String?
+  createdBy                          String
+  createdAt                          DateTime        @default(now())
+  updatedAt                          DateTime
+  users_milestones_assignedToTousers users?          @relation("milestones_assignedToTousers", fields: [assignedTo], references: [id])
+  users_milestones_createdByTousers  users           @relation("milestones_createdByTousers", fields: [createdBy], references: [id])
+  transitions                        transitions     @relation(fields: [transitionId], references: [id])
+  tasks                              tasks[]
+
+  @@index([assignedTo], map: "idx_milestones_assigned_to")
+  @@index([dueDate], map: "idx_milestones_due_date")
+  @@index([status], map: "idx_milestones_status")
+  @@index([transitionId], map: "idx_milestones_transition_id")
+}
+
+model notification_preferences {
+  id               String                @id
+  userId           String
+  transitionId     String?
+  notificationType NotificationType
+  channelEmail     Boolean               @default(true)
+  channelInApp     Boolean               @default(true)
+  channelSms       Boolean               @default(false)
+  channelTeams     Boolean               @default(false)
+  channelSlack     Boolean               @default(false)
+  frequency        NotificationFrequency @default(Immediate)
+  quietHoursStart  DateTime?             @db.Time(6)
+  quietHoursEnd    DateTime?             @db.Time(6)
+  timeZone         String                @db.VarChar(50)
+  isEnabled        Boolean               @default(true)
+  priority         Priority              @default(Normal)
+  customSettings   Json?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime
+  transitions      transitions?          @relation(fields: [transitionId], references: [id])
+  users            users                 @relation(fields: [userId], references: [id])
+
+  @@unique([userId, transitionId, notificationType], map: "notification_preferences_userId_transitionId_notificationType_k")
+  @@index([transitionId], map: "idx_notification_prefs_transition_id")
+  @@index([notificationType], map: "idx_notification_prefs_type")
+  @@index([userId], map: "idx_notification_prefs_user_id")
+}
+
+model organizations {
+  id                               String                             @id
+  name                             String                             @db.VarChar(255)
+  abbreviation                     String?                            @db.VarChar(50)
+  type                             OrganizationType
+  parentId                         String?
+  contactEmail                     String?                            @db.VarChar(255)
+  securityOfficerEmail             String?                            @db.VarChar(255)
+  isActive                         Boolean                            @default(true)
+  createdAt                        DateTime                           @default(now())
+  updatedAt                        DateTime
+  organizations                    organizations?                     @relation("organizationsToorganizations", fields: [parentId], references: [id])
+  other_organizations              organizations[]                    @relation("organizationsToorganizations")
+  person_organization_affiliations person_organization_affiliations[]
+  transitions                      transitions[]
+
+  @@index([parentId], map: "idx_organizations_parent_id")
+  @@index([type], map: "idx_organizations_type")
+}
+
+model person_organization_affiliations {
+  id                                                          String                  @id
+  personId                                                    String
+  organizationId                                              String
+  jobTitle                                                    String?                 @db.VarChar(255)
+  department                                                  String?                 @db.VarChar(255)
+  employeeId                                                  String?                 @db.VarChar(100)
+  workLocation                                                String?                 @db.VarChar(255)
+  managerId                                                   String?
+  affiliationType                                             AffiliationType
+  employmentStatus                                            EmploymentStatus
+  securityClearanceRequired                                   SecurityClearanceLevel?
+  startDate                                                   DateTime                @db.Date
+  endDate                                                     DateTime?               @db.Date
+  isActive                                                    Boolean                 @default(true)
+  isPrimary                                                   Boolean                 @default(false)
+  payrollNumber                                               String?                 @db.VarChar(100)
+  costCenter                                                  String?                 @db.VarChar(100)
+  workSchedule                                                Json?
+  compensationLevel                                           String?                 @db.VarChar(50)
+  benefitsEligible                                            Boolean                 @default(false)
+  contractType                                                ContractType?
+  contractNumber                                              String?                 @db.VarChar(100)
+  billableHours                                               Decimal?                @db.Decimal(5, 2)
+  accessLevel                                                 AccessLevel             @default(Standard)
+  facilities                                                  Json?
+  equipment                                                   Json?
+  notes                                                       String?
+  separationReason                                            SeparationReason?
+  separationNotes                                             String?
+  isEligibleForRehire                                         Boolean?
+  exitInterviewCompleted                                      Boolean                 @default(false)
+  exitInterviewDate                                           DateTime?               @db.Date
+  finalWorkDate                                               DateTime?               @db.Date
+  createdBy                                                   String
+  createdAt                                                   DateTime                @default(now())
+  updatedAt                                                   DateTime
+  users                                                       users                   @relation(fields: [createdBy], references: [id])
+  persons_person_organization_affiliations_managerIdTopersons persons?                @relation("person_organization_affiliations_managerIdTopersons", fields: [managerId], references: [id])
+  organizations                                               organizations           @relation(fields: [organizationId], references: [id])
+  persons_person_organization_affiliations_personIdTopersons  persons                 @relation("person_organization_affiliations_personIdTopersons", fields: [personId], references: [id])
+
+  @@unique([personId, organizationId, startDate], map: "person_organization_affiliations_personId_organizationId_startD")
+  @@index([employmentStatus], map: "idx_person_org_employment_status")
+  @@index([endDate], map: "idx_person_org_end_date")
+  @@index([isActive], map: "idx_person_org_is_active")
+  @@index([isPrimary], map: "idx_person_org_is_primary")
+  @@index([organizationId], map: "idx_person_org_organization_id")
+  @@index([personId], map: "idx_person_org_person_id")
+  @@index([startDate], map: "idx_person_org_start_date")
+}
+
+model persons {
+  id                                                                                   String                             @id
+  firstName                                                                            String                             @db.VarChar(100)
+  middleName                                                                           String?                            @db.VarChar(100)
+  lastName                                                                             String                             @db.VarChar(100)
+  preferredName                                                                        String?                            @db.VarChar(100)
+  suffix                                                                               String?                            @db.VarChar(20)
+  title                                                                                String?                            @db.VarChar(100)
+  primaryEmail                                                                         String                             @unique @db.VarChar(255)
+  alternateEmail                                                                       String?                            @db.VarChar(255)
+  workPhone                                                                            String?                            @db.VarChar(20)
+  mobilePhone                                                                          String?                            @db.VarChar(20)
+  personalPhone                                                                        String?                            @db.VarChar(20)
+  profileImageUrl                                                                      String?                            @db.VarChar(500)
+  biography                                                                            String?
+  skills                                                                               Json?
+  certifications                                                                       Json?
+  education                                                                            Json?
+  workLocation                                                                         String?                            @db.VarChar(255)
+  timeZone                                                                             String                             @default("UTC") @db.VarChar(50)
+  preferredLanguage                                                                    String                             @default("en") @db.VarChar(10)
+  dateOfBirth                                                                          DateTime?                          @db.Date
+  securityClearanceLevel                                                               SecurityClearanceLevel?
+  clearanceExpirationDate                                                              DateTime?                          @db.Date
+  emergencyContactName                                                                 String?                            @db.VarChar(255)
+  emergencyContactPhone                                                                String?                            @db.VarChar(20)
+  emergencyContactRelation                                                             String?                            @db.VarChar(100)
+  isActive                                                                             Boolean                            @default(true)
+  privacySettings                                                                      Json?
+  professionalSummary                                                                  String?
+  linkedInProfile                                                                      String?                            @db.VarChar(500)
+  githubProfile                                                                        String?                            @db.VarChar(500)
+  createdAt                                                                            DateTime                           @default(now())
+  updatedAt                                                                            DateTime
+  archivedAt                                                                           DateTime?
+  person_organization_affiliations_person_organization_affiliations_managerIdTopersons person_organization_affiliations[] @relation("person_organization_affiliations_managerIdTopersons")
+  person_organization_affiliations_person_organization_affiliations_personIdTopersons  person_organization_affiliations[] @relation("person_organization_affiliations_personIdTopersons")
+  users                                                                                users?
+
+  @@index([lastName, firstName], map: "idx_persons_full_name")
+  @@index([isActive], map: "idx_persons_is_active")
+  @@index([primaryEmail], map: "idx_persons_primary_email")
+  @@index([securityClearanceLevel], map: "idx_persons_security_clearance")
+}
+
+model proficiency_progress_tracking {
+  id                                                                                                                        String                             @id
+  contractorId                                                                                                              String
+  transitionId                                                                                                              String
+  skillArea                                                                                                                 String                             @db.VarChar(255)
+  baselineAssessmentId                                                                                                      String
+  currentAssessmentId                                                                                                       String
+  baselineLevel                                                                                                             ProficiencyLevel
+  currentLevel                                                                                                              ProficiencyLevel
+  targetLevel                                                                                                               ProficiencyLevel
+  progressPercentage                                                                                                        Decimal                            @db.Decimal(5, 2)
+  learningVelocity                                                                                                          Decimal?                           @db.Decimal(5, 2)
+  totalAssessments                                                                                                          Int                                @default(1)
+  averageScore                                                                                                              Decimal?                           @db.Decimal(5, 2)
+  trendDirection                                                                                                            TrendDirection
+  lastImprovement                                                                                                           DateTime?
+  plateauPeriod                                                                                                             Int?
+  strugglingIndicators                                                                                                      Json?
+  interventionsApplied                                                                                                      Json?
+  learningStyle                                                                                                             LearningStyle?
+  motivationFactors                                                                                                         Json?
+  blockers                                                                                                                  String?
+  supportNeeds                                                                                                              String?
+  projectedCompletionDate                                                                                                   DateTime?
+  riskLevel                                                                                                                 RiskLevel                          @default(Low)
+  confidenceInterval                                                                                                        Decimal?                           @db.Decimal(3, 2)
+  lastUpdated                                                                                                               DateTime
+  createdAt                                                                                                                 DateTime                           @default(now())
+  contractor_proficiency_assessments_proficiency_progress_tracking_baselineAssessmentIdTocontractor_proficiency_assessments contractor_proficiency_assessments @relation("proficiency_progress_tracking_baselineAssessmentIdTocontractor_proficiency_assessments", fields: [baselineAssessmentId], references: [id])
+  users                                                                                                                     users                              @relation(fields: [contractorId], references: [id])
+  contractor_proficiency_assessments_proficiency_progress_tracking_currentAssessmentIdTocontractor_proficiency_assessments  contractor_proficiency_assessments @relation("proficiency_progress_tracking_currentAssessmentIdTocontractor_proficiency_assessments", fields: [currentAssessmentId], references: [id])
+  transitions                                                                                                               transitions                        @relation(fields: [transitionId], references: [id])
+
+  @@unique([contractorId, transitionId, skillArea], map: "proficiency_progress_tracking_contractorId_transitionId_skillAr")
+  @@index([projectedCompletionDate], map: "idx_progress_tracking_completion_date")
+  @@index([contractorId], map: "idx_progress_tracking_contractor_id")
+  @@index([riskLevel], map: "idx_progress_tracking_risk_level")
+  @@index([skillArea], map: "idx_progress_tracking_skill_area")
+  @@index([transitionId], map: "idx_progress_tracking_transition_id")
+  @@index([trendDirection], map: "idx_progress_tracking_trend")
+}
+
+model query_sessions {
+  id               String                @id
+  transitionId     String
+  userId           String
+  query            String
+  // queryEmbedding   Unsupported("vector") // Temporarily disabled - requires vector extension
+  response         String
+  sourceChunks     Json
+  confidence       Decimal               @db.Decimal(3, 2)
+  responseTime     Int
+  feedback         QueryFeedback?
+  feedbackComments String?
+  ipAddress        String?
+  sessionId        String?               @db.VarChar(255)
+  createdAt        DateTime              @default(now())
+  transitions      transitions           @relation(fields: [transitionId], references: [id])
+
+  @@index([createdAt], map: "idx_query_sessions_created_at")
+  @@index([transitionId], map: "idx_query_sessions_transition_id")
+  @@index([userId], map: "idx_query_sessions_user_id")
+}
+
+model system_settings {
+  id               String    @id
+  key              String    @unique @db.VarChar(255)
+  value            Json
+  description      String
+  category         String    @db.VarChar(100)
+  isPublic         Boolean   @default(false)
+  isEditable       Boolean   @default(true)
+  validationSchema Json?
+  modifiedBy       String?
+  modifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  users            users?    @relation(fields: [modifiedBy], references: [id])
+
+  @@index([category], map: "idx_system_settings_category")
+  @@index([isPublic], map: "idx_system_settings_is_public")
+}
+
+model task_comments {
+  id                                  String      @id
+  taskId                              String
+  authorId                            String
+  content                             String
+  commentType                         CommentType @default(General)
+  isInternal                          Boolean     @default(false)
+  mentionedUsers                      Json?
+  attachments                         Json?
+  editedAt                            DateTime?
+  editedBy                            String?
+  isDeleted                           Boolean     @default(false)
+  createdAt                           DateTime    @default(now())
+  users_task_comments_authorIdTousers users       @relation("task_comments_authorIdTousers", fields: [authorId], references: [id])
+  users_task_comments_editedByTousers users?      @relation("task_comments_editedByTousers", fields: [editedBy], references: [id])
+  tasks                               tasks       @relation(fields: [taskId], references: [id])
+
+  @@index([authorId], map: "idx_task_comments_author_id")
+  @@index([createdAt], map: "idx_task_comments_created_at")
+  @@index([taskId], map: "idx_task_comments_task_id")
+}
+
+model tasks {
+  id                            String          @id
+  transitionId                  String
+  milestoneId                   String?
+  parentTaskId                  String?
+  title                         String          @db.VarChar(255)
+  description                   String?
+  status                        TaskStatus      @default(Not_Started)
+  priority                      Priority        @default(Medium)
+  assignedTo                    String?
+  assignedBy                    String
+  assignedAt                    DateTime?
+  startDate                     DateTime?
+  dueDate                       DateTime?
+  completedDate                 DateTime?
+  estimatedHours                Decimal?        @db.Decimal(5, 2)
+  actualHours                   Decimal?        @db.Decimal(5, 2)
+  percentComplete               Int             @default(0) @db.SmallInt
+  tags                          Json?
+  dependencies                  Json?
+  blockers                      String?
+  notes                         String?
+  attachments                   Json?
+  isRecurring                   Boolean         @default(false)
+  recurringPattern              Json?
+  createdBy                     String
+  createdAt                     DateTime        @default(now())
+  updatedAt                     DateTime
+  task_comments                 task_comments[]
+  users_tasks_assignedByTousers users           @relation("tasks_assignedByTousers", fields: [assignedBy], references: [id])
+  users_tasks_assignedToTousers users?          @relation("tasks_assignedToTousers", fields: [assignedTo], references: [id])
+  users_tasks_createdByTousers  users           @relation("tasks_createdByTousers", fields: [createdBy], references: [id])
+  milestones                    milestones?     @relation(fields: [milestoneId], references: [id])
+  tasks                         tasks?          @relation("tasksTotasks", fields: [parentTaskId], references: [id])
+  other_tasks                   tasks[]         @relation("tasksTotasks")
+  transitions                   transitions     @relation(fields: [transitionId], references: [id])
+
+  @@index([assignedBy], map: "idx_tasks_assigned_by")
+  @@index([assignedTo], map: "idx_tasks_assigned_to")
+  @@index([dueDate], map: "idx_tasks_due_date")
+  @@index([milestoneId], map: "idx_tasks_milestone_id")
+  @@index([parentTaskId], map: "idx_tasks_parent_task_id")
+  @@index([priority, status], map: "idx_tasks_priority_status")
+  @@index([status], map: "idx_tasks_status")
+  @@index([transitionId], map: "idx_tasks_transition_id")
+}
+
+model transition_users {
+  id                                      String         @id
+  transitionId                            String
+  userId                                  String
+  role                                    TransitionRole
+  securityStatus                          SecurityStatus @default(Pending)
+  platformAccess                          PlatformAccess @default(Disabled)
+  invitedBy                               String
+  invitedAt                               DateTime       @default(now())
+  acceptedAt                              DateTime?
+  lastAccessAt                            DateTime?
+  accessNotes                             String?
+  isActive                                Boolean        @default(true)
+  createdAt                               DateTime       @default(now())
+  updatedAt                               DateTime
+  users_transition_users_invitedByTousers users          @relation("transition_users_invitedByTousers", fields: [invitedBy], references: [id])
+  transitions                             transitions    @relation(fields: [transitionId], references: [id])
+  users_transition_users_userIdTousers    users          @relation("transition_users_userIdTousers", fields: [userId], references: [id])
+
+  @@unique([transitionId, userId])
+  @@index([platformAccess], map: "idx_transition_users_platform_access")
+  @@index([securityStatus], map: "idx_transition_users_security_status")
+  @@index([transitionId], map: "idx_transition_users_transition_id")
+  @@index([userId], map: "idx_transition_users_user_id")
+}
+
+model transitions {
+  id                                 String                               @id
+  name                               String                               @db.VarChar(255)
+  contractName                       String                               @db.VarChar(255)
+  contractNumber                     String                               @db.VarChar(100)
+  organizationId                     String
+  status                             TransitionStatus                     @default(Planning)
+  startDate                          DateTime                             @db.Date
+  endDate                            DateTime                             @db.Date
+  description                        String?
+  priority                           Priority                             @default(Medium)
+  currentPhase                       String?                              @db.VarChar(100)
+  progressPercentage                 Int                                  @default(0) @db.SmallInt
+  riskLevel                          RiskLevel                            @default(Low)
+  riskFactors                        Json?
+  budget                             Decimal?                             @db.Decimal(15, 2)
+  actualCost                         Decimal?                             @db.Decimal(15, 2)
+  clientOrganization                 String?                              @db.VarChar(255)
+  contractorOrganization             String?                              @db.VarChar(255)
+  keyPersonnel                       Json?
+  securityRequirements               Json?
+  complianceRequirements             Json?
+  deliverableRequirements            Json?
+  communicationPlan                  Json?
+  escalationMatrix                   Json?
+  businessImpact                     String?
+  technicalComplexity                String?
+  stakeholderCount                   Int?                                 @db.SmallInt
+  documentsRequired                  Json?
+  trainingRequired                   Boolean                              @default(false)
+  certificationRequired              Boolean                              @default(false)
+  clearanceRequired                  SecurityClearanceLevel?
+  createdBy                          String
+  createdAt                          DateTime                             @default(now())
+  updatedAt                          DateTime
+  archivedAt                         DateTime?
+  transitionLevel                    TransitionLevel?                     @default(OPERATIONAL)
+  transitionSource                   TransitionSource?
+  impactScope                        String?
+  approvalLevel                      String?
+  parentTransitionId                 String?
+  artifact_audit_logs                artifact_audit_logs[]
+  artifacts                          artifacts[]
+  calendar_events                    calendar_events[]
+  communications                     communications[]
+  contractor_proficiency_assessments contractor_proficiency_assessments[]
+  deliverable_quality_reviews        deliverable_quality_reviews[]
+  knowledge_chunks                   knowledge_chunks[]
+  milestones                         milestones[]
+  notification_preferences           notification_preferences[]
+  proficiency_progress_tracking      proficiency_progress_tracking[]
+  query_sessions                     query_sessions[]
+  tasks                              tasks[]
+  transition_users                   transition_users[]
+  organizations                      organizations                        @relation(fields: [organizationId], references: [id])
+  transitions                        transitions?                         @relation("transitionsTotransitions", fields: [parentTransitionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_transitions                  transitions[]                        @relation("transitionsTotransitions")
+
+  @@index([contractNumber], map: "idx_transitions_contract_number")
+  @@index([endDate], map: "idx_transitions_end_date")
+  @@index([organizationId], map: "idx_transitions_organization_id")
+  @@index([priority], map: "idx_transitions_priority")
+  @@index([riskLevel], map: "idx_transitions_risk_level")
+  @@index([startDate], map: "idx_transitions_start_date")
+  @@index([status], map: "idx_transitions_status")
+  @@index([approvalLevel])
+  @@index([impactScope])
+  @@index([parentTransitionId])
+  @@index([transitionLevel])
+  @@index([transitionSource])
+}
+
+model user_registration_requests {
+  id                        String         @id @default(cuid())
+  email                     String         @unique @db.VarChar(255)
+  firstName                 String         @db.VarChar(100)
+  lastName                  String         @db.VarChar(100)
+  organizationName          String?        @db.VarChar(255)
+  position                  String?        @db.VarChar(255)
+  verificationToken         String?        @unique @db.VarChar(255)
+  isEmailVerified           Boolean        @default(false)
+  verificationTokenExpiry   DateTime?
+  adminApprovalStatus       ApprovalStatus @default(PENDING)
+  approvedBy                String?
+  approvedAt                DateTime?
+  rejectedReason            String?
+  requestedRoles            Json           @default("[]")
+  registrationIP            String?        @db.VarChar(45)
+  userAgent                 String?        @db.VarChar(500)
+  passwordHash              String
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  expiresAt                 DateTime
+  approver                  users?         @relation("user_registration_requests_approvedByTousers", fields: [approvedBy], references: [id])
+  users                     users[]        @relation("user_registration_requests_to_users")
+
+  @@index([email], map: "idx_user_registration_requests_email")
+  @@index([adminApprovalStatus], map: "idx_user_registration_requests_status")
+  @@index([verificationToken], map: "idx_user_registration_requests_verification_token")
+  @@index([expiresAt], map: "idx_user_registration_requests_expires_at")
+  @@index([createdAt], map: "idx_user_registration_requests_created_at")
+}
+
+model users {
+  id                                                                                        String                               @id
+  personId                                                                                  String                               @unique
+  username                                                                                  String                               @unique @db.VarChar(100)
+  keycloakId                                                                                String                               @unique
+  invitationStatus                                                                          InvitationStatus                     @default(Not_Invited)
+  invitedBy                                                                                 String?
+  invitedAt                                                                                 DateTime?
+  invitationToken                                                                           String?                              @db.VarChar(255)
+  invitationExpiresAt                                                                       DateTime?
+  confirmationToken                                                                         String?                              @db.VarChar(255)
+  confirmationSentAt                                                                        DateTime?
+  confirmedAt                                                                               DateTime?
+  emailVerified                                                                             Boolean                              @default(false)
+  accountStatus                                                                             AccountStatus                        @default(Pending)
+  statusReason                                                                              String?
+  lastLoginAt                                                                               DateTime?
+  lastLoginIp                                                                               String?
+  failedLoginAttempts                                                                       Int                                  @default(0)
+  lockedUntil                                                                               DateTime?
+  passwordHash                                                                              String?
+  passwordChangedAt                                                                         DateTime?
+  passwordResetToken                                                                        String?                              @db.VarChar(255)
+  passwordResetExpires                                                                      DateTime?
+  mustChangePassword                                                                        Boolean                              @default(false)
+  twoFactorEnabled                                                                          Boolean                              @default(false)
+  twoFactorMethod                                                                           TwoFactorMethod?
+  backupCodes                                                                               Json?
+  sessionTimeout                                                                            Int?
+  allowedIpRanges                                                                           Json?
+  deviceFingerprints                                                                        Json?
+  securityNotifications                                                                     Boolean                              @default(true)
+  apiKeyEnabled                                                                             Boolean                              @default(false)
+  apiKeyHash                                                                                String?                              @db.VarChar(255)
+  apiKeyExpiresAt                                                                           DateTime?
+  roles                                                                                     Json                                 @default("[]")
+  permissions                                                                               Json?
+  metadata                                                                                  Json?
+  createdAt                                                                                 DateTime                             @default(now())
+  updatedAt                                                                                 DateTime
+  deactivatedAt                                                                             DateTime?
+  deactivatedBy                                                                             String?
+  // New authentication fields
+  isFirstUser                                                                               Boolean                              @default(false)
+  registrationRequestId                                                                     String?
+  accountApprovalStatus                                                                     ApprovalStatus                       @default(APPROVED)
+  emailVerifiedAt                                                                           DateTime?
+  // Relations
+  artifact_audit_logs                                                                       artifact_audit_logs[]
+  artifacts_artifacts_reviewedByTousers                                                     artifacts[]                          @relation("artifacts_reviewedByTousers")
+  artifacts_artifacts_submittedByTousers                                                    artifacts[]                          @relation("artifacts_submittedByTousers")
+  calendar_events_calendar_events_cancelledByTousers                                        calendar_events[]                    @relation("calendar_events_cancelledByTousers")
+  calendar_events_calendar_events_createdByTousers                                          calendar_events[]                    @relation("calendar_events_createdByTousers")
+  calendar_events_calendar_events_organizerIdTousers                                        calendar_events[]                    @relation("calendar_events_organizerIdTousers")
+  communications_communications_fromUserIdTousers                                           communications[]                     @relation("communications_fromUserIdTousers")
+  communications_communications_readByTousers                                               communications[]                     @relation("communications_readByTousers")
+  contractor_proficiency_assessments_contractor_proficiency_assessments_assessorIdTousers   contractor_proficiency_assessments[] @relation("contractor_proficiency_assessments_assessorIdTousers")
+  contractor_proficiency_assessments_contractor_proficiency_assessments_contractorIdTousers contractor_proficiency_assessments[] @relation("contractor_proficiency_assessments_contractorIdTousers")
+  contractor_proficiency_assessments_contractor_proficiency_assessments_createdByTousers    contractor_proficiency_assessments[] @relation("contractor_proficiency_assessments_createdByTousers")
+  deliverable_quality_reviews_deliverable_quality_reviews_reviewerIdTousers                 deliverable_quality_reviews[]        @relation("deliverable_quality_reviews_reviewerIdTousers")
+  deliverable_quality_reviews_deliverable_quality_reviews_signOffByTousers                  deliverable_quality_reviews[]        @relation("deliverable_quality_reviews_signOffByTousers")
+  milestones_milestones_assignedToTousers                                                   milestones[]                         @relation("milestones_assignedToTousers")
+  milestones_milestones_createdByTousers                                                    milestones[]                         @relation("milestones_createdByTousers")
+  notification_preferences                                                                  notification_preferences[]
+  person_organization_affiliations                                                          person_organization_affiliations[]
+  proficiency_progress_tracking                                                             proficiency_progress_tracking[]
+  system_settings                                                                           system_settings[]
+  task_comments_task_comments_authorIdTousers                                               task_comments[]                      @relation("task_comments_authorIdTousers")
+  task_comments_task_comments_editedByTousers                                               task_comments[]                      @relation("task_comments_editedByTousers")
+  tasks_tasks_assignedByTousers                                                             tasks[]                              @relation("tasks_assignedByTousers")
+  tasks_tasks_assignedToTousers                                                             tasks[]                              @relation("tasks_assignedToTousers")
+  tasks_tasks_createdByTousers                                                              tasks[]                              @relation("tasks_createdByTousers")
+  transition_users_transition_users_invitedByTousers                                        transition_users[]                   @relation("transition_users_invitedByTousers")
+  transition_users_transition_users_userIdTousers                                           transition_users[]                   @relation("transition_users_userIdTousers")
+  users_users_deactivatedByTousers                                                          users?                               @relation("users_deactivatedByTousers", fields: [deactivatedBy], references: [id])
+  other_users_users_deactivatedByTousers                                                    users[]                              @relation("users_deactivatedByTousers")
+  users_users_invitedByTousers                                                              users?                               @relation("users_invitedByTousers", fields: [invitedBy], references: [id])
+  other_users_users_invitedByTousers                                                        users[]                              @relation("users_invitedByTousers")
+  persons                                                                                   persons                              @relation(fields: [personId], references: [id])
+  user_sessions                                                                             user_sessions[]
+  user_roles_user_roles_userIdTousers                                                       user_roles[]                         @relation("user_roles_userIdTousers")
+  user_roles_user_roles_assignedByTousers                                                   user_roles[]                         @relation("user_roles_assignedByTousers")
+  // New authentication relations
+  registration_request                                                                      user_registration_requests?          @relation("user_registration_requests_to_users", fields: [registrationRequestId], references: [id])
+  approved_registration_requests                                                            user_registration_requests[]         @relation("user_registration_requests_approvedByTousers")
+
+  @@index([accountStatus], map: "idx_users_account_status")
+  @@index([confirmationToken], map: "idx_users_confirmation_token")
+  @@index([emailVerified], map: "idx_users_email_verified")
+  @@index([invitationStatus], map: "idx_users_invitation_status")
+  @@index([invitationToken], map: "idx_users_invitation_token")
+  @@index([keycloakId], map: "idx_users_keycloak_id")
+  @@index([lastLoginAt], map: "idx_users_last_login")
+  @@index([personId], map: "idx_users_person_id")
+  @@index([username], map: "idx_users_username")
+  @@index([passwordHash], map: "idx_users_passwordHash")
+  @@index([passwordResetToken], map: "idx_users_passwordResetToken")
+  @@index([passwordChangedAt], map: "idx_users_passwordChangedAt")
+  // New authentication indexes
+  @@index([isFirstUser], map: "idx_users_is_first_user")
+  @@index([registrationRequestId], map: "idx_users_registration_request_id")
+  @@index([accountApprovalStatus], map: "idx_users_account_approval_status")
+  @@index([emailVerifiedAt], map: "idx_users_email_verified_at")
+  @@map("users")
+}
+
+model user_sessions {
+  id                 String   @id
+  userId             String
+  refreshToken       String
+  expiresAt          DateTime
+  isActive           Boolean  @default(true)
+  userAgent          String?
+  ipAddress          String?
+  sessionFingerprint String?
+  createdAt          DateTime @default(now())
+  lastUsedAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  users              users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_user_sessions_userId")
+  @@index([refreshToken], map: "idx_user_sessions_refreshToken")
+  @@index([expiresAt], map: "idx_user_sessions_expiresAt")
+  @@index([isActive], map: "idx_user_sessions_isActive")
+  @@index([createdAt], map: "idx_user_sessions_createdAt")
+  @@index([lastUsedAt], map: "idx_user_sessions_lastUsedAt")
+}
+
+model roles {
+  id          String       @id
+  name        String       @unique
+  description String?
+  permissions Json         @default("[]")
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user_roles  user_roles[]
+
+  @@index([isActive], map: "idx_roles_isActive")
+}
+
+model user_roles {
+  id                                      String   @id
+  userId                                  String
+  roleId                                  String
+  assignedBy                              String?
+  assignedAt                              DateTime @default(now())
+  isActive                                Boolean  @default(true)
+  users_user_roles_userIdTousers          users    @relation("user_roles_userIdTousers", fields: [userId], references: [id], onDelete: Cascade)
+  roles                                   roles    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  users_user_roles_assignedByTousers      users?   @relation("user_roles_assignedByTousers", fields: [assignedBy], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([userId], map: "idx_user_roles_userId")
+  @@index([roleId], map: "idx_user_roles_roleId")
+  @@index([assignedBy], map: "idx_user_roles_assignedBy")
+  @@index([isActive], map: "idx_user_roles_isActive")
+}
+
+// Temporarily disabled - requires vector extension
+// model vector_embeddings {
+//   id               String                @id
+//   knowledgeChunkId String                @unique
+//   embedding        Unsupported("vector")
+//   embeddingModel   String                @db.VarChar(100)
+//   modelVersion     String                @db.VarChar(50)
+//   dimensions       Int
+//   magnitude        Decimal               @db.Decimal(10, 6)
+//   createdAt        DateTime              @default(now())
+//   knowledge_chunks knowledge_chunks      @relation(fields: [knowledgeChunkId], references: [id])
+//
+//   @@index([knowledgeChunkId], map: "idx_vector_embeddings_chunk_id")
+// }
+
+enum AccessLevel {
+  Visitor
+  Standard
+  Elevated
+  Administrative
+  Executive
 }
 
 enum AccountStatus {
-  PENDING
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  LOCKED
-  EXPIRED
-  DEACTIVATED
-}
-
-enum TwoFactorMethod {
-  NONE
-  SMS
-  EMAIL
-  TOTP
-  HARDWARE_TOKEN
-  BIOMETRIC
+  Pending
+  Active
+  Inactive
+  Suspended
+  Locked
+  Expired
+  Deactivated
 }
 
 enum AffiliationType {
-  EMPLOYEE
-  CONTRACTOR
-  CONSULTANT
-  VENDOR
-  PARTNER
-  VOLUNTEER
-  INTERN
+  Employee
+  Contractor
+  Consultant
+  Vendor
+  Partner
+  Volunteer
+  Intern
 }
 
-enum EmploymentStatus {
-  ACTIVE
-  ON_LEAVE
-  TERMINATED
-  RESIGNED
-  RETIRED
-  CONTRACT_ENDED
-  TRANSFERRED
+// New ApprovalStatus enum for authentication
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum ArtifactStatus {
+  Draft
+  Submitted
+  Under_Review @map("Under Review")
+  Approved
+  Rejected
+  Superseded
+  Archived
+}
+
+enum ArtifactType {
+  Documentation
+  Source_Code          @map("Source Code")
+  Configuration
+  Database_Export      @map("Database Export")
+  Training_Materials   @map("Training Materials")
+  Contract_Deliverable @map("Contract Deliverable")
+  Other
+}
+
+enum AssessmentCategory {
+  Technical_Skills      @map("Technical Skills")
+  Domain_Knowledge      @map("Domain Knowledge")
+  Process_Understanding @map("Process Understanding")
+  Tool_Proficiency      @map("Tool Proficiency")
+  Security_Awareness    @map("Security Awareness")
+  Communication_Skills  @map("Communication Skills")
+  Leadership_Skills     @map("Leadership Skills")
+  Project_Management    @map("Project Management")
+}
+
+enum AssessmentMethod {
+  Written_Test       @map("Written Test")
+  Practical_Exercise @map("Practical Exercise")
+  Code_Review        @map("Code Review")
+  Presentation
+  Interview
+  Observation
+  Peer_Evaluation    @map("Peer Evaluation")
+  Self_Assessment    @map("Self Assessment")
+  Portfolio_Review   @map("Portfolio Review")
+}
+
+enum AssessmentType {
+  Initial_Assessment   @map("Initial Assessment")
+  Progress_Review      @map("Progress Review")
+  Milestone_Assessment @map("Milestone Assessment")
+  Final_Assessment     @map("Final Assessment")
+  Certification_Exam   @map("Certification Exam")
+  Competency_Check     @map("Competency Check")
+  Peer_Review          @map("Peer Review")
+}
+
+enum AuditAction {
+  Created
+  Updated
+  Submitted
+  Reviewed
+  Approved
+  Rejected
+  Downloaded
+  Deleted
+  Restored
+  Status_Changed @map("Status Changed")
+}
+
+enum CertificationStatus {
+  Not_Required @map("Not Required")
+  Required
+  In_Progress  @map("In Progress")
+  Scheduled
+  Completed
+  Failed
+  Expired
+  Renewed
+}
+
+enum CommStatus {
+  Pending
+  Delivered
+  Failed
+  Bounced
+  Spam
+  Quarantined
+}
+
+enum CommentType {
+  General
+  Progress_Update @map("Progress Update")
+  Blocker
+  Question
+  Decision
+  Status_Change   @map("Status Change")
+}
+
+enum CommunicationDirection {
+  Inbound
+  Outbound
+  Internal
+}
+
+enum CommunicationPlatform {
+  TIP_Internal    @map("TIP Internal")
+  Microsoft_Teams @map("Microsoft Teams")
+  Slack
+  Email
+  Zoom
+  Discord
+  WhatsApp
+  SMS_Gateway     @map("SMS Gateway")
+}
+
+enum CommunicationType {
+  Email
+  Chat
+  SMS
+  Notification
+  System_Message @map("System Message")
+  Voice_Call     @map("Voice Call")
+  Video_Call     @map("Video Call")
+}
+
+enum ContentType {
+  Text
+  HTML
+  Markdown
+  Rich_Text @map("Rich Text")
+  JSON
+  Table
+  List
+  Code
+  Metadata
+  Header
+  Footer
 }
 
 enum ContractType {
-  FULL_TIME
-  PART_TIME
-  CONTRACT
-  TEMPORARY
-  SEASONAL
-  PROJECT_BASED
+  Full_Time     @map("Full Time")
+  Part_Time     @map("Part Time")
+  Contract
+  Temporary
+  Seasonal
+  Project_Based @map("Project Based")
 }
 
-enum AccessLevel {
-  VISITOR
-  STANDARD
-  ELEVATED
-  ADMINISTRATIVE
-  EXECUTIVE
+enum EmploymentStatus {
+  Active
+  On_Leave       @map("On Leave")
+  Terminated
+  Resigned
+  Retired
+  Contract_Ended @map("Contract Ended")
+  Transferred
 }
 
-enum SeparationReason {
-  VOLUNTARY_RESIGNATION
-  INVOLUNTARY_TERMINATION
-  END_OF_CONTRACT
-  RETIREMENT
-  TRANSFER
-  LAYOFF
-  PERFORMANCE
-  MISCONDUCT
+enum EventStatus {
+  Scheduled
+  Confirmed
+  Tentative
+  Cancelled
+  Completed
+  In_Progress @map("In Progress")
+  Postponed
 }
 
-enum OrganizationType {
-  GOVERNMENT_AGENCY
-  PRIME_CONTRACTOR
-  SUBCONTRACTOR
-  VENDOR
+enum EventType {
+  Meeting
+  Milestone_Deadline @map("Milestone Deadline")
+  Task_Due_Date      @map("Task Due Date")
+  Review_Session     @map("Review Session")
+  Training
+  Presentation
+  Conference_Call    @map("Conference Call")
+  Site_Visit         @map("Site Visit")
+  Other
 }
 
-enum TransitionRole {
-  PROGRAM_MANAGER
-  DEPARTING_CONTRACTOR
-  INCOMING_CONTRACTOR
-  SECURITY_OFFICER
-  OBSERVER
+enum EventVisibility {
+  Public
+  Internal
+  Private
+  Confidential
 }
 
-enum SecurityStatus {
-  PENDING
-  IN_PROCESS
-  INTERIM_CLEARED
-  CLEARED
-  DENIED
-  REVOKED
+enum ExternalPlatform {
+  Microsoft_Outlook @map("Microsoft Outlook")
+  Microsoft_Teams   @map("Microsoft Teams")
+  Google_Calendar   @map("Google Calendar")
+  Zoom
+  WebEx
+  Other
 }
 
-enum PlatformAccess {
-  DISABLED
-  READ_ONLY
-  STANDARD
-  FULL_ACCESS
+enum InvitationStatus {
+  Not_Invited         @map("Not Invited")
+  Invited
+  Invitation_Sent     @map("Invitation Sent")
+  Invitation_Expired  @map("Invitation Expired")
+  Invitation_Accepted @map("Invitation Accepted")
+  Invitation_Declined @map("Invitation Declined")
 }
 
-enum PIVStatus {
-  PIV_VERIFIED
-  PIV_EXCEPTION_PENDING
-  PIV_EXCEPTION_INTERIM
-  PIV_EXPIRED
-  PIV_SUSPENDED
-}
-
-enum TransitionDuration {
-  IMMEDIATE
-  THIRTY_DAYS
-  FORTY_FIVE_DAYS
-  SIXTY_DAYS
-  NINETY_DAYS
+enum LearningStyle {
+  Visual
+  Auditory
+  Kinesthetic
+  Reading_Writing @map("Reading/Writing")
+  Mixed
 }
 
 enum MilestoneStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  BLOCKED
-  OVERDUE
+  Not_Started @map("Not Started")
+  In_Progress @map("In Progress")
+  Blocked
+  Completed
+  Cancelled
+  Overdue
 }
 
-enum PriorityLevel {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
+enum NotificationFrequency {
+  Immediate
+  Hourly_Digest @map("Hourly Digest")
+  Daily_Digest  @map("Daily Digest")
+  Weekly_Digest @map("Weekly Digest")
+  Never
+}
+
+enum NotificationType {
+  Task_Assignment    @map("Task Assignment")
+  Task_Due           @map("Task Due")
+  Task_Completed     @map("Task Completed")
+  Milestone_Due      @map("Milestone Due")
+  Artifact_Submitted @map("Artifact Submitted")
+  Artifact_Approved  @map("Artifact Approved")
+  Meeting_Reminder   @map("Meeting Reminder")
+  Status_Change      @map("Status Change")
+  Mention
+  System_Alert       @map("System Alert")
+}
+
+enum OrganizationType {
+  Government_Agency @map("Government Agency")
+  Prime_Contractor  @map("Prime Contractor")
+  Subcontractor
+  Vendor
+}
+
+enum OverallReadiness {
+  Not_Ready            @map("Not Ready")
+  Limited_Ready        @map("Limited Ready")
+  Partially_Ready      @map("Partially Ready")
+  Mostly_Ready         @map("Mostly Ready")
+  Fully_Ready          @map("Fully Ready")
+  Exceeds_Requirements @map("Exceeds Requirements")
+}
+
+enum PlatformAccess {
+  Disabled
+  Read_Only   @map("Read Only")
+  Standard
+  Full_Access @map("Full Access")
+}
+
+enum Priority {
+  Low
+  Medium
+  High
+  Critical
+  Urgent
+  Normal
+}
+
+enum ProficiencyLevel {
+  None
+  Beginner
+  Basic
+  Intermediate
+  Advanced
+  Expert
+  Master
+}
+
+enum PublishingDecision {
+  Approved_for_Publishing  @map("Approved for Publishing")
+  Rejected
+  Approved_with_Conditions @map("Approved with Conditions")
+  Needs_Revision           @map("Needs Revision")
+  Under_Review             @map("Under Review")
+}
+
+enum QueryFeedback {
+  Helpful
+  Partially_Helpful @map("Partially Helpful")
+  Not_Helpful       @map("Not Helpful")
+  Incorrect
+}
+
+enum RelatedEntityType {
+  Task
+  Milestone
+  Artifact
+  Event
+  User
+  Transition
+}
+
+enum ReviewStatus {
+  Pending
+  In_Progress    @map("In Progress")
+  Completed
+  Approved
+  Rejected
+  Needs_Revision @map("Needs Revision")
+  On_Hold        @map("On Hold")
+  Escalated
+}
+
+enum ReviewType {
+  Initial_Review    @map("Initial Review")
+  Revision_Review   @map("Revision Review")
+  Final_Review      @map("Final Review")
+  Compliance_Review @map("Compliance Review")
+  Security_Review   @map("Security Review")
+  Technical_Review  @map("Technical Review")
+  Content_Review    @map("Content Review")
+}
+
+enum RiskLevel {
+  Low
+  Medium
+  High
+  Critical
+}
+
+enum SecurityClassification {
+  Unclassified
+  Confidential
+  Secret
+  Top_Secret   @map("Top Secret")
+}
+
+enum SecurityClearanceLevel {
+  None
+  Public_Trust @map("Public Trust")
+  Confidential
+  Secret
+  Top_Secret   @map("Top Secret")
+  TS_SCI       @map("TS/SCI")
+}
+
+enum SecurityStatus {
+  Pending
+  In_Process      @map("In Process")
+  Interim_Cleared @map("Interim Cleared")
+  Cleared
+  Denied
+  Revoked
+}
+
+enum SeparationReason {
+  Voluntary_Resignation   @map("Voluntary Resignation")
+  Involuntary_Termination @map("Involuntary Termination")
+  End_of_Contract         @map("End of Contract")
+  Retirement
+  Transfer
+  Layoff
+  Performance
+  Misconduct
+}
+
+enum SyncStatus {
+  Not_Synced    @map("Not Synced")
+  Synced
+  Sync_Pending  @map("Sync Pending")
+  Sync_Failed   @map("Sync Failed")
+  Sync_Conflict @map("Sync Conflict")
 }
 
 enum TaskStatus {
-  NOT_STARTED
-  ASSIGNED
-  IN_PROGRESS
-  ON_HOLD
-  BLOCKED
-  UNDER_REVIEW
-  COMPLETED
-  CANCELLED
-  OVERDUE
+  Not_Started  @map("Not Started")
+  Assigned
+  In_Progress  @map("In Progress")
+  On_Hold      @map("On Hold")
+  Blocked
+  Under_Review @map("Under Review")
+  Completed
+  Cancelled
+  Overdue
 }
 
-// Person Entity - Core individual profile
-model Person {
-  id                        String    @id @default(uuid())
-  firstName                 String    @db.VarChar(100)
-  middleName                String?   @db.VarChar(100)
-  lastName                  String    @db.VarChar(100)
-  preferredName             String?   @db.VarChar(100)
-  suffix                    String?   @db.VarChar(20)
-  title                     String?   @db.VarChar(100)
-  primaryEmail              String    @unique @db.VarChar(255)
-  alternateEmail            String?   @db.VarChar(255)
-  workPhone                 String?   @db.VarChar(20)
-  mobilePhone               String?   @db.VarChar(20)
-  personalPhone             String?   @db.VarChar(20)
-  profileImageUrl           String?   @db.VarChar(500)
-  biography                 String?   @db.Text
-  skills                    Json?     // Array of professional skills
-  certifications            Json?     // Professional certifications
-  education                 Json?     // Educational background
-  workLocation              String?   @db.VarChar(255)
-  timeZone                  String    @default("UTC") @db.VarChar(50)
-  preferredLanguage         String    @default("en") @db.VarChar(10)
-  dateOfBirth               DateTime? @db.Date
-  securityClearanceLevel    SecurityClearanceLevel?
-  clearanceExpirationDate   DateTime? @db.Date
-  pivStatus                 PIVStatus @default(PIV_EXCEPTION_PENDING)
-  pivExpirationDate         DateTime? @db.Date
-  emergencyContactName      String?   @db.VarChar(255)
-  emergencyContactPhone     String?   @db.VarChar(20)
-  emergencyContactRelation  String?   @db.VarChar(100)
-  isActive                  Boolean   @default(true)
-  privacySettings           Json?     // Privacy and visibility preferences
-  professionalSummary       String?   @db.Text
-  linkedInProfile           String?   @db.VarChar(500)
-  githubProfile             String?   @db.VarChar(500)
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  archivedAt                DateTime?
-
-  // Relations
-  user                      User?
-  organizationAffiliations  PersonOrganizationAffiliation[]
-  managedAffiliations       PersonOrganizationAffiliation[] @relation("ManagerRelation")
-
-  @@index([primaryEmail])
-  @@index([lastName, firstName])
-  @@index([isActive])
-  @@index([securityClearanceLevel])
-  @@index([pivStatus])
+enum TransitionLevel {
+  MAJOR
+  PERSONNEL
+  OPERATIONAL
 }
 
-// User Entity - Authentication and authorization
-model User {
-  id                        String            @id @default(uuid())
-  personId                  String            @unique
-  username                  String            @unique @db.VarChar(100)
-  keycloakId                String            @unique
-  invitationStatus          InvitationStatus  @default(NOT_INVITED)
-  invitedBy                 String?
-  invitedAt                 DateTime?
-  invitationToken           String?           @db.VarChar(255)
-  invitationExpiresAt       DateTime?
-  confirmationToken         String?           @db.VarChar(255)
-  confirmationSentAt        DateTime?
-  confirmedAt               DateTime?
-  emailVerified             Boolean           @default(false)
-  accountStatus             AccountStatus     @default(PENDING)
-  statusReason              String?           @db.Text
-  lastLoginAt               DateTime?
-  lastLoginIp               String?           @db.Inet
-  failedLoginAttempts       Int               @default(0)
-  lockedUntil               DateTime?
-  passwordHash              String?           @db.VarChar(255) // bcrypt hash of user password
-  passwordChangedAt         DateTime?
-  mustChangePassword        Boolean           @default(false)
-  twoFactorEnabled          Boolean           @default(false)
-  twoFactorMethod           TwoFactorMethod?
-  backupCodes               Json?             // Encrypted backup authentication codes
-  sessionTimeout            Int?              // Custom session timeout (minutes)
-  allowedIpRanges           Json?             // Restricted IP address ranges
-  deviceFingerprints        Json?             // Trusted device identifiers
-  securityNotifications     Boolean           @default(true)
-  apiKeyEnabled             Boolean           @default(false)
-  apiKeyHash                String?           @db.VarChar(255)
-  apiKeyExpiresAt           DateTime?
-  roles                     Json              @default("[]") // Array of assigned system roles
-  permissions               Json?             // Specific permission overrides
-  metadata                  Json?             // Additional user metadata
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @updatedAt
-  deactivatedAt             DateTime?
-  deactivatedBy             String?
-
-  // Relations
-  person                    Person            @relation(fields: [personId], references: [id])
-  invitedByUser             User?             @relation("UserInvitation", fields: [invitedBy], references: [id])
-  invitedUsers              User[]            @relation("UserInvitation")
-  deactivatedByUser         User?             @relation("UserDeactivation", fields: [deactivatedBy], references: [id])
-  deactivatedUsers          User[]            @relation("UserDeactivation")
-  transitionUsers           TransitionUser[]  @relation("TransitionUserAssignment")
-  invitedTransitionUsers    TransitionUser[]  @relation("TransitionUserInvitation")
-  
-  // Legacy relations (keeping for backward compatibility)
-  createdTransitions        Transition[]      @relation("TransitionCreator")
-  managedOperations         BusinessOperation[] @relation("OperationManager")
-  assignedOperations        BusinessOperation[] @relation("OperationPM")
-  directedOperations        BusinessOperation[] @relation("OperationDirector")
-  contractorPMContracts     Contract[]        @relation("ContractorPM")
-  stakeholderOperations     OperationStakeholder[]
-  auditLogs                 AuditLog[]
-  sessions                  UserSession[]     @relation("UserSessions")
-
-  @@index([personId])
-  @@index([username])
-  @@index([keycloakId])
-  @@index([invitationStatus])
-  @@index([accountStatus])
-  @@index([emailVerified])
-  @@index([invitationToken])
-  @@index([confirmationToken])
-  @@index([lastLoginAt])
+enum TransitionRole {
+  Program_Manager      @map("Program Manager")
+  Departing_Contractor @map("Departing Contractor")
+  Incoming_Contractor  @map("Incoming Contractor")
+  Security_Officer     @map("Security Officer")
+  Observer
 }
 
-// Organization Entity
-model Organization {
-  id                        String    @id @default(uuid())
-  name                      String    @db.VarChar(255)
-  abbreviation              String?   @db.VarChar(50)
-  type                      OrganizationType
-  parentId                  String?
-  contactEmail              String?   @db.VarChar(255)
-  securityOfficerEmail      String?   @db.VarChar(255)
-  isActive                  Boolean   @default(true)
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-
-  // Relations
-  parentOrganization        Organization? @relation("OrganizationHierarchy", fields: [parentId], references: [id])
-  childOrganizations        Organization[] @relation("OrganizationHierarchy")
-  affiliations              PersonOrganizationAffiliation[]
-  transitions               Transition[] @relation("OrganizationTransitions")
-
-  @@index([type])
-  @@index([parentId])
+enum TransitionSource {
+  STRATEGIC
+  CONTRACTUAL
+  PERSONNEL
+  COMMUNICATION
+  CHANGE_REQUEST
+  ENHANCEMENT
 }
 
-// Person Organization Affiliation - Many-to-many with history
-model PersonOrganizationAffiliation {
-  id                        String              @id @default(uuid())
-  personId                  String
-  organizationId            String
-  jobTitle                  String?             @db.VarChar(255)
-  department                String?             @db.VarChar(255)
-  employeeId                String?             @db.VarChar(100)
-  workLocation              String?             @db.VarChar(255)
-  managerId                 String?
-  affiliationType           AffiliationType
-  employmentStatus          EmploymentStatus
-  securityClearanceRequired SecurityClearanceLevel?
-  startDate                 DateTime            @db.Date
-  endDate                   DateTime?           @db.Date
-  isActive                  Boolean             @default(true)
-  isPrimary                 Boolean             @default(false)
-  payrollNumber             String?             @db.VarChar(100)
-  costCenter                String?             @db.VarChar(100)
-  workSchedule              Json?               // Work schedule and hours
-  compensationLevel         String?             @db.VarChar(50)
-  benefitsEligible          Boolean             @default(false)
-  contractType              ContractType?
-  contractNumber            String?             @db.VarChar(100)
-  billableHours             Decimal?            @db.Decimal(5, 2)
-  accessLevel               AccessLevel         @default(STANDARD)
-  facilities                Json?               // Facility access permissions
-  equipment                 Json?               // Assigned equipment and assets
-  notes                     String?             @db.Text
-  separationReason          SeparationReason?
-  separationNotes           String?             @db.Text
-  isEligibleForRehire       Boolean?
-  exitInterviewCompleted    Boolean             @default(false)
-  exitInterviewDate         DateTime?           @db.Date
-  finalWorkDate             DateTime?           @db.Date
-  createdBy                 String
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
-
-  // Relations
-  person                    Person              @relation(fields: [personId], references: [id])
-  organization              Organization        @relation(fields: [organizationId], references: [id])
-  manager                   Person?             @relation("ManagerRelation", fields: [managerId], references: [id])
-
-  @@unique([personId, organizationId, startDate])
-  @@index([personId])
-  @@index([organizationId])
-  @@index([isActive])
-  @@index([isPrimary])
-  @@index([startDate])
-  @@index([endDate])
-  @@index([employmentStatus])
+enum TransitionStatus {
+  Planning
+  Active
+  On_Hold   @map("On Hold")
+  Completed
+  Cancelled
+  Delayed
 }
 
-// Transition Users - Junction table with role-based permissions
-model TransitionUser {
-  id                        String              @id @default(uuid())
-  transitionId              String
-  userId                    String
-  role                      TransitionRole
-  securityStatus            SecurityStatus      @default(PENDING)
-  platformAccess            PlatformAccess      @default(DISABLED)
-  invitedBy                 String
-  invitedAt                 DateTime            @default(now())
-  acceptedAt                DateTime?
-  lastAccessAt              DateTime?
-  accessNotes               String?             @db.Text
-  isActive                  Boolean             @default(true)
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
-
-  // Relations
-  transition                Transition          @relation(fields: [transitionId], references: [id])
-  user                      User                @relation("TransitionUserAssignment", fields: [userId], references: [id])
-  invitedByUser             User                @relation("TransitionUserInvitation", fields: [invitedBy], references: [id])
-
-  @@unique([transitionId, userId])
-  @@index([transitionId])
-  @@index([userId])
-  @@index([securityStatus])
-  @@index([platformAccess])
+enum TrendDirection {
+  Improving
+  Stable
+  Declining
+  Rapid_Improvement @map("Rapid Improvement")
+  Stagnant
 }
 
-model BusinessOperation {
-  id                    String        @id @default(cuid())
-  name                  String
-  businessFunction      String
-  technicalDomain       String
-  description           String?
-  scope                 String        // Functional and technical boundaries
-  objectives            String        // Operation objectives
-  performanceMetrics    Json          // Operational, quality, compliance metrics
-  supportPeriodStart    DateTime
-  supportPeriodEnd      DateTime
-  currentContractEnd    DateTime
-  currentManagerId      String?
-  governmentPMId        String
-  directorId            String
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  
-  currentManager        User?                  @relation("OperationManager", fields: [currentManagerId], references: [id])
-  governmentPM          User                   @relation("OperationPM", fields: [governmentPMId], references: [id])
-  director              User                   @relation("OperationDirector", fields: [directorId], references: [id])
-  contracts             Contract[]
-  stakeholders          OperationStakeholder[]
-  auditLogs             AuditLog[]
-
-  @@index([businessFunction])
-  @@index([technicalDomain])
-  @@index([governmentPMId])
-  @@index([directorId])
+enum TwoFactorMethod {
+  None
+  SMS
+  Email
+  TOTP
+  Hardware_Token @map("Hardware Token")
+  Biometric
 }
 
-model OperationStakeholder {
-  id                 String          @id @default(cuid())
-  businessOperationId String
-  userId             String?
-  name               String
-  role               String
-  email              String
-  phone              String?
-  organization       String?
-  stakeholderType    StakeholderType
-  receiveNotifications Boolean        @default(false)
-  isActive           Boolean         @default(true)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-
-  businessOperation  BusinessOperation @relation(fields: [businessOperationId], references: [id], onDelete: Cascade)
-  user               User?             @relation(fields: [userId], references: [id])
-
-  @@index([businessOperationId])
-  @@index([stakeholderType])
-  @@index([userId])
-}
-
-model Contract {
-  id                  String        @id @default(cuid())
-  businessOperationId String
-  contractName        String
-  contractNumber      String        @unique
-  contractorName      String
-  contractorPMId      String?       // Contractor's Program Manager
-  startDate           DateTime
-  endDate             DateTime
-  canBeExtended       Boolean       @default(true)
-  status              ContractStatus @default(PLANNING)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-
-  businessOperation   BusinessOperation @relation(fields: [businessOperationId], references: [id])
-  contractorPM        User?            @relation("ContractorPM", fields: [contractorPMId], references: [id])
-  transitions         Transition[]
-  auditLogs           AuditLog[]
-
-  @@index([businessOperationId])
-  @@index([contractNumber])
-  @@index([status])
-  @@index([endDate])
-}
-
-
-model Transition {
-  id               String            @id @default(cuid())
-  // Legacy fields (keeping for existing data)
-  contractName     String?
-  contractNumber   String?
-  // New hierarchy fields (optional initially for migration)
-  contractId       String?
-  organizationId   String?           // New field for organization relation
-  name             String?            // Transition name
-  startDate        DateTime          // Transition start date
-  endDate          DateTime          // Transition end date
-  duration         TransitionDuration @default(THIRTY_DAYS)
-  keyPersonnel     String?           // JSON string or separate table
-  description      String?
-  status           TransitionStatus   @default(NOT_STARTED)
-  requiresContinuousService Boolean  @default(true)
-  createdBy        String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  
-  contract         Contract?         @relation(fields: [contractId], references: [id])
-  organization     Organization?     @relation("OrganizationTransitions", fields: [organizationId], references: [id])
-  creator          User?             @relation("TransitionCreator", fields: [createdBy], references: [id])
-  milestones       Milestone[]
-  auditLogs        AuditLog[]
-  transitionUsers  TransitionUser[]
-  tasks            Task[]
-
-  @@index([status])
-  @@index([contractId])
-  @@index([organizationId])
-  @@index([contractNumber])
-  @@index([createdBy])
-  @@index([startDate])
-  @@index([endDate])
-}
-
-model Milestone {
-  id           String          @id @default(cuid())
-  title        String
-  description  String?
-  dueDate      DateTime
-  priority     PriorityLevel   @default(MEDIUM)
-  status       MilestoneStatus @default(PENDING)
-  transitionId String
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  transition   Transition      @relation(fields: [transitionId], references: [id], onDelete: Cascade)
-  auditLogs    AuditLog[]
-  tasks        Task[]
-
-  @@index([status])
-  @@index([dueDate])
-  @@index([transitionId])
-}
-
-model Task {
-  id           String      @id @default(cuid())
-  title        String
-  description  String?
-  dueDate      DateTime
-  priority     PriorityLevel @default(MEDIUM)
-  status       TaskStatus    @default(NOT_STARTED)
-  transitionId String
-  milestoneId  String?
-  parentTaskId String?
-  orderIndex   Int           @default(0)
-  sequencePath String?       @db.VarChar(255)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  transition   Transition   @relation(fields: [transitionId], references: [id], onDelete: Cascade)
-  milestone    Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  parent       Task?        @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: SetNull)
-  children     Task[]       @relation("TaskHierarchy")
-  auditLogs    AuditLog[]
-
-  @@index([transitionId])
-  @@index([milestoneId])
-  @@index([status])
-  @@index([dueDate])
-  @@index([transitionId, parentTaskId, orderIndex])
-}
-
-model AuditLog {
-  id                String            @id @default(cuid())
-  entityType        String            // "business_operation", "contract", "transition", "milestone"
-  entityId          String
-  action            String            // "CREATE", "UPDATE", "DELETE"
-  oldValues         Json?             // Previous state
-  newValues         Json?             // New state
-  userId            String
-  timestamp         DateTime          @default(now())
-  user              User              @relation(fields: [userId], references: [id])
-  businessOperation BusinessOperation? @relation(fields: [entityId], references: [id], map: "AuditLog_businessOperationId_fkey")
-  contract          Contract?         @relation(fields: [entityId], references: [id], map: "AuditLog_contractId_fkey")
-  transition        Transition?       @relation(fields: [entityId], references: [id], map: "AuditLog_transitionId_fkey")
-  milestone         Milestone?        @relation(fields: [entityId], references: [id], map: "AuditLog_milestoneId_fkey")
-  task              Task?             @relation(fields: [entityId], references: [id], map: "AuditLog_taskId_fkey")
-
-  @@index([entityType, entityId])
-  @@index([userId])
-  @@index([timestamp])
-}
-
-// User Session Management for Authentication
-model UserSession {
-  id            String    @id @default(uuid())
-  userId        String
-  refreshToken  String    @unique @db.VarChar(512)
-  expiresAt     DateTime
-  createdAt     DateTime  @default(now())
-  lastUsedAt    DateTime?
-  loggedOutAt   DateTime?
-  isActive      Boolean   @default(true)
-  userAgent     String?   @db.Text
-  ipAddress     String?   @db.Inet
-  deviceId      String?   @db.VarChar(255)
-  
-  // Relations
-  user          User      @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([refreshToken])
-  @@index([expiresAt])
-  @@index([isActive])
-}

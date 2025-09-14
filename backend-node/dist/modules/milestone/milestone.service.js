@@ -15,26 +15,26 @@ const fastify_zod_1 = require("fastify-zod");
 const prisma = new client_1.PrismaClient();
 // Base Schemas
 const MilestoneStatusEnum = zod_1.z.nativeEnum(client_1.MilestoneStatus);
-const PriorityLevelEnum = zod_1.z.nativeEnum(client_1.PriorityLevel);
+const PriorityEnum = zod_1.z.nativeEnum(client_1.Priority);
 // Create Milestone Schema
 const createMilestoneSchema = zod_1.z.object({
     title: zod_1.z.string().min(1, "Title is required").max(255),
     description: zod_1.z.string().optional(),
     dueDate: zod_1.z.string().datetime(),
-    priority: PriorityLevelEnum.default('MEDIUM'),
+    priority: PriorityEnum.default('MEDIUM'),
 });
 // Update Milestone Schema
 const updateMilestoneSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).max(255).optional(),
     description: zod_1.z.string().optional(),
     dueDate: zod_1.z.string().datetime().optional(),
-    priority: PriorityLevelEnum.optional(),
+    priority: PriorityEnum.optional(),
     status: MilestoneStatusEnum.optional(),
 });
 // Query Schemas
 const getMilestonesQuerySchema = zod_1.z.object({
     status: MilestoneStatusEnum.optional(),
-    priority: PriorityLevelEnum.optional(),
+    priority: PriorityEnum.optional(),
     overdue: zod_1.z.boolean().optional(),
     upcoming: zod_1.z.coerce.number().int().min(1).optional(), // Days ahead
     page: zod_1.z.coerce.number().int().min(1).default(1),
@@ -48,7 +48,7 @@ const milestoneResponseSchema = zod_1.z.object({
     title: zod_1.z.string(),
     description: zod_1.z.string().nullable(),
     dueDate: zod_1.z.string(),
-    priority: PriorityLevelEnum,
+    priority: PriorityEnum,
     status: MilestoneStatusEnum,
     transitionId: zod_1.z.string(),
     createdAt: zod_1.z.string(),

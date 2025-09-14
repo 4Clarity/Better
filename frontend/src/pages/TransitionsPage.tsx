@@ -1,34 +1,30 @@
 import { useState, useEffect } from "react";
-import { enhancedTransitionApi, EnhancedTransition, API_BASE_URL } from "@/services/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EnhancedTransition, API_BASE_URL } from "@/services/api";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Calendar, Clock, Building, Edit } from "lucide-react";
-import { Link } from "react-router-dom";
-import { LegacyTransitionEditDialog } from "@/components/LegacyTransitionEditDialog";
+import { Building, Users, Settings } from "lucide-react";
+import { TransitionCard } from "@/components/transitions/common/TransitionCard";
+import { TransitionFilters } from "@/components/transitions/common/TransitionFilters";
 
-interface LegacyTransition {
-  id: string;
-  contractName: string;
-  contractNumber: string;
-  startDate: string;
-  endDate: string;
-  status: 'NOT_STARTED' | 'ON_TRACK' | 'AT_RISK' | 'BLOCKED' | 'COMPLETED';
-  keyPersonnel?: string;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
+
+interface TransitionCounts {
+  major: number;
+  personnel: number;
+  operational: number;
+  total: number;
 }
 
 export function TransitionsPage() {
-  const [enhancedTransitions, setEnhancedTransitions] = useState<EnhancedTransition[]>([]);
-  const [legacyTransitions, setLegacyTransitions] = useState<LegacyTransition[]>([]);
+  const [majorTransitions, setMajorTransitions] = useState<EnhancedTransition[]>([]);
+  const [personnelTransitions, setPersonnelTransitions] = useState<EnhancedTransition[]>([]);
+  const [operationalChanges, setOperationalChanges] = useState<EnhancedTransition[]>([]);
+  const [transitionCounts, setTransitionCounts] = useState<TransitionCounts>({ major: 0, personnel: 0, operational: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const userRole = "director"; // TODO: Get from user context/auth
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [activeLevel, setActiveLevel] = useState<'major' | 'personnel' | 'operational'>('major');
 
   useEffect(() => {
     fetchTransitions();
@@ -39,14 +35,18 @@ export function TransitionsPage() {
       setLoading(true);
       setError(null);
       
-      // Fetch both enhanced and team member transitions
-      const [enhancedResponse, legacyResponse] = await Promise.all([
-        enhancedTransitionApi.getAll({ limit: 100 }),
-        fetch(`${API_BASE_URL}/transitions?limit=100`).then(res => res.json())
+      // Fetch all transition levels and counts
+      const [majorResponse, personnelResponse, operationalResponse, countsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/enhanced-transitions/major?limit=100`).then(res => res.json()),
+        fetch(`${API_BASE_URL}/enhanced-transitions/personnel?limit=100`).then(res => res.json()),
+        fetch(`${API_BASE_URL}/enhanced-transitions/operational?limit=100`).then(res => res.json()),
+        fetch(`${API_BASE_URL}/enhanced-transitions/counts`).then(res => res.json())
       ]);
       
-      setEnhancedTransitions(enhancedResponse.data);
-      setLegacyTransitions(legacyResponse.data);
+      setMajorTransitions(majorResponse.data || []);
+      setPersonnelTransitions(personnelResponse.data || []);
+      setOperationalChanges(operationalResponse.data || []);
+      setTransitionCounts(countsResponse);
     } catch (err) {
       console.error('Failed to fetch transitions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch transitions');
@@ -66,23 +66,24 @@ export function TransitionsPage() {
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const filteredEnhancedTransitions = enhancedTransitions.filter(transition =>
-    transition.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    transition.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    transition.contract?.businessOperation?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredLegacyTransitions = legacyTransitions.filter(transition =>
-    transition.contractName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    transition.contractNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    transition.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleLegacyTransitionUpdated = (updatedTransition: LegacyTransition) => {
-    setLegacyTransitions(prev => 
-      prev.map(t => t.id === updatedTransition.id ? updatedTransition : t)
-    );
+  // Filter functions for each level
+  const filterTransitions = (transitions: EnhancedTransition[]) => {
+    return transitions.filter(transition => {
+      const matchesSearch = !searchQuery || 
+        transition.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        transition.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        transition.contract?.businessOperation?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || transition.status === statusFilter;
+      // const matchesSource = sourceFilter === 'all' || transition.transitionSource === sourceFilter;
+      
+      return matchesSearch && matchesStatus; // && matchesSource;
+    });
   };
+
+  const filteredMajorTransitions = filterTransitions(majorTransitions);
+  const filteredPersonnelTransitions = filterTransitions(personnelTransitions);
+  const filteredOperationalChanges = filterTransitions(operationalChanges);
 
   if (loading) {
     return (
@@ -100,7 +101,7 @@ export function TransitionsPage() {
         <div>
           <h1 className="text-3xl font-bold mb-2">Transitions</h1>
           <p className="text-muted-foreground">
-            Manage contract transitions and operational changes
+            Manage organizational transitions across all levels
           </p>
         </div>
       </div>
@@ -111,197 +112,107 @@ export function TransitionsPage() {
         </div>
       )}
 
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Search transitions by name, description, or business operation..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
+      <TransitionFilters
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        sourceFilter={sourceFilter}
+        onSourceFilterChange={setSourceFilter}
+        showSourceFilter={activeLevel !== 'major'}
+      />
 
-      <Tabs defaultValue="contract-transitions" className="w-full">
+      <Tabs value={activeLevel} onValueChange={(value) => setActiveLevel(value as 'major' | 'personnel' | 'operational')} className="w-full">
         <TabsList className="mb-6">
-          <TabsTrigger value="contract-transitions">Enhanced Transitions ({filteredEnhancedTransitions.length})</TabsTrigger>
-          <TabsTrigger value="operational-transitions">Team Member Transitions ({filteredLegacyTransitions.length})</TabsTrigger>
+          <TabsTrigger value="major" className="flex items-center gap-2">
+            <Building className="h-4 w-4" />
+            Major Transitions ({transitionCounts.major})
+          </TabsTrigger>
+          <TabsTrigger value="personnel" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Personnel Transitions ({transitionCounts.personnel})
+          </TabsTrigger>
+          <TabsTrigger value="operational" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Operational Changes ({transitionCounts.operational})
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="contract-transitions">
+        <TabsContent value="major">
           <div className="grid gap-4">
-            {filteredEnhancedTransitions.length === 0 ? (
+            {filteredMajorTransitions.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <p className="text-muted-foreground">
-                    {searchQuery ? 'No contract transitions found matching your search.' : 'No contract transitions found.'}
+                    {searchQuery || statusFilter !== 'all' ? 'No major transitions found matching your criteria.' : 'No major transitions found.'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Major transitions include organizational realignments and new contracts.
                   </p>
                 </CardContent>
               </Card>
             ) : (
-              filteredEnhancedTransitions.map((transition) => (
-                <Card key={transition.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">
-                          <Link
-                            to={`/enhanced-transitions/${transition.id}`}
-                            className="text-primary hover:underline"
-                          >
-                            {transition.name || 'Unnamed Transition'}
-                          </Link>
-                        </CardTitle>
-                        {transition.description && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {transition.description}
-                          </p>
-                        )}
-                      </div>
-                      <Badge className={getStatusColor(transition.status)}>
-                        {transition.status.replace('_', ' ')}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">Business Operation</div>
-                          <div className="text-muted-foreground">
-                            {transition.contract?.businessOperation?.name || 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">Start Date</div>
-                          <div className="text-muted-foreground">
-                            {new Date(transition.startDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">End Date</div>
-                          <div className="text-muted-foreground">
-                            {new Date(transition.endDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">Duration</div>
-                          <div className="text-muted-foreground">
-                            {transition.duration.replace('_', ' ').toLowerCase()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {transition.keyPersonnel && (
-                      <div className="mt-3 pt-3 border-t">
-                        <div className="text-sm">
-                          <span className="font-medium">Key Personnel: </span>
-                          <span className="text-muted-foreground">{transition.keyPersonnel}</span>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+              filteredMajorTransitions.map((transition) => (
+                <TransitionCard
+                  key={transition.id}
+                  transition={{ ...transition, transitionLevel: 'MAJOR' }}
+                  linkPath={`/enhanced-transitions/${transition.id}`}
+                />
               ))
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="operational-transitions">
+        <TabsContent value="personnel">
           <div className="grid gap-4">
-            {filteredLegacyTransitions.length === 0 ? (
+            {filteredPersonnelTransitions.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <p className="text-muted-foreground">
-                    {searchQuery ? 'No team member transitions found matching your search.' : 'No team member transitions found.'}
+                    {searchQuery || statusFilter !== 'all' ? 'No personnel transitions found matching your criteria.' : 'No personnel transitions found.'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Personnel transitions include team member changes and role adjustments.
                   </p>
                 </CardContent>
               </Card>
             ) : (
-              filteredLegacyTransitions.map((transition) => (
-                <Card key={transition.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">
-                          {transition.contractName || 'Unnamed Contract'}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Contract: {transition.contractNumber}
-                        </p>
-                        {transition.description && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {transition.description}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getStatusColor(transition.status)}>
-                          {transition.status.replace('_', ' ')}
-                        </Badge>
-                        <LegacyTransitionEditDialog
-                          transition={transition}
-                          onTransitionUpdated={handleLegacyTransitionUpdated}
-                          userRole={userRole}
-                        />
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">Start Date</div>
-                          <div className="text-muted-foreground">
-                            {new Date(transition.startDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">End Date</div>
-                          <div className="text-muted-foreground">
-                            {new Date(transition.endDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">Duration</div>
-                          <div className="text-muted-foreground">
-                            {Math.ceil((new Date(transition.endDate).getTime() - new Date(transition.startDate).getTime()) / (1000 * 60 * 60 * 24))} days
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {transition.keyPersonnel && (
-                      <div className="mt-3 pt-3 border-t">
-                        <div className="text-sm">
-                          <span className="font-medium">Key Personnel: </span>
-                          <span className="text-muted-foreground">{transition.keyPersonnel}</span>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+              filteredPersonnelTransitions.map((transition) => (
+                <TransitionCard
+                  key={transition.id}
+                  transition={{ ...transition, transitionLevel: 'PERSONNEL' }}
+                  linkPath={`/enhanced-transitions/${transition.id}`}
+                />
               ))
             )}
           </div>
         </TabsContent>
+
+        <TabsContent value="operational">
+          <div className="grid gap-4">
+            {filteredOperationalChanges.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">
+                    {searchQuery || statusFilter !== 'all' ? 'No operational changes found matching your criteria.' : 'No operational changes found.'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Operational changes include process improvements and enhancement requests.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              filteredOperationalChanges.map((transition) => (
+                <TransitionCard
+                  key={transition.id}
+                  transition={{ ...transition, transitionLevel: 'OPERATIONAL' }}
+                  linkPath={`/enhanced-transitions/${transition.id}`}
+                />
+              ))
+            )}
+          </div>
+        </TabsContent>
+
       </Tabs>
     </div>
   );

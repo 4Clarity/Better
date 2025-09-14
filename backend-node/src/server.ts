@@ -14,7 +14,8 @@ import contractRoutes from './modules/contract/contract.route';
 import enhancedTransitionRoutes from './modules/transition/enhanced-transition.route';
 import { userManagementRoutes } from './modules/user-management/user-management.routes';
 import taskRoutes from './modules/task/task.route';
-import { authRoutes, registerAuthDecorators } from './modules/auth';
+import { authRoutes, registrationRoutes, registerAuthDecorators } from './modules/auth';
+import { registrationManagementRoutes } from './modules/admin';
 
 export function buildServer() {
   const server = Fastify({
@@ -44,7 +45,13 @@ export function buildServer() {
   }
 
   server.register(cors, {
-    origin: '*', // In production, you should restrict this to your frontend's domain
+    origin: true, // Allow all origins for development
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-bypass', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+    preflightContinue: false,
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
   });
 
   // SECURITY FIX: Add rate limiting protection - TEMPORARILY DISABLED FOR DEVELOPMENT
@@ -121,11 +128,17 @@ export function buildServer() {
   }, { prefix: '/api/auth' });
   */
 
+  // Register authentication decorators first (needed by protected routes)
+  server.register(registerAuthDecorators);
+
   // Temporarily register auth routes without additional rate limiting
   server.register(authRoutes, { prefix: '/api/auth' });
 
-  // Register authentication decorators
-  server.register(registerAuthDecorators);
+  // Register registration routes (public endpoints)
+  server.register(registrationRoutes, { prefix: '/api/auth' });
+
+  // Register admin registration management routes (protected endpoints)
+  server.register(registrationManagementRoutes, { prefix: '/api/admin' });
 
   // Global error handler for Zod validation errors
   server.setErrorHandler((error, request, reply) => {
@@ -163,6 +176,8 @@ export function buildServer() {
   server.get('/api/health', async (request, reply) => {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
+
+  
 
   return server;
 }

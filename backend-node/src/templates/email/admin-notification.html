@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Registration Request - TIP Platform</title>
+    <style>
+        /* Reset styles */
+        body, table, td, p, a, li, blockquote {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+        }
+
+        /* Main styles */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header p {
+            color: #c7d2fe;
+            margin: 8px 0 0 0;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .alert-message {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .alert-message h2 {
+            color: #333333;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .alert-message p {
+            color: #666666;
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .notification-section {
+            background-color: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .notification-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            border-radius: 50%;
+            margin: 0 auto 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bell-icon {
+            color: #ffffff;
+            font-size: 24px;
+        }
+
+        .review-button {
+            display: inline-block;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 20px 10px;
+            transition: transform 0.2s ease;
+        }
+
+        .review-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .approve-button {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .reject-button {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .applicant-details {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+
+        .applicant-details h3 {
+            color: #333;
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .security-info {
+            background-color: #fef2f2;
+            border: 1px solid #f87171;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .security-info h3 {
+            color: #991b1b;
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+
+        .security-info ul {
+            color: #991b1b;
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .security-info li {
+            margin: 8px 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .action-section {
+            text-align: center;
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 8px;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }
+
+        .footer p {
+            color: #999999;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+
+            .content {
+                padding: 30px 20px !important;
+            }
+
+            .header {
+                padding: 30px 20px !important;
+            }
+
+            .notification-section,
+            .applicant-details,
+            .security-info {
+                padding: 20px !important;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr !important;
+            }
+
+            .review-button {
+                display: block !important;
+                margin: 10px 0 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>TIP Platform</h1>
+            <p>Administrator Notification</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Alert Message -->
+            <div class="alert-message">
+                <h2>New Registration Request</h2>
+                <p>A new user registration request requires your review and approval.</p>
+            </div>
+
+            <!-- Notification Section -->
+            <div class="notification-section">
+                <div class="notification-icon">
+                    <span class="bell-icon">🔔</span>
+                </div>
+                <h3 style="color: #0369a1; margin: 0 0 10px 0;">Action Required</h3>
+                <p style="color: #0369a1; margin: 0 0 20px 0;">A new registration request has been submitted and is awaiting administrative review.</p>
+                <p style="color: #374151; margin: 0; font-size: 14px;"><strong>Submitted:</strong> {{submissionDate}}</p>
+            </div>
+
+            <!-- Applicant Details -->
+            <div class="applicant-details">
+                <h3>Applicant Information</h3>
+
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Full Name</div>
+                        <div class="detail-value">{{firstName}} {{lastName}}</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Email Address</div>
+                        <div class="detail-value">{{email}}</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Organization</div>
+                        <div class="detail-value">{{organizationName}}</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Position/Title</div>
+                        <div class="detail-value">{{position}}</div>
+                    </div>
+                </div>
+
+                <!-- Technical Details -->
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    <h4 style="color: #374151; margin: 0 0 15px 0; font-size: 16px;">Technical Information</h4>
+
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Registration IP</div>
+                            <div class="detail-value">{{registrationIP}}</div>
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Email Status</div>
+                            <div class="detail-value">{{#if isEmailVerified}}✅ Verified{{else}}❌ Unverified{{/if}}</div>
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Request ID</div>
+                            <div class="detail-value">{{registrationId}}</div>
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">Expires</div>
+                            <div class="detail-value">{{expirationDate}}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Agent -->
+                <div style="margin-top: 15px; padding: 15px; background-color: #f9fafb; border-radius: 6px;">
+                    <div class="detail-label">User Agent</div>
+                    <div style="font-size: 12px; color: #6b7280; word-break: break-all; line-height: 1.4;">{{userAgent}}</div>
+                </div>
+            </div>
+
+            <!-- Security Notice -->
+            <div class="security-info">
+                <h3>🔒 Security Review Checklist</h3>
+                <ul>
+                    <li>Verify the applicant's identity and organizational affiliation</li>
+                    <li>Confirm the email domain matches the declared organization</li>
+                    <li>Check if the organization is authorized for TIP Platform access</li>
+                    <li>Review the registration IP address for any security concerns</li>
+                    <li>Validate the position/role requires platform access</li>
+                </ul>
+            </div>
+
+            <!-- Action Section -->
+            <div class="action-section">
+                <h3 style="color: #374151; margin: 0 0 20px 0;">Review Actions</h3>
+                <p style="color: #6b7280; margin: 0 0 25px 0; font-size: 14px;">Choose an action for this registration request:</p>
+
+                <div style="margin: 20px 0;">
+                    <a href="{{adminDashboardUrl}}" class="review-button">Review in Dashboard</a>
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <a href="{{approveUrl}}" class="review-button approve-button">Quick Approve</a>
+                    <a href="{{rejectUrl}}" class="review-button reject-button">Quick Reject</a>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 30px 0;">
+                <h3 style="color: #374151; text-align: center; margin: 0 0 15px 0;">Registration Statistics</h3>
+                <div class="details-grid">
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">{{pendingCount}}</div>
+                        <div style="font-size: 12px; color: #6b7280; text-transform: uppercase;">Pending</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #10b981;">{{approvedToday}}</div>
+                        <div style="font-size: 12px; color: #6b7280; text-transform: uppercase;">Approved Today</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reminder -->
+            <div style="background-color: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 30px 0; text-align: center;">
+                <p style="color: #92400e; margin: 0; font-size: 14px;">
+                    ⏰ <strong>Reminder:</strong> Registration requests expire after 7 days if not reviewed.
+                    Please review this request within the next {{daysUntilExpiration}} days.
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>TIP Platform</strong> - Administrator Notification System</p>
+            <p>Automated notification for registration management</p>
+            <p style="margin-top: 20px;">
+                <a href="{{adminDashboardUrl}}">Admin Dashboard</a> |
+                <a href="{{settingsUrl}}">Notification Settings</a>
+            </p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                This is an automated administrative notification. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

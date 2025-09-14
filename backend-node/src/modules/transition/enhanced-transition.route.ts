@@ -8,6 +8,13 @@ import {
   createMilestoneHandler,
   updateMilestoneStatusHandler,
   getLegacyTransitionsHandler,
+  createMajorTransitionHandler,
+  createPersonnelTransitionHandler,
+  createOperationalChangeHandler,
+  getMajorTransitionsHandler,
+  getPersonnelTransitionsHandler,
+  getOperationalChangesHandler,
+  getTransitionCountsHandler,
 } from './enhanced-transition.controller';
 
 const errorSchema = {
@@ -112,9 +119,11 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
       schema: {
         body: {
           type: 'object',
-          required: ['contractId', 'name', 'startDate', 'endDate'],
+          required: ['contractName', 'contractNumber', 'organizationId', 'name', 'startDate', 'endDate', 'createdBy'],
           properties: {
-            contractId: { type: 'string', minLength: 1 },
+            contractName: { type: 'string', minLength: 1, maxLength: 255 },
+            contractNumber: { type: 'string', minLength: 1, maxLength: 100 },
+            organizationId: { type: 'string', minLength: 1 },
             name: { type: 'string', minLength: 1, maxLength: 255 },
             description: { type: 'string' },
             startDate: { type: 'string', format: 'date' },
@@ -152,7 +161,7 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
         querystring: {
           type: 'object',
           properties: {
-            contractId: { type: 'string' },
+            contractName: { type: 'string' },
             businessOperationId: { type: 'string' },
             search: { type: 'string' },
             status: { type: 'string', enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] },
@@ -251,7 +260,9 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
         body: {
           type: 'object',
           properties: {
-            contractId: { type: 'string', minLength: 1 },
+            contractName: { type: 'string', minLength: 1, maxLength: 255 },
+            contractNumber: { type: 'string', minLength: 1, maxLength: 100 },
+            organizationId: { type: 'string', minLength: 1 },
             name: { type: 'string', minLength: 1, maxLength: 255 },
             description: { type: 'string' },
             startDate: { type: 'string', format: 'date' },
@@ -362,6 +373,287 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
       },
     },
     updateMilestoneStatusHandler
+  );
+
+  // Level-specific routes
+  
+  // GET /api/enhanced-transitions/counts - Get transition counts by level
+  server.get(
+    '/counts',
+    {
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              major: { type: 'number' },
+              personnel: { type: 'number' },
+              operational: { type: 'number' },
+              total: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+    getTransitionCountsHandler
+  );
+
+  // POST /api/enhanced-transitions/major - Create major transition
+  server.post(
+    '/major',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['contractName', 'contractNumber', 'organizationId', 'name', 'startDate', 'endDate', 'createdBy'],
+          properties: {
+            contractName: { type: 'string', minLength: 1, maxLength: 255 },
+            contractNumber: { type: 'string', minLength: 1, maxLength: 100 },
+            organizationId: { type: 'string', minLength: 1 },
+            name: { type: 'string', minLength: 1, maxLength: 255 },
+            description: { type: 'string' },
+            startDate: { type: 'string', format: 'date' },
+            endDate: { type: 'string', format: 'date' },
+            duration: { 
+              type: 'string', 
+              enum: ['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS'], 
+              default: 'THIRTY_DAYS' 
+            },
+            keyPersonnel: { type: 'string' },
+            status: { 
+              type: 'string', 
+              enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'], 
+              default: 'NOT_STARTED' 
+            },
+            requiresContinuousService: { type: 'boolean', default: true },
+            createdBy: { type: 'string' },
+            transitionSource: { type: 'string', enum: ['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT'] },
+          },
+        },
+        response: {
+          201: transitionResponseSchema,
+          400: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    createMajorTransitionHandler
+  );
+
+  // GET /api/enhanced-transitions/major - Get major transitions
+  server.get(
+    '/major',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            contractName: { type: 'string' },
+            businessOperationId: { type: 'string' },
+            search: { type: 'string' },
+            status: { type: 'string', enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] },
+            transitionSource: { type: 'string', enum: ['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT'] },
+            page: { type: 'number', minimum: 1, default: 1 },
+            limit: { type: 'number', minimum: 1, maximum: 100, default: 10 },
+            sortBy: { type: 'string', enum: ['name', 'startDate', 'endDate', 'status', 'createdAt'], default: 'createdAt' },
+            sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: transitionResponseSchema,
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  total: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    getMajorTransitionsHandler
+  );
+
+  // POST /api/enhanced-transitions/personnel - Create personnel transition
+  server.post(
+    '/personnel',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['contractName', 'contractNumber', 'organizationId', 'name', 'startDate', 'endDate', 'createdBy'],
+          properties: {
+            contractName: { type: 'string', minLength: 1, maxLength: 255 },
+            contractNumber: { type: 'string', minLength: 1, maxLength: 100 },
+            organizationId: { type: 'string', minLength: 1 },
+            name: { type: 'string', minLength: 1, maxLength: 255 },
+            description: { type: 'string' },
+            startDate: { type: 'string', format: 'date' },
+            endDate: { type: 'string', format: 'date' },
+            duration: { 
+              type: 'string', 
+              enum: ['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS'], 
+              default: 'THIRTY_DAYS' 
+            },
+            keyPersonnel: { type: 'string' },
+            status: { 
+              type: 'string', 
+              enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'], 
+              default: 'NOT_STARTED' 
+            },
+            requiresContinuousService: { type: 'boolean', default: true },
+            createdBy: { type: 'string' },
+            transitionSource: { type: 'string', enum: ['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT'] },
+          },
+        },
+        response: {
+          201: transitionResponseSchema,
+          400: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    createPersonnelTransitionHandler
+  );
+
+  // GET /api/enhanced-transitions/personnel - Get personnel transitions
+  server.get(
+    '/personnel',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            contractName: { type: 'string' },
+            businessOperationId: { type: 'string' },
+            search: { type: 'string' },
+            status: { type: 'string', enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] },
+            transitionSource: { type: 'string', enum: ['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT'] },
+            page: { type: 'number', minimum: 1, default: 1 },
+            limit: { type: 'number', minimum: 1, maximum: 100, default: 10 },
+            sortBy: { type: 'string', enum: ['name', 'startDate', 'endDate', 'status', 'createdAt'], default: 'createdAt' },
+            sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: transitionResponseSchema,
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  total: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    getPersonnelTransitionsHandler
+  );
+
+  // POST /api/enhanced-transitions/operational - Create operational change
+  server.post(
+    '/operational',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['contractName', 'contractNumber', 'organizationId', 'name', 'startDate', 'endDate', 'createdBy'],
+          properties: {
+            contractName: { type: 'string', minLength: 1, maxLength: 255 },
+            contractNumber: { type: 'string', minLength: 1, maxLength: 100 },
+            organizationId: { type: 'string', minLength: 1 },
+            name: { type: 'string', minLength: 1, maxLength: 255 },
+            description: { type: 'string' },
+            startDate: { type: 'string', format: 'date' },
+            endDate: { type: 'string', format: 'date' },
+            duration: { 
+              type: 'string', 
+              enum: ['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS'], 
+              default: 'THIRTY_DAYS' 
+            },
+            keyPersonnel: { type: 'string' },
+            status: { 
+              type: 'string', 
+              enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'], 
+              default: 'NOT_STARTED' 
+            },
+            requiresContinuousService: { type: 'boolean', default: true },
+            createdBy: { type: 'string' },
+            transitionSource: { type: 'string', enum: ['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT'] },
+          },
+        },
+        response: {
+          201: transitionResponseSchema,
+          400: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    createOperationalChangeHandler
+  );
+
+  // GET /api/enhanced-transitions/operational - Get operational changes
+  server.get(
+    '/operational',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            contractName: { type: 'string' },
+            businessOperationId: { type: 'string' },
+            search: { type: 'string' },
+            status: { type: 'string', enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] },
+            transitionSource: { type: 'string', enum: ['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT'] },
+            page: { type: 'number', minimum: 1, default: 1 },
+            limit: { type: 'number', minimum: 1, maximum: 100, default: 10 },
+            sortBy: { type: 'string', enum: ['name', 'startDate', 'endDate', 'status', 'createdAt'], default: 'createdAt' },
+            sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: transitionResponseSchema,
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  total: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    getOperationalChangesHandler
   );
 }
 
