@@ -377,3 +377,13 @@ By default, tests assume:
 - See the full test plan at `documents/planning/epic-0-1-cypress-test-plan.md` for coverage goals, selectors guidance, CI strategy, and a traceability matrix outline.
 
     -   Implemented proper database connection handling in the application
+
+## Useful Resources
+
+### Agents
+
+- https://github.com/wshobson/agents
+- https://www.anthropic.com/engineering/claude-code-best-practices
+- https://claudecodecommands.directory/browse
+- https://github.com/anthropics/claude-code-action/tree/main
+- CodeReview Worflow. https://github.com/OneRedOak/claude-code-workflows
