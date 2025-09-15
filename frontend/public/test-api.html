@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    <button onclick="testDirectAPI()">Test Direct API (port 3000)</button>
+    <button onclick="testProxyAPI()">Test Proxy API (/api)</button>
+    <div id="results" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        async function testDirectAPI() {
+            try {
+                resultsDiv.innerHTML = 'Testing direct API...';
+                const response = await fetch('http://localhost:3000/api/auth/demo-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                resultsDiv.innerHTML = `<h3>Direct API Success!</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultsDiv.innerHTML = `<h3>Direct API Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+
+        async function testProxyAPI() {
+            try {
+                resultsDiv.innerHTML = 'Testing proxy API...';
+                const response = await fetch('/api/auth/demo-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                resultsDiv.innerHTML = `<h3>Proxy API Success!</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultsDiv.innerHTML = `<h3>Proxy API Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

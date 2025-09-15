@@ -1,4 +1,18 @@
-/** 
-    this should be in root of working directory, created by sn-scriptsync
-    without this file, autocintellisense does not work
-*/
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "esnext",
+    "target": "es2015",
+    "lib": ["es2015", "es2016", "es2017", "es2018", "es2019", "es2020", "dom"],
+    "sourceMap": true,
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "paths": {
+      "*": ["node_modules/*", "types/*"]
+    },
+    "allowJs": true,
+    "checkJs": false
+  },
+  "exclude": ["node_modules", "dist", "build"]
+}

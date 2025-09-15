@@ -229,4 +229,119 @@ if (error.code === 'P2003') {
 - [ ] Create rollback plans for schema changes
 
 ---
+
+## 2025-09-15: Authentication and Database Schema Resolution
+
+### Issues Resolved:
+
+#### 1. Authentication Flow Fixed
+**Problem**: Demo login failing with "Failed to fetch" errors in browser
+- Symptoms: `TypeError: Failed to fetch` in console, host-network-events.js errors
+- Authentication worked via curl but failed in browser
+
+**Root Causes**:
+- Malformed `jsconfig.json` (contained only comments, no valid JSON)
+- Missing Vite proxy configuration for API calls
+- Frontend making direct cross-origin requests instead of using proxy
+
+**Solution**:
+- Fixed `jsconfig.json` with proper JSON structure
+- Added Vite proxy configuration: `/api -> http://localhost:3000`
+- Updated API base URL logic to use proxy when on localhost:5173
+- Added debugging logs to trace API calls
+
+**Files Modified**:
+- `/jsconfig.json` - Fixed JSON structure
+- `/frontend/vite.config.ts` - Added proxy configuration
+- `/frontend/src/services/api.ts` - Updated API URL detection logic
+- `/frontend/src/services/authApi.ts` - Added debug logging
+
+#### 2. Backend Server Connectivity
+**Problem**: Backend server process existed but wasn't responding on port 3000
+**Solution**: Killed hung process and restarted with proper DATABASE_URL
+
+#### 3. Database Connection Crisis
+**Problem**: PostgreSQL containers failing with "No space left on device"
+**Root Cause**: Docker had accumulated 36.55GB of unused data
+
+**Solution Applied**:
+```bash
+docker system prune -f     # Freed 12.61GB
+docker volume prune -f     # Freed 23.94GB
+docker compose up -d db    # Fresh database container
+```
+
+#### 4. Database Schema Reset
+**Problem**: Prisma client undefined errors after database restart
+**Solution**:
+```bash
+cd backend-node
+DATABASE_URL="postgresql://user:password@localhost:5433/tip?schema=public" npx prisma db push --force-reset
+DATABASE_URL="postgresql://user:password@localhost:5433/tip?schema=public" npx prisma generate
+```
+
+#### 5. Critical Discovery: Schema Mismatch
+**Problem**: Data table endpoints returning 500 errors with "Cannot read properties of undefined (reading 'findMany')"
+
+**Root Cause Analysis**:
+- Frontend expects: `BusinessOperation`, `Contract`, `EnhancedTransition` models
+- Database actually contains: `transitions`, `milestones`, `tasks`, `users`, `artifacts`, etc.
+- Current schema is for transition/project management, not business operations management
+
+**Impact**:
+- Dashboard page: ❌ Tries to fetch non-existent `business-operations`
+- Transitions page: ✅ Should work (uses existing `transitions` model)
+- Business Operations page: ❌ Tries to fetch non-existent models
+- Tasks & Milestones pages: ✅ Should work (use existing models)
+
+### Current System Status:
+- ✅ **Authentication**: Demo login fully functional
+- ✅ **Backend Server**: Running on port 3000
+- ✅ **Frontend Server**: Running on port 5173 with working API proxy
+- ✅ **Database**: PostgreSQL running on port 5433 with clean schema
+- ❌ **Data Tables**: Failing due to fundamental schema mismatch
+
+### Next Steps for Resolution:
+1. **Schema Alignment Decision**: Choose between:
+   - Option A: Update database schema to include BusinessOperation models
+   - Option B: Update frontend to use existing transition-based models
+   - Option C: Create hybrid approach supporting both schemas
+
+2. **Model Mapping**: If keeping current schema, map frontend expectations:
+   - BusinessOperation → transitions (with business context fields)
+   - Contract → transitions (with contract-specific fields)
+   - EnhancedTransition → transitions (existing model)
+
+3. **Data Seeding**: Add sample data to database for testing UI functionality
+
+### Key Troubleshooting Commands:
+```bash
+# Check backend server status
+ps aux | grep -E "ts-node-dev.*src/index.ts"
+
+# Check database container
+docker ps | grep db
+
+# List Prisma schema models
+cd backend-node && grep "^model " prisma/schema.prisma
+
+# Reset database with fresh schema
+cd backend-node && DATABASE_URL="postgresql://user:password@localhost:5433/tip?schema=public" npx prisma db push --force-reset
+
+# Clean Docker resources when space issues occur
+docker system prune -f && docker volume prune -f
+
+# Test API endpoints
+curl -X GET http://localhost:3000/api/auth/demo-login
+curl -X GET http://localhost:3000/api/business-operations -H "x-auth-bypass: true"
+```
+
+### Prevention Measures Added:
+- Enhanced error logging in authentication flow
+- Docker resource monitoring awareness
+- Schema validation before implementing frontend services
+- API proxy configuration documentation
+- Database connection troubleshooting procedures
+
+---
 *This document serves as institutional memory to prevent repeating these implementation challenges in future Business Operations or similar hierarchical data system implementations.*

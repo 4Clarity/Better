@@ -198,7 +198,11 @@ export class AuthenticationApi {
    * Demo login for development
    */
   async demoLogin(): Promise<LoginResponse> {
-    const response = await fetch(`${this.baseUrl}/demo-login`, {
+    const url = `${this.baseUrl}/demo-login`;
+    console.log('Demo login URL:', url);
+    console.log('API_BASE_URL:', API_BASE_URL);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

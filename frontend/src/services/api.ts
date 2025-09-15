@@ -1,14 +1,19 @@
 const inferDefaultApiBase = () => {
   try {
     const host = window.location.hostname;
-    // If running locally via Vite (localhost), prefer direct backend on 3000
+    const port = window.location.port;
+    // If running locally via Vite (localhost:5173), use the proxy
+    if ((host === 'localhost' || host === '127.0.0.1') && port === '5173') {
+      return '/api';
+    }
+    // If running locally but not on Vite port, use direct backend
     if (host === 'localhost' || host === '127.0.0.1') {
       return 'http://localhost:3000/api';
     }
     // If accessing via Traefik hostnames, use proxy
     return 'http://api.tip.localhost/api';
   } catch {
-    return 'http://api.tip.localhost/api';
+    return '/api';
   }
 };
 
