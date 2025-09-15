@@ -14,6 +14,5 @@ This directory contains temporary or in-progress documents that are not yet fina
 *   [Epic 2 Knowledge Capture](./epic-2-knowledge-capture.md)
 *   [Epic 3 Knowledge Access](./epic-3-knowledge-access.md)
 *   [Implementation Plan](./implementation-plan.md)
-*   [Non Functional Requirements](./non-functional-requirements.md)
 *   [Task List](./task-list.md)
 *   [User Management Implementation Summary](./user-management-implementation-summary.md)

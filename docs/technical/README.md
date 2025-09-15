@@ -9,6 +9,5 @@ This directory contains all technical documentation for the Transition Intellige
 *   [Tech Stack Alignment](./tech-stack-alignment.md)
 *   [Systems Catalog](./systems-catalog.md)
 *   [Tech Stack](./tech-stack.md)
-*   [TIP AOA](./tip-aoa.md)
-*   [TIP](./tip.md)
+*   [Non Functional Requirements](./non-functional-requirements.md)
 *   [Specifications](./specifications/business-rules.md)

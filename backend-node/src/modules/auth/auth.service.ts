@@ -362,8 +362,10 @@ export class AuthenticationService {
     // SECURITY FIX: Generate secure session fingerprint
     const sessionFingerprint = this.generateSessionFingerprint(userAgent, ipAddress);
 
+    const sessionId = randomUUID();
     const session = await prisma.user_sessions.create({
       data: {
+        id: sessionId,
         userId,
         refreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
@@ -372,6 +374,8 @@ export class AuthenticationService {
         ipAddress,
         sessionFingerprint,
         lastUsedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
     

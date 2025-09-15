@@ -22,7 +22,10 @@ The Transition Intelligence Platform (TIP) is an AI-powered SaaS platform built 
 *   `backend-python/`: Contains the Python service for AI/ML tasks.
 *   `database/`: Holds database initialization scripts (`init.sql`).
 *   `docker-compose.yml`: The central configuration file for all services.
-*   `documents/`: Project documentation, requirements, and architectural diagrams.
+*   `docs/`: Project documentation, requirements.
+*   `docs/logs/`: Project build logs
+*   `docs/technical/`: Product development and architectural details.
+*   `docs/work-in-progress/`: Implementation Plan, Epics, Task Lists, Next Steps.
 
 ## 2. Building and Running the Project
 
