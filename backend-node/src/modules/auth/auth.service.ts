@@ -663,6 +663,8 @@ export class AuthenticationService {
           title: keycloakData.job_title || keycloakData.position,
           workLocation: keycloakData.organization || keycloakData.company,
           skills: keycloakData.skills ? JSON.parse(JSON.stringify(keycloakData.skills)) : null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }
       });
 
@@ -680,6 +682,8 @@ export class AuthenticationService {
           emailVerifiedAt: keycloakData.email_verified ? new Date() : null,
           lastLoginAt: new Date(),
           accountApprovalStatus: 'APPROVED', // Keycloak users are pre-approved
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }
       });
 
