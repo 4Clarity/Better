@@ -19,6 +19,17 @@ const inferDefaultApiBase = () => {
 
 export const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || inferDefaultApiBase();
 
+// Helper function to create URLs that works with both relative and absolute API base URLs
+const createApiUrl = (path: string): URL => {
+  const fullPath = `${API_BASE_URL}${path}`;
+  // If API_BASE_URL starts with '/', it's relative, so we need to provide the base
+  if (API_BASE_URL.startsWith('/')) {
+    return new URL(fullPath, window.location.origin);
+  }
+  // Otherwise, it's an absolute URL
+  return new URL(fullPath);
+};
+
 // Types
 export interface BusinessOperation {
   id: string;
@@ -164,7 +175,7 @@ export const taskApi = {
     priority?: Task['priority'];
     page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc'|'desc';
   }): Promise<PaginatedResponse<Task>> {
-    const url = new URL(`${API_BASE_URL}/transitions/${transitionId}/tasks`);
+    const url = createApiUrl(`/transitions/${transitionId}/tasks`);
     if (params) {
       Object.entries(params).forEach(([k,v])=>{ if (v!==undefined && v!==null) url.searchParams.append(k, v.toString()); });
     }
@@ -255,7 +266,7 @@ export const businessOperationApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<BusinessOperation>> {
-    const url = new URL(`${API_BASE_URL}/business-operations`);
+    const url = createApiUrl(`/business-operations`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -350,7 +361,7 @@ export const contractApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<Contract>> {
-    const url = new URL(`${API_BASE_URL}/contracts`);
+    const url = createApiUrl(`/contracts`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -438,7 +449,7 @@ export const enhancedTransitionApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<EnhancedTransition>> {
-    const url = new URL(`${API_BASE_URL}/enhanced-transitions`);
+    const url = createApiUrl(`/enhanced-transitions`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {

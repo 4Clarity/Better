@@ -118,6 +118,44 @@ src/components/transitions/
 
 ---
 
+---
+
+## 🔧 Schema Alignment & Business Operations Fixes (January 2025)
+
+### Critical Issues Resolved:
+
+#### Frontend URL Construction
+- ✅ **Fixed "Failed to construct 'URL': Invalid URL" errors**
+- Created `createApiUrl()` helper function to handle relative URLs
+- Updated 4 locations in frontend API service to properly construct URLs
+- Now supports both relative (`/api`) and absolute URLs correctly
+
+#### Prisma Relation Naming Alignment
+- ✅ **Fixed Prisma include statement relation names**
+- Corrected relation names from lowercase to PascalCase:
+  - `contract` → `Contract`
+  - `operationStakeholder` → `OperationStakeholder`
+  - `milestones` → `Milestone`
+- Applied fixes across all business operation and transition services
+
+#### Business Operation Creation Logic
+- ✅ **Removed overly restrictive date validation**
+- Allows contracts to extend beyond support periods for flexibility
+- Maintains data integrity while supporting real business scenarios
+
+#### Foreign Key Validation Enhancement
+- ✅ **Added user-friendly error messages for invalid user references**
+- Validates governmentPMId and directorId exist before database operations
+- Clear error messages: "Government PM with ID 'xxx' not found. Please select a valid user."
+- Prevents cryptic foreign key constraint violation errors
+
+### Files Modified:
+- `frontend/src/services/api.ts` - URL construction fixes
+- `backend-node/src/modules/business-operation/business-operation.service.ts` - Relation names, validation
+- `backend-node/src/modules/transition/transition.service.ts` - Relation name fixes
+
+---
+
 ## ✅ Implementation Status
 
 - [x] Database migration created and applied
@@ -129,6 +167,10 @@ src/components/transitions/
 - [x] Level-specific dialog components created
 - [x] TypeScript types cleaned up
 - [x] Testing and validation completed
+- [x] **Schema alignment issues resolved**
+- [x] **Frontend URL construction fixed**
+- [x] **Business operation creation errors resolved**
+- [x] **Foreign key validation enhanced**
 
 ## 🚀 Ready for Production
 
@@ -139,5 +181,7 @@ The three-tier transition hierarchy system is fully implemented and ready for de
 3. Filter and search across all transition types
 4. See visual indicators for transition levels and sources
 5. Access specialized forms for each transition type
+6. **Create business operations without URL or schema errors**
+7. **Receive clear validation messages for invalid user references**
 
-The system maintains full backward compatibility while providing the requested organizational structure.
+The system maintains full backward compatibility while providing the requested organizational structure and resolves all critical schema alignment issues.
