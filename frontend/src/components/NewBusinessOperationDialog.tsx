@@ -31,8 +31,8 @@ export function NewBusinessOperationDialog({ onBusinessOperationCreated, userRol
     supportPeriodStart: '',
     supportPeriodEnd: '',
     currentContractEnd: '',
-    governmentPMId: 'default-pm-id', // TODO: Replace with actual user selection
-    directorId: 'default-director-id', // TODO: Replace with actual user selection
+    governmentPMId: 'dan-demont-user-id', // Use Dan Demont as default Government PM
+    directorId: 'dan-demont-user-id', // Use Dan Demont as default Director
     currentManagerId: '',
   });
 

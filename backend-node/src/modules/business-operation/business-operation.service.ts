@@ -326,6 +326,21 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
     if (data.supportPeriodEnd) updateData.supportPeriodEnd = new Date(data.supportPeriodEnd);
     if (data.currentContractEnd) updateData.currentContractEnd = new Date(data.currentContractEnd);
 
+    // Validate required user IDs exist if they're being updated
+    if ('governmentPMId' in data && data.governmentPMId) {
+      const governmentPM = await prisma.user.findUnique({ where: { id: data.governmentPMId } });
+      if (!governmentPM) {
+        throw new Error(`Government PM with ID "${data.governmentPMId}" not found. Please select a valid user.`);
+      }
+    }
+
+    if ('directorId' in data && data.directorId) {
+      const director = await prisma.user.findUnique({ where: { id: data.directorId } });
+      if (!director) {
+        throw new Error(`Director with ID "${data.directorId}" not found. Please select a valid user.`);
+      }
+    }
+
     // Check if currentManagerId is a valid User ID, otherwise set to null
     if ('currentManagerId' in data) {
       if (data.currentManagerId) {

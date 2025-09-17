@@ -290,11 +290,11 @@ export async function getContractsByBusinessOperation(businessOperationId: strin
           } 
         }
       },
-      transitions: {
+      Transition: {
         select: { id: true, name: true, status: true, startDate: true, endDate: true }
       },
       _count: {
-        select: { transitions: true }
+        select: { Transition: true }
       }
     },
     orderBy: { createdAt: 'desc' }

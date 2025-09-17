@@ -1090,15 +1090,15 @@ export class AuthenticationService {
    */
   createDemoUser(): AuthUser {
     return {
-      id: 'demo-user-id',
-      username: 'demo_admin',
-      email: 'admin@example.com',
-      roles: ['admin', 'program_manager'],
+      id: 'dan-demont-user-id',
+      username: 'dan.demont',
+      email: 'dan.demo@tip.gov',
+      roles: ['program_manager', 'user'],
       person: {
-        id: 'demo-person-id',
-        firstName: 'Demo',
-        lastName: 'Administrator',
-        displayName: 'Demo Administrator',
+        id: 'dan-demont-person-id',
+        firstName: 'Dan',
+        lastName: 'Demont',
+        displayName: 'Dan Demont',
       },
     };
   }
