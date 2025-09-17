@@ -60,6 +60,22 @@ model User {
   user_roles_assigned      user_roles[]               @relation("user_roles_assignedByTousers")
   registration_request     user_registration_requests? @relation("user_registration_requests_to_users", fields: [registrationRequestId], references: [id])
   approved_requests        user_registration_requests[] @relation("user_registration_requests_approvedByTousers")
+  km_documents_uploaded    km_documents[]             @relation("km_documents_uploadedByTousers")
+  km_documents_approved    km_documents[]             @relation("km_documents_approvedByTousers")
+  km_communications_from   km_communications[]        @relation("km_communications_fromUserIdTousers")
+  km_communications_read   km_communications[]        @relation("km_communications_readByTousers")
+  km_facts_extracted       km_facts[]                 @relation("km_facts_extractedByTousers")
+  km_facts_reviewed        km_facts[]                 @relation("km_facts_reviewedByTousers")
+  km_facts_approved        km_facts[]                 @relation("km_facts_approvedByTousers")
+  km_facts_validated       km_facts[]                 @relation("km_facts_validatedByTousers")
+  km_categories_created    km_categories[]            @relation("km_categories_createdByTousers")
+  km_tags_created          km_tags[]                  @relation("km_tags_createdByTousers")
+  km_document_tags_added   km_document_tags[]         @relation("km_document_tags_addedByTousers")
+  km_communication_tags_added km_communication_tags[] @relation("km_communication_tags_addedByTousers")
+  km_fact_tags_added       km_fact_tags[]             @relation("km_fact_tags_addedByTousers")
+  km_communications_documents_added km_communications_documents[] @relation("km_communications_documents_addedByTousers")
+  km_knowledge_sources_configured km_knowledge_sources[]      @relation("km_knowledge_sources_configuredByTousers")
+  km_sync_logs_triggered       km_sync_logs[]             @relation("km_sync_logs_triggeredByTousers")
   deactivatedBy            String?
   invitedBy                String?
   personId                 String                     @unique
@@ -1516,4 +1532,679 @@ enum TwoFactorMethod {
   TOTP
   Hardware_Token @map("Hardware Token")
   Biometric
+}
+
+// Knowledge Management Enums
+
+enum DocumentProcessingStatus {
+  Uploaded
+  Processing
+  Completed
+  Failed
+  Queued
+}
+
+enum OcrStatus {
+  Not_Required @map("Not Required")
+  Required
+  In_Progress  @map("In Progress")
+  Completed
+  Failed
+}
+
+enum DocumentType {
+  PDF
+  Word
+  PowerPoint
+  Excel
+  Text
+  Markdown
+  Image
+  Video
+  Audio
+  Archive
+  Other
+}
+
+enum DocumentSource {
+  Manual_Upload    @map("Manual Upload")
+  ServiceNow
+  Azure_DevOps     @map("Azure DevOps")
+  Microsoft_Teams  @map("Microsoft Teams")
+  Email
+  SharePoint
+  FTP
+  API_Import       @map("API Import")
+  Bulk_Import      @map("Bulk Import")
+}
+
+enum KmCommunicationPlatform {
+  Microsoft_Teams  @map("Microsoft Teams")
+  Microsoft_Outlook @map("Microsoft Outlook")
+  Slack
+  Discord
+  Zoom
+  WebEx
+  ServiceNow
+  Email_SMTP       @map("Email SMTP")
+  SMS
+  Internal_TIP     @map("Internal TIP")
+  Other
+}
+
+enum CommunicationProcessingStatus {
+  Received
+  Processing
+  Completed
+  Failed
+  Queued
+}
+
+enum CommunicationSentiment {
+  Positive
+  Negative
+  Neutral
+  Mixed
+  Unknown
+}
+
+enum CommunicationSource {
+  Manual_Import    @map("Manual Import")
+  API_Sync         @map("API Sync")
+  Email_Connector  @map("Email Connector")
+  Teams_Connector  @map("Teams Connector")
+  Slack_Connector  @map("Slack Connector")
+  ServiceNow_Sync  @map("ServiceNow Sync")
+  Bulk_Import      @map("Bulk Import")
+}
+
+enum FactType {
+  Technical_Specification @map("Technical Specification")
+  Process_Description     @map("Process Description")
+  Decision_Record         @map("Decision Record")
+  Meeting_Note            @map("Meeting Note")
+  Action_Item             @map("Action Item")
+  Issue_Description       @map("Issue Description")
+  Solution_Description    @map("Solution Description")
+  Contact_Information     @map("Contact Information")
+  Timeline_Event          @map("Timeline Event")
+  Resource_Location       @map("Resource Location")
+  Policy_Statement        @map("Policy Statement")
+  Requirement             @map("Requirement")
+  Knowledge_Snippet       @map("Knowledge Snippet")
+  Best_Practice           @map("Best Practice")
+  Lesson_Learned          @map("Lesson Learned")
+  Other
+}
+
+enum FactStatus {
+  Extracted
+  Processing
+  Processed
+  Validated
+  Failed
+  Archived
+}
+
+enum FactApprovalStatus {
+  Pending
+  Approved
+  Rejected
+  Needs_Review  @map("Needs Review")
+  Under_Review  @map("Under Review")
+  Conditionally_Approved @map("Conditionally Approved")
+}
+
+enum TagType {
+  General
+  Technical
+  Process
+  Security
+  Business
+  Location
+  Person
+  System
+  Priority
+  Status
+}
+
+enum DocumentCommunicationRelationship {
+  Referenced
+  Attached
+  Generated_From @map("Generated From")
+  Summary_Of     @map("Summary Of")
+  Related_To     @map("Related To")
+}
+
+enum KnowledgeSourceType {
+  ServiceNow
+  Azure_DevOps          @map("Azure DevOps")
+  Microsoft_Teams       @map("Microsoft Teams")
+  Microsoft_SharePoint  @map("Microsoft SharePoint")
+  Microsoft_Outlook     @map("Microsoft Outlook")
+  Slack
+  Confluence
+  Jira
+  GitHub
+  GitLab
+  FTP_Server            @map("FTP Server")
+  SFTP_Server           @map("SFTP Server")
+  REST_API              @map("REST API")
+  GraphQL_API           @map("GraphQL API")
+  Database_PostgreSQL   @map("Database PostgreSQL")
+  Database_MySQL        @map("Database MySQL")
+  Database_SQLServer    @map("Database SQL Server")
+  File_System           @map("File System")
+  S3_Bucket             @map("S3 Bucket")
+  Azure_Blob            @map("Azure Blob")
+  Google_Drive          @map("Google Drive")
+  Dropbox
+  Box
+  OneDrive
+  Custom_API            @map("Custom API")
+  Webhook
+  RSS_Feed              @map("RSS Feed")
+  SMTP_Email            @map("SMTP Email")
+  Other
+}
+
+enum KnowledgeSourceAuthMethod {
+  None
+  Basic_Auth            @map("Basic Auth")
+  Bearer_Token          @map("Bearer Token")
+  API_Key               @map("API Key")
+  OAuth2
+  OAuth1
+  Certificate
+  NTLM
+  Kerberos
+  AWS_IAM               @map("AWS IAM")
+  Azure_AD              @map("Azure AD")
+  Custom
+}
+
+enum KnowledgeSourceSyncFrequency {
+  Manual
+  Every_15_Minutes      @map("Every 15 Minutes")
+  Every_30_Minutes      @map("Every 30 Minutes")
+  Hourly
+  Every_4_Hours         @map("Every 4 Hours")
+  Every_8_Hours         @map("Every 8 Hours")
+  Daily
+  Weekly
+  Monthly
+  Custom_Schedule       @map("Custom Schedule")
+}
+
+enum KnowledgeSourceSyncStatus {
+  Never_Synced          @map("Never Synced")
+  Running
+  Completed
+  Failed
+  Partially_Failed      @map("Partially Failed")
+  Cancelled
+  Timeout
+  Configuration_Error   @map("Configuration Error")
+  Authentication_Error  @map("Authentication Error")
+  Network_Error         @map("Network Error")
+}
+
+enum KnowledgeSourceSyncType {
+  Full
+  Incremental
+  Delta
+  Selective
+}
+
+enum KnowledgeSourceTriggerType {
+  Manual
+  Scheduled
+  Webhook
+  API_Call              @map("API Call")
+  File_Change           @map("File Change")
+  Database_Trigger      @map("Database Trigger")
+}
+
+// Knowledge Management Models
+
+model km_documents {
+  id                         String                  @id @default(cuid())
+  name                       String                  @db.VarChar(255)
+  description                String?
+  originalFileName           String                  @db.VarChar(255)
+  mimeType                   String                  @db.VarChar(100)
+  fileSize                   BigInt
+  filePath                   String                  @db.VarChar(500)
+  checksum                   String                  @db.VarChar(64)
+  version                    Int                     @default(1)
+  parentId                   String?
+  securityClassification     SecurityClassification  @default(Unclassified)
+  processingStatus           DocumentProcessingStatus @default(Uploaded)
+  processingStartedAt        DateTime?
+  processingCompletedAt      DateTime?
+  processingErrorMessage     String?
+  extractedText              String?
+  extractedMetadata          Json?
+  ocrStatus                  OcrStatus?              @default(Not_Required)
+  ocrConfidence              Decimal?                @db.Decimal(3, 2)
+  language                   String?                 @db.VarChar(10)
+  pageCount                  Int?
+  wordCount                  Int?
+  documentType               DocumentType
+  source                     DocumentSource          @default(Manual_Upload)
+  sourceId                   String?                 @db.VarChar(255)
+  sourceMetadata             Json?
+  accessLevel                AccessLevel             @default(Standard)
+  isActive                   Boolean                 @default(true)
+  expiresAt                  DateTime?
+  uploadedBy                 String
+  approvedBy                 String?
+  approvedAt                 DateTime?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  archivedAt                 DateTime?
+
+  // Relations
+  parent_document            km_documents?           @relation("DocumentVersions", fields: [parentId], references: [id])
+  child_documents            km_documents[]          @relation("DocumentVersions")
+  users_uploaded             User                    @relation("km_documents_uploadedByTousers", fields: [uploadedBy], references: [id])
+  users_approved             User?                   @relation("km_documents_approvedByTousers", fields: [approvedBy], references: [id])
+  km_facts                   km_facts[]
+  km_document_tags           km_document_tags[]
+  km_communications_documents km_communications_documents[]
+
+  @@index([name])
+  @@index([documentType])
+  @@index([securityClassification])
+  @@index([processingStatus])
+  @@index([source])
+  @@index([uploadedBy])
+  @@index([checksum])
+  @@index([createdAt])
+  @@index([isActive])
+  @@index([parentId])
+}
+
+model km_communications {
+  id                         String                     @id @default(cuid())
+  subject                    String?                    @db.VarChar(500)
+  content                    String
+  contentType                ContentType                @default(Text)
+  platform                   KmCommunicationPlatform
+  externalId                 String?                    @db.VarChar(255)
+  threadId                   String?                    @db.VarChar(255)
+  conversationId             String?                    @db.VarChar(255)
+  parentMessageId            String?
+  fromUserId                 String?
+  fromEmail                  String?                    @db.VarChar(255)
+  fromName                   String?                    @db.VarChar(255)
+  toUsers                    Json                       @default("[]")
+  toEmails                   Json                       @default("[]")
+  ccEmails                   Json?
+  bccEmails                  Json?
+  participants               Json?
+  attachments                Json?
+  metadata                   Json?
+  securityClassification     SecurityClassification     @default(Unclassified)
+  processingStatus           CommunicationProcessingStatus @default(Received)
+  processingStartedAt        DateTime?
+  processingCompletedAt      DateTime?
+  processingErrorMessage     String?
+  extractedText              String?
+  extractedMetadata          Json?
+  sentiment                  CommunicationSentiment?
+  priority                   Priority                   @default(Normal)
+  isRead                     Boolean                    @default(false)
+  readAt                     DateTime?
+  readBy                     String?
+  language                   String?                    @db.VarChar(10)
+  wordCount                  Int?
+  source                     CommunicationSource        @default(Manual_Import)
+  sourceId                   String?                    @db.VarChar(255)
+  sourceMetadata             Json?
+  isActive                   Boolean                    @default(true)
+  sentAt                     DateTime
+  receivedAt                 DateTime?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  archivedAt                 DateTime?
+
+  // Relations
+  parent_message             km_communications?         @relation("CommunicationThread", fields: [parentMessageId], references: [id])
+  child_messages             km_communications[]        @relation("CommunicationThread")
+  users_from                 User?                      @relation("km_communications_fromUserIdTousers", fields: [fromUserId], references: [id])
+  users_read                 User?                      @relation("km_communications_readByTousers", fields: [readBy], references: [id])
+  km_facts                   km_facts[]
+  km_communication_tags      km_communication_tags[]
+  km_communications_documents km_communications_documents[]
+
+  @@index([platform])
+  @@index([threadId])
+  @@index([conversationId])
+  @@index([externalId])
+  @@index([fromUserId])
+  @@index([sentAt])
+  @@index([processingStatus])
+  @@index([securityClassification])
+  @@index([source])
+  @@index([isActive])
+  @@index([parentMessageId])
+}
+
+model km_facts {
+  id                         String                     @id @default(cuid())
+  title                      String                     @db.VarChar(255)
+  content                    String
+  summary                    String?                    @db.VarChar(500)
+  factType                   FactType
+  confidence                 Decimal                    @db.Decimal(3, 2)
+  status                     FactStatus                 @default(Extracted)
+  approvalStatus             FactApprovalStatus         @default(Pending)
+  sourceDocumentId           String?
+  sourceCommunicationId      String?
+  sourceContext              String?
+  sourcePageNumber           Int?
+  sourceOffset               Int?
+  extractionModel            String?                    @db.VarChar(100)
+  extractionMetadata         Json?
+  extractedAt                DateTime                   @default(now())
+  extractedBy                String?
+  reviewedBy                 String?
+  reviewedAt                 DateTime?
+  approvedBy                 String?
+  approvedAt                 DateTime?
+  rejectionReason            String?
+  validatedBy                String?
+  validatedAt                DateTime?
+  validationNotes            String?
+  lastVerified               DateTime?
+  verificationSource         String?
+  securityClassification     SecurityClassification     @default(Unclassified)
+  accessLevel                AccessLevel                @default(Standard)
+  language                   String?                    @db.VarChar(10)
+  keywords                   Json?                      @default("[]")
+  entities                   Json?                      @default("[]")
+  relatedFacts               Json?                      @default("[]")
+  duplicateOf                String?
+  isActive                   Boolean                    @default(true)
+  expiresAt                  DateTime?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  archivedAt                 DateTime?
+
+  // Relations
+  source_document            km_documents?              @relation(fields: [sourceDocumentId], references: [id])
+  source_communication       km_communications?         @relation(fields: [sourceCommunicationId], references: [id])
+  users_extracted            User?                      @relation("km_facts_extractedByTousers", fields: [extractedBy], references: [id])
+  users_reviewed             User?                      @relation("km_facts_reviewedByTousers", fields: [reviewedBy], references: [id])
+  users_approved             User?                      @relation("km_facts_approvedByTousers", fields: [approvedBy], references: [id])
+  users_validated            User?                      @relation("km_facts_validatedByTousers", fields: [validatedBy], references: [id])
+  duplicate_fact             km_facts?                  @relation("FactDuplicates", fields: [duplicateOf], references: [id])
+  duplicate_facts            km_facts[]                 @relation("FactDuplicates")
+  km_fact_tags               km_fact_tags[]
+
+  @@index([factType])
+  @@index([status])
+  @@index([approvalStatus])
+  @@index([sourceDocumentId])
+  @@index([sourceCommunicationId])
+  @@index([extractedAt])
+  @@index([confidence])
+  @@index([securityClassification])
+  @@index([isActive])
+  @@index([duplicateOf])
+  @@index([extractionModel])
+}
+
+model km_categories {
+  id                         String                     @id @default(cuid())
+  name                       String                     @db.VarChar(255)
+  description                String?
+  slug                       String                     @unique @db.VarChar(255)
+  parentId                   String?
+  level                      Int                        @default(0)
+  path                       String                     @db.VarChar(1000)
+  color                      String?                    @db.VarChar(7)
+  icon                       String?                    @db.VarChar(50)
+  displayOrder               Int                        @default(0)
+  isActive                   Boolean                    @default(true)
+  isSystem                   Boolean                    @default(false)
+  metadata                   Json?
+  securityClassification     SecurityClassification     @default(Unclassified)
+  accessLevel                AccessLevel                @default(Standard)
+  createdBy                  String
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  archivedAt                 DateTime?
+
+  // Relations
+  parent_category            km_categories?             @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  child_categories           km_categories[]            @relation("CategoryHierarchy")
+  users_created              User                       @relation("km_categories_createdByTousers", fields: [createdBy], references: [id])
+  km_document_tags           km_document_tags[]
+  km_communication_tags      km_communication_tags[]
+  km_fact_tags               km_fact_tags[]
+
+  @@index([name])
+  @@index([slug])
+  @@index([parentId])
+  @@index([level])
+  @@index([isActive])
+  @@index([isSystem])
+  @@index([securityClassification])
+  @@index([createdBy])
+  @@index([displayOrder])
+}
+
+model km_tags {
+  id                         String                     @id @default(cuid())
+  name                       String                     @db.VarChar(255)
+  description                String?
+  slug                       String                     @unique @db.VarChar(255)
+  tagType                    TagType                    @default(General)
+  color                      String?                    @db.VarChar(7)
+  isActive                   Boolean                    @default(true)
+  isSystem                   Boolean                    @default(false)
+  usageCount                 Int                        @default(0)
+  metadata                   Json?
+  synonyms                   Json?                      @default("[]")
+  relatedTags                Json?                      @default("[]")
+  securityClassification     SecurityClassification     @default(Unclassified)
+  accessLevel                AccessLevel                @default(Standard)
+  createdBy                  String
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  archivedAt                 DateTime?
+
+  // Relations
+  users_created              User                       @relation("km_tags_createdByTousers", fields: [createdBy], references: [id])
+  km_document_tags           km_document_tags[]
+  km_communication_tags      km_communication_tags[]
+  km_fact_tags               km_fact_tags[]
+
+  @@index([name])
+  @@index([slug])
+  @@index([tagType])
+  @@index([isActive])
+  @@index([isSystem])
+  @@index([securityClassification])
+  @@index([createdBy])
+  @@index([usageCount])
+}
+
+// Junction Tables for Many-to-Many Relationships
+
+model km_document_tags {
+  id           String       @id @default(cuid())
+  documentId   String
+  tagId        String?
+  categoryId   String?
+  addedBy      String
+  addedAt      DateTime     @default(now())
+
+  // Relations
+  document     km_documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag          km_tags?     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  category     km_categories? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users_added  User         @relation("km_document_tags_addedByTousers", fields: [addedBy], references: [id])
+
+  @@unique([documentId, tagId])
+  @@unique([documentId, categoryId])
+  @@index([documentId])
+  @@index([tagId])
+  @@index([categoryId])
+  @@index([addedBy])
+}
+
+model km_communication_tags {
+  id              String          @id @default(cuid())
+  communicationId String
+  tagId           String?
+  categoryId      String?
+  addedBy         String
+  addedAt         DateTime        @default(now())
+
+  // Relations
+  communication   km_communications @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  tag             km_tags?        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  category        km_categories?  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users_added     User            @relation("km_communication_tags_addedByTousers", fields: [addedBy], references: [id])
+
+  @@unique([communicationId, tagId])
+  @@unique([communicationId, categoryId])
+  @@index([communicationId])
+  @@index([tagId])
+  @@index([categoryId])
+  @@index([addedBy])
+}
+
+model km_fact_tags {
+  id           String       @id @default(cuid())
+  factId       String
+  tagId        String?
+  categoryId   String?
+  addedBy      String
+  addedAt      DateTime     @default(now())
+
+  // Relations
+  fact         km_facts     @relation(fields: [factId], references: [id], onDelete: Cascade)
+  tag          km_tags?     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  category     km_categories? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users_added  User         @relation("km_fact_tags_addedByTousers", fields: [addedBy], references: [id])
+
+  @@unique([factId, tagId])
+  @@unique([factId, categoryId])
+  @@index([factId])
+  @@index([tagId])
+  @@index([categoryId])
+  @@index([addedBy])
+}
+
+// Document-Communication relationship table
+model km_communications_documents {
+  id              String          @id @default(cuid())
+  communicationId String
+  documentId      String
+  relationshipType DocumentCommunicationRelationship @default(Referenced)
+  addedBy         String
+  addedAt         DateTime        @default(now())
+
+  // Relations
+  communication   km_communications @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  document        km_documents    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  users_added     User            @relation("km_communications_documents_addedByTousers", fields: [addedBy], references: [id])
+
+  @@unique([communicationId, documentId])
+  @@index([communicationId])
+  @@index([documentId])
+  @@index([relationshipType])
+  @@index([addedBy])
+}
+
+model km_knowledge_sources {
+  id                         String                     @id @default(cuid())
+  name                       String                     @db.VarChar(255)
+  description                String?
+  sourceType                 KnowledgeSourceType
+  connectionUrl              String?                    @db.VarChar(500)
+  connectionParameters       Json?
+  authenticationMethod       KnowledgeSourceAuthMethod  @default(None)
+  authenticationCredentials  String?                    @db.Text
+  authenticationMetadata     Json?
+  syncFrequency              KnowledgeSourceSyncFrequency @default(Manual)
+  lastSyncAt                 DateTime?
+  nextSyncAt                 DateTime?
+  lastSyncStatus             KnowledgeSourceSyncStatus  @default(Never_Synced)
+  lastSyncDuration           Int?
+  lastSyncErrorMessage       String?
+  lastSyncRecordsProcessed   Int?
+  lastSyncRecordsSuccessful  Int?
+  lastSyncRecordsSkipped     Int?
+  lastSyncRecordsFailed      Int?
+  syncConfiguration          Json?
+  isActive                   Boolean                    @default(true)
+  isEnabled                  Boolean                    @default(false)
+  dataRetentionDays          Int?
+  maxRecordsPerSync          Int?
+  supportedContentTypes      Json?                      @default("[]")
+  supportedOperations        Json?                      @default("[]")
+  capabilities               Json?
+  metadata                   Json?
+  securityClassification     SecurityClassification     @default(Unclassified)
+  accessLevel                AccessLevel                @default(Standard)
+  configuredBy               String
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  lastConfiguredAt           DateTime                   @default(now())
+  archivedAt                 DateTime?
+
+  // Relations
+  users_configured           User                       @relation("km_knowledge_sources_configuredByTousers", fields: [configuredBy], references: [id])
+  km_sync_logs               km_sync_logs[]
+
+  @@index([sourceType])
+  @@index([isActive])
+  @@index([isEnabled])
+  @@index([lastSyncStatus])
+  @@index([nextSyncAt])
+  @@index([syncFrequency])
+  @@index([securityClassification])
+  @@index([configuredBy])
+  @@index([lastSyncAt])
+}
+
+model km_sync_logs {
+  id                         String                     @id @default(cuid())
+  knowledgeSourceId          String
+  syncType                   KnowledgeSourceSyncType    @default(Full)
+  status                     KnowledgeSourceSyncStatus  @default(Running)
+  startedAt                  DateTime                   @default(now())
+  completedAt                DateTime?
+  duration                   Int?
+  recordsProcessed           Int                        @default(0)
+  recordsSuccessful          Int                        @default(0)
+  recordsSkipped             Int                        @default(0)
+  recordsFailed              Int                        @default(0)
+  recordsCreated             Int                        @default(0)
+  recordsUpdated             Int                        @default(0)
+  recordsDeleted             Int                        @default(0)
+  errorMessage               String?
+  errorDetails               Json?
+  warningCount               Int                        @default(0)
+  warnings                   Json?
+  summary                    String?
+  metadata                   Json?
+  triggeredBy                String?
+  triggerType                KnowledgeSourceTriggerType @default(Manual)
+
+  // Relations
+  knowledge_source           km_knowledge_sources       @relation(fields: [knowledgeSourceId], references: [id])
+  users_triggered            User?                      @relation("km_sync_logs_triggeredByTousers", fields: [triggeredBy], references: [id])
+
+  @@index([knowledgeSourceId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([syncType])
+  @@index([triggerType])
+  @@index([triggeredBy])
 }
