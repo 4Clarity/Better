@@ -54,10 +54,21 @@ async function createBusinessOperation(data) {
     if (endDate <= startDate) {
         throw new Error('Support period end date must be after start date');
     }
-    if (contractEndDate > endDate) {
-        throw new Error('Current contract end cannot be after support period end');
-    }
+    // Allow contracts to extend beyond support period for flexibility
+    // Note: Removed validation that required contractEndDate <= endDate
+    // This allows for contract extensions and transition periods
     try {
+        // Validate required user IDs exist
+        const [governmentPM, director] = await Promise.all([
+            prisma.user.findUnique({ where: { id: data.governmentPMId } }),
+            prisma.user.findUnique({ where: { id: data.directorId } })
+        ]);
+        if (!governmentPM) {
+            throw new Error(`Government PM with ID "${data.governmentPMId}" not found. Please select a valid user.`);
+        }
+        if (!director) {
+            throw new Error(`Director with ID "${data.directorId}" not found. Please select a valid user.`);
+        }
         // Check if currentManagerId is a valid User ID, otherwise set to null
         let validCurrentManagerId = null;
         if (data.currentManagerId) {
@@ -103,14 +114,14 @@ async function createBusinessOperation(data) {
                         }
                     }
                 },
-                contract: {
+                Contract: {
                     select: { id: true, contractName: true, contractNumber: true, status: true }
                 },
-                operationStakeholder: {
+                OperationStakeholder: {
                     select: { id: true, name: true, role: true, stakeholderType: true }
                 },
                 _count: {
-                    select: { contract: true, operationStakeholder: true }
+                    select: { Contract: true, OperationStakeholder: true }
                 }
             }
         });
@@ -184,11 +195,11 @@ async function getBusinessOperations(query) {
                             }
                         }
                     },
-                    contract: {
+                    Contract: {
                         select: { id: true, contractName: true, contractNumber: true, status: true }
                     },
                     _count: {
-                        select: { contract: true, operationStakeholder: true }
+                        select: { Contract: true, OperationStakeholder: true }
                     }
                 }
             }),
@@ -237,14 +248,14 @@ async function getBusinessOperationById(id) {
                     }
                 }
             },
-            contract: {
+            Contract: {
                 include: {
-                    transition: {
+                    Transition: {
                         select: { id: true, name: true, status: true, startDate: true, endDate: true }
                     }
                 }
             },
-            operationStakeholder: {
+            OperationStakeholder: {
                 include: {
                     user: {
                         select: {
@@ -257,7 +268,7 @@ async function getBusinessOperationById(id) {
                 }
             },
             _count: {
-                select: { contract: true, operationStakeholder: true }
+                select: { Contract: true, OperationStakeholder: true }
             }
         }
     });
@@ -269,16 +280,15 @@ async function getBusinessOperationById(id) {
 async function updateBusinessOperation(id, data) {
     const existing = await getBusinessOperationById(id);
     // Validate dates if provided
-    if (data.supportPeriodStart || data.supportPeriodEnd || data.currentContractEnd) {
+    if (data.supportPeriodStart || data.supportPeriodEnd) {
         const startDate = data.supportPeriodStart ? new Date(data.supportPeriodStart) : existing.supportPeriodStart;
         const endDate = data.supportPeriodEnd ? new Date(data.supportPeriodEnd) : existing.supportPeriodEnd;
-        const contractEndDate = data.currentContractEnd ? new Date(data.currentContractEnd) : existing.currentContractEnd;
         if (endDate <= startDate) {
             throw new Error('Support period end date must be after start date');
         }
-        if (contractEndDate > endDate) {
-            throw new Error('Current contract end cannot be after support period end');
-        }
+        // Allow contracts to extend beyond support period for flexibility
+        // Note: Removed validation that required contractEndDate <= endDate
+        // This allows for contract extensions and transition periods
     }
     try {
         const updateData = { ...data };
@@ -288,6 +298,19 @@ async function updateBusinessOperation(id, data) {
             updateData.supportPeriodEnd = new Date(data.supportPeriodEnd);
         if (data.currentContractEnd)
             updateData.currentContractEnd = new Date(data.currentContractEnd);
+        // Validate required user IDs exist if they're being updated
+        if ('governmentPMId' in data && data.governmentPMId) {
+            const governmentPM = await prisma.user.findUnique({ where: { id: data.governmentPMId } });
+            if (!governmentPM) {
+                throw new Error(`Government PM with ID "${data.governmentPMId}" not found. Please select a valid user.`);
+            }
+        }
+        if ('directorId' in data && data.directorId) {
+            const director = await prisma.user.findUnique({ where: { id: data.directorId } });
+            if (!director) {
+                throw new Error(`Director with ID "${data.directorId}" not found. Please select a valid user.`);
+            }
+        }
         // Check if currentManagerId is a valid User ID, otherwise set to null
         if ('currentManagerId' in data) {
             if (data.currentManagerId) {
@@ -328,14 +351,14 @@ async function updateBusinessOperation(id, data) {
                         }
                     }
                 },
-                contract: {
+                Contract: {
                     select: { id: true, contractName: true, contractNumber: true, status: true }
                 },
-                operationStakeholder: {
+                OperationStakeholder: {
                     select: { id: true, name: true, role: true, stakeholderType: true }
                 },
                 _count: {
-                    select: { contract: true, operationStakeholder: true }
+                    select: { Contract: true, OperationStakeholder: true }
                 }
             }
         });
@@ -360,7 +383,8 @@ async function updateBusinessOperation(id, data) {
     }
 }
 async function deleteBusinessOperation(id) {
-    const existing = await getBusinessOperationById(id);
+    // Verify the business operation exists
+    await getBusinessOperationById(id);
     // Check if there are active contracts
     const activeContracts = await prisma.contract.count({
         where: {

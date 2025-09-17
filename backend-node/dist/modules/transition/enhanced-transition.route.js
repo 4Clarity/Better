@@ -98,11 +98,10 @@ async function enhancedTransitionRoutes(server) {
         schema: {
             body: {
                 type: 'object',
-                required: ['contractName', 'contractNumber', 'organizationId', 'name', 'startDate', 'endDate', 'createdBy'],
+                required: ['contractName', 'contractNumber', 'name', 'startDate', 'endDate'],
                 properties: {
                     contractName: { type: 'string', minLength: 1, maxLength: 255 },
                     contractNumber: { type: 'string', minLength: 1, maxLength: 100 },
-                    organizationId: { type: 'string', minLength: 1 },
                     name: { type: 'string', minLength: 1, maxLength: 255 },
                     description: { type: 'string' },
                     startDate: { type: 'string', format: 'date' },
