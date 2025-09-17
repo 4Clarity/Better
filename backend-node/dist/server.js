@@ -126,14 +126,14 @@ function buildServer() {
       server.register(authRoutes);
     }, { prefix: '/api/auth' });
     */
+    // Register authentication decorators first (needed by protected routes)
+    server.register(auth_1.registerAuthDecorators);
     // Temporarily register auth routes without additional rate limiting
     server.register(auth_1.authRoutes, { prefix: '/api/auth' });
     // Register registration routes (public endpoints)
     server.register(auth_1.registrationRoutes, { prefix: '/api/auth' });
     // Register admin registration management routes (protected endpoints)
     server.register(admin_1.registrationManagementRoutes, { prefix: '/api/admin' });
-    // Register authentication decorators
-    server.register(auth_1.registerAuthDecorators);
     // Global error handler for Zod validation errors
     server.setErrorHandler((error, request, reply) => {
         if (error instanceof zod_1.ZodError) {
@@ -149,6 +149,7 @@ function buildServer() {
         }
     });
     // Register routes (auth routes already registered above with rate limiting)
+    console.log('Registering business operation routes');
     server.register(transition_raw_route_1.default, { prefix: '/api/transitions' });
     server.register(business_operation_route_1.default, { prefix: '/api/business-operations' });
     server.register(contract_route_1.default, { prefix: '/api/contracts' });

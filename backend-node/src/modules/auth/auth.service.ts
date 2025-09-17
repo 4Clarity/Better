@@ -1301,4 +1301,5 @@ export class AuthenticationService {
       console.error('Error recording login:', error);
     }
   }
+
 }
