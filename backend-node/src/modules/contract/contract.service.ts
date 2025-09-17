@@ -69,11 +69,11 @@ export async function createContract(data: CreateContractInput) {
             } 
           }
         },
-        transitions: {
+        Transition: {
           select: { id: true, name: true, status: true, startDate: true, endDate: true }
         },
         _count: {
-          select: { transitions: true }
+          select: { Transition: true }
         }
       }
     });
@@ -129,7 +129,7 @@ export async function getContracts(query: GetContractsQuery) {
           }
         },
         _count: {
-          select: { transitions: true }
+          select: { Transition: true }
         }
       }
     }),
@@ -183,15 +183,15 @@ export async function getContractById(id: string) {
           } 
         }
       },
-      transitions: {
+      Transition: {
         include: {
-          milestones: {
+          Milestone: {
             select: { id: true, title: true, status: true, dueDate: true, priority: true }
           }
         }
       },
       _count: {
-        select: { transitions: true }
+        select: { Transition: true }
       }
     }
   });
@@ -237,11 +237,11 @@ export async function updateContract(id: string, data: UpdateContractInput) {
             } 
           }
         },
-        transitions: {
+        Transition: {
           select: { id: true, name: true, status: true, startDate: true, endDate: true }
         },
         _count: {
-          select: { transitions: true }
+          select: { Transition: true }
         }
       }
     });
@@ -259,7 +259,7 @@ export async function updateContract(id: string, data: UpdateContractInput) {
 export async function deleteContract(id: string) {
   const existing = await getContractById(id);
 
-  // Check if there are active transitions
+  // Check if there are active Transition
   const activeTransitions = await prisma.transition.count({
     where: {
       contractId: id,
@@ -268,7 +268,7 @@ export async function deleteContract(id: string) {
   });
 
   if (activeTransitions > 0) {
-    throw new Error('Cannot delete contract with active transitions');
+    throw new Error('Cannot delete contract with active Transition');
   }
 
   await prisma.contract.delete({

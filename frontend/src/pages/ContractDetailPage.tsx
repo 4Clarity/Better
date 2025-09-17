@@ -128,8 +128,10 @@ export function ContractDetailPage() {
           <p className="text-gray-600">Contract: {contract.contractNumber}</p>
           <p className="text-gray-500">Contractor: {contract.contractorName}</p>
         </div>
-        <NewEnhancedTransitionDialog 
+        <NewEnhancedTransitionDialog
           contractId={contract.id}
+          contractName={contract.contractName}
+          contractNumber={contract.contractNumber}
           onTransitionCreated={handleTransitionCreated}
           userRole={userRole}
         />

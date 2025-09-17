@@ -8,11 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface NewEnhancedTransitionDialogProps {
   contractId: string;
+  contractName: string;
+  contractNumber: string;
   onTransitionCreated: (transition: EnhancedTransition) => void;
   userRole: string;
 }
 
-export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, userRole }: NewEnhancedTransitionDialogProps) {
+export function NewEnhancedTransitionDialog({ contractId, contractName, contractNumber, onTransitionCreated, userRole }: NewEnhancedTransitionDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,8 @@ export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, u
     try {
       const transition = await enhancedTransitionApi.create({
         contractId,
+        contractName,
+        contractNumber,
         ...formData,
         createdBy: formData.createdBy || undefined,
         keyPersonnel: formData.keyPersonnel || undefined,

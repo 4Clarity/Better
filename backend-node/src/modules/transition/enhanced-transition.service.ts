@@ -7,36 +7,28 @@ const prisma = new PrismaClient();
 export const createEnhancedTransitionSchema = z.object({
   contractName: z.string().min(1, "Contract name is required").max(255),
   contractNumber: z.string().min(1, "Contract number is required").max(100),
-  organizationId: z.string().min(1, "Organization ID is required"),
   name: z.string().min(1, "Transition name is required").max(255),
   description: z.string().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  status: z.enum(['Planning', 'Active', 'ON_HOLD', 'Completed', 'Cancelled', 'Delayed']).default('Planning'),
-  createdBy: z.string().min(1, "Created by is required"),
-  
-  // NEW HIERARCHY FIELDS
-  transitionLevel: z.enum(['MAJOR', 'PERSONNEL', 'OPERATIONAL']).default('OPERATIONAL'),
-  transitionSource: z.enum(['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT']).optional(),
-  impactScope: z.enum(['enterprise', 'department', 'team', 'process']).optional(),
-  approvalLevel: z.enum(['executive', 'management', 'operational']).optional(),
-  parentTransitionId: z.string().optional(),
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']).default('NOT_STARTED'),
+  createdBy: z.string().optional(),
+  keyPersonnel: z.string().optional(),
+  duration: z.enum(['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS']).default('THIRTY_DAYS'),
+  requiresContinuousService: z.boolean().default(true),
 });
 
 export const updateEnhancedTransitionSchema = createEnhancedTransitionSchema.partial();
 
 export const getEnhancedTransitionsQuerySchema = z.object({
+  contractId: z.string().optional(),
   contractName: z.string().optional(),
   businessOperationId: z.string().optional(),
   search: z.string().optional(),
-  status: z.enum(['Planning', 'Active', 'ON_HOLD', 'Completed', 'Cancelled', 'Delayed']).optional(),
-  transitionLevel: z.enum(['MAJOR', 'PERSONNEL', 'OPERATIONAL']).optional(),
-  transitionSource: z.enum(['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT']).optional(),
-  impactScope: z.enum(['enterprise', 'department', 'team', 'process']).optional(),
-  approvalLevel: z.enum(['executive', 'management', 'operational']).optional(),
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
-  sortBy: z.enum(['name', 'startDate', 'endDate', 'status', 'createdAt', 'transitionLevel']).default('createdAt'),
+  sortBy: z.enum(['name', 'startDate', 'endDate', 'status', 'createdAt']).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
@@ -56,9 +48,12 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
   // Note: Contract validation removed - using contractName/contractNumber instead
 
   try {
+    // Remove contractId from data since it's not a valid field in the schema
+    const { contractId, ...transitionData } = data;
+
     const transition = await prisma.transition.create({
       data: {
-        ...data,
+        ...transitionData,
         startDate,
         endDate,
       },
@@ -70,7 +65,7 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
         //     }
         //   }
         // },
-        creator: {
+        user: {
           select: { 
             id: true, 
             person: { 
@@ -78,11 +73,11 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
             } 
           }
         },
-        milestones: {
+        Milestone: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
         },
         _count: {
-          select: { milestones: true }
+          select: { Milestone: true }
         }
       }
     });
@@ -167,7 +162,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
         //     }
         //   }
         // },
-        creator: {
+        user: {
           select: { 
             id: true, 
             person: { 
@@ -176,7 +171,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
           }
         },
         _count: {
-          select: { milestones: true }
+          select: { Milestone: true }
         }
       }
     }),
@@ -230,7 +225,7 @@ export async function getEnhancedTransitionById(id: string) {
           }
         }
       },
-      creator: {
+      user: {
         select: { 
             id: true, 
             person: { 
@@ -238,7 +233,7 @@ export async function getEnhancedTransitionById(id: string) {
             } 
           }
       },
-      milestones: {
+      Milestone: {
         include: {
           _count: {
             select: { auditLogs: true }
@@ -316,7 +311,7 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
         //     }
         //   }
         // },
-        creator: {
+        user: {
           select: { 
             id: true, 
             person: { 
@@ -324,11 +319,11 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
             } 
           }
         },
-        milestones: {
+        Milestone: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
         },
         _count: {
-          select: { milestones: true }
+          select: { Milestone: true }
         }
       }
     });
