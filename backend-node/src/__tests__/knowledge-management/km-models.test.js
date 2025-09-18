@@ -6,13 +6,11 @@ describe('Knowledge Management Models', () => {
   let testUserId;
 
   beforeAll(async () => {
-    // Get or create a test user
-    let user = await prisma.user.findFirst({
-      where: { email: 'dan.demo@tip.gov' }
-    });
+    // Create a minimal test user if none exists
+    let user = await prisma.user.findFirst();
 
     if (!user) {
-      // Create test user if doesn't exist
+      // Create minimal person first
       const person = await prisma.persons.create({
         data: {
           firstName: 'Test',
@@ -24,6 +22,7 @@ describe('Knowledge Management Models', () => {
         },
       });
 
+      // Create minimal user
       user = await prisma.user.create({
         data: {
           email: 'test.user@tip.gov',

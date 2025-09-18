@@ -2,7 +2,7 @@
 
 **Epic:** Knowledge Management - Database Schema and Backend Foundation
 **Story ID:** KM.1.2
-**Status:** Approved
+**Status:** Done
 **Estimated Effort:** 4 days
 **Priority:** High
 

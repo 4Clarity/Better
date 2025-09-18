@@ -16,6 +16,8 @@ import { userManagementRoutes } from './modules/user-management/user-management.
 import taskRoutes from './modules/task/task.route';
 import { authRoutes, registrationRoutes, registerAuthDecorators } from './modules/auth';
 import { registrationManagementRoutes } from './modules/admin';
+import approvalQueueRoutes from './modules/knowledge/approval-queue.route';
+import documentsRoutes from './modules/knowledge/documents.route';
 
 export function buildServer() {
   const server = Fastify({
@@ -161,6 +163,8 @@ export function buildServer() {
   server.register(contractRoutes, { prefix: '/api/contracts' });
   server.register(enhancedTransitionRoutes, { prefix: '/api/enhanced-transitions' });
   server.register(userManagementRoutes, { prefix: '/api/user-management' });
+  server.register(approvalQueueRoutes, { prefix: '/api' });
+  server.register(documentsRoutes, { prefix: '/api' });
   
   // Register nested milestone routes under transitions
   server.register(async function (server) {
