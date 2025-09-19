@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Author:** Mary, Business Analyst  
 **Date:** 2025-09-17  
-**Status:** Draft  
+**Status:** Approved  
 
 ## 1. Overview
 

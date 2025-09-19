@@ -21,6 +21,8 @@ const user_management_routes_1 = require("./modules/user-management/user-managem
 const task_route_1 = __importDefault(require("./modules/task/task.route"));
 const auth_1 = require("./modules/auth");
 const admin_1 = require("./modules/admin");
+const approval_queue_route_1 = __importDefault(require("./modules/knowledge/approval-queue.route"));
+const documents_route_1 = __importDefault(require("./modules/knowledge/documents.route"));
 function buildServer() {
     const server = (0, fastify_1.default)({
         logger: true,
@@ -155,6 +157,8 @@ function buildServer() {
     server.register(contract_route_1.default, { prefix: '/api/contracts' });
     server.register(enhanced_transition_route_1.default, { prefix: '/api/enhanced-transitions' });
     server.register(user_management_routes_1.userManagementRoutes, { prefix: '/api/user-management' });
+    server.register(approval_queue_route_1.default, { prefix: '/api' });
+    server.register(documents_route_1.default, { prefix: '/api' });
     // Register nested milestone routes under transitions
     server.register(async function (server) {
         server.register(milestone_route_1.default, { prefix: '/:transitionId/milestones' });

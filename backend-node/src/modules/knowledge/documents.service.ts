@@ -1,13 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { KnowledgeService } from '../../services/KnowledgeService';
+import { getPrismaClient } from '../../utils/database';
 import {
   createDocumentSchema,
   updateDocumentSchema,
   getDocumentsQuerySchema,
 } from './documents.route';
-
-const prisma = new PrismaClient();
 
 export interface DocumentsQueryParams {
   search?: string;
@@ -26,8 +25,11 @@ export interface UserContext {
 }
 
 export class DocumentsService extends KnowledgeService {
-  constructor() {
+  private readonly prisma: PrismaClient;
+
+  constructor(prismaClient?: PrismaClient) {
     super();
+    this.prisma = prismaClient || getPrismaClient();
   }
 
   /**
@@ -78,7 +80,7 @@ export class DocumentsService extends KnowledgeService {
         ? this.calculateConfidenceScore(documentData.extractionMetadata)
         : undefined;
 
-      const document = await prisma.km_documents.create({
+      const document = await this.prisma.km_documents.create({
         data: {
           name: documentData.title,
           description: documentData.description || null,
@@ -158,12 +160,12 @@ export class DocumentsService extends KnowledgeService {
       }
 
       // Get total count
-      const total = await prisma.km_documents.count({
+      const total = await this.prisma.km_documents.count({
         where: whereConditions,
       });
 
       // Get documents
-      const documents = await prisma.km_documents.findMany({
+      const documents = await this.prisma.km_documents.findMany({
         where: whereConditions,
         include: {
           users_uploaded: {
@@ -219,7 +221,7 @@ export class DocumentsService extends KnowledgeService {
    */
   async getDocumentById(documentId: string, userContext: UserContext) {
     try {
-      const document = await prisma.km_documents.findUnique({
+      const document = await this.prisma.km_documents.findUnique({
         where: {
           id: documentId,
           isActive: true,
@@ -301,7 +303,7 @@ export class DocumentsService extends KnowledgeService {
   ) {
     try {
       // Check if document exists
-      const existingDocument = await prisma.km_documents.findUnique({
+      const existingDocument = await this.prisma.km_documents.findUnique({
         where: { id: documentId, isActive: true },
       });
 
@@ -344,7 +346,7 @@ export class DocumentsService extends KnowledgeService {
         updatePayload.processingCompletedAt = new Date();
       }
 
-      const updatedDocument = await prisma.km_documents.update({
+      const updatedDocument = await this.prisma.km_documents.update({
         where: { id: documentId },
         data: updatePayload,
         include: {
@@ -378,7 +380,7 @@ export class DocumentsService extends KnowledgeService {
    */
   async deleteDocument(documentId: string, userId: string) {
     try {
-      const existingDocument = await prisma.km_documents.findUnique({
+      const existingDocument = await this.prisma.km_documents.findUnique({
         where: { id: documentId, isActive: true },
       });
 
@@ -386,7 +388,7 @@ export class DocumentsService extends KnowledgeService {
         throw new Error('Document not found');
       }
 
-      await prisma.km_documents.update({
+      await this.prisma.km_documents.update({
         where: { id: documentId },
         data: {
           isActive: false,
@@ -405,7 +407,7 @@ export class DocumentsService extends KnowledgeService {
    */
   async approveDocument(documentId: string, approvedBy: string) {
     try {
-      const updatedDocument = await prisma.km_documents.update({
+      const updatedDocument = await this.prisma.km_documents.update({
         where: { id: documentId },
         data: {
           approvedBy,
@@ -447,7 +449,7 @@ export class DocumentsService extends KnowledgeService {
     userId: string
   ) {
     try {
-      const parentDocument = await prisma.km_documents.findUnique({
+      const parentDocument = await this.prisma.km_documents.findUnique({
         where: { id: parentDocumentId },
       });
 
@@ -462,7 +464,7 @@ export class DocumentsService extends KnowledgeService {
 
       // Update parent document version if this is a newer version
       if (parentDocument.version < (newVersion as any).version) {
-        await prisma.km_documents.update({
+        await this.prisma.km_documents.update({
           where: { id: parentDocumentId },
           data: { version: (newVersion as any).version + 1 },
         });
