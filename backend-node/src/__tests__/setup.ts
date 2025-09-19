@@ -6,7 +6,7 @@ jest.mock('@prisma/client', () => ({
     user: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
-      create: jest.fn(),
+      create: jest.fn().mockResolvedValue({ id: 'test-user-id', email: 'test@example.com', firstName: 'Test', lastName: 'User' }),
       update: jest.fn(),
       delete: jest.fn(),
     },
@@ -19,12 +19,22 @@ jest.mock('@prisma/client', () => ({
     auditLog: {
       create: jest.fn(),
     },
+    persons: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn().mockResolvedValue({ id: 'test-person-id', firstName: 'Test', lastName: 'User' }),
+      update: jest.fn(),
+      count: jest.fn(),
+      deleteMany: jest.fn(),
+    },
     km_documents: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+      deleteMany: jest.fn(),
     },
     km_communications: {
       findUnique: jest.fn(),
@@ -32,6 +42,7 @@ jest.mock('@prisma/client', () => ({
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+      deleteMany: jest.fn(),
     },
     km_facts: {
       findUnique: jest.fn(),
@@ -39,6 +50,7 @@ jest.mock('@prisma/client', () => ({
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+      deleteMany: jest.fn(),
     },
     km_categories: {
       findUnique: jest.fn(),
@@ -46,6 +58,7 @@ jest.mock('@prisma/client', () => ({
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+      deleteMany: jest.fn(),
     },
     km_tags: {
       findUnique: jest.fn(),
@@ -53,6 +66,7 @@ jest.mock('@prisma/client', () => ({
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+      deleteMany: jest.fn(),
     },
     km_knowledge_sources: {
       findUnique: jest.fn(),
@@ -60,6 +74,36 @@ jest.mock('@prisma/client', () => ({
       create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+    },
+    km_sync_logs: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    km_document_tags: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    km_communication_tags: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    km_fact_tags: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    km_communications_documents: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
     },
     $disconnect: jest.fn(),
   })),
