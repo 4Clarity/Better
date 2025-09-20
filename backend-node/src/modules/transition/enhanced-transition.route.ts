@@ -139,7 +139,6 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
               default: 'NOT_STARTED' 
             },
             requiresContinuousService: { type: 'boolean', default: true },
-            createdBy: { type: 'string' },
           },
         },
         response: {

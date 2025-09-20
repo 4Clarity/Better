@@ -741,3 +741,88 @@ ApprovalQueueService (Core service)
 **Frontend Integration Ready**: All API endpoints accessible at `/api/knowledge/approval-queue/*` following established patterns
 
 ---
+
+## September 19, 2025: Enhanced Transition Creation Bug Fix ✅
+**Status**: COMPLETED - Critical Foreign Key Constraint Issue Resolved
+
+### Issue Description
+Enhanced transition creation was failing with foreign key constraint violation:
+- **Error**: `Foreign key constraint violated on constraint: 'Transition_createdBy_fkey'`
+- **Impact**: Users unable to create new enhanced transitions
+- **Frontend Symptom**: "Failed to create transition" error messages
+
+### Root Cause Analysis
+**Primary Issue**: Frontend sending empty string for optional foreign key field
+- Frontend component was sending `createdBy: ""` (empty string)
+- Backend service passed this to Prisma create operation
+- Database foreign key constraint requires either valid User ID or `NULL`, not empty string
+
+**Investigation Process**:
+1. Added debug logging to backend service to inspect incoming data
+2. Discovered `createdBy` was empty string `""` with type `string`
+3. Confirmed constraint violation occurring in Prisma operation
+
+### Solution Implementation
+**File Modified**: `/Users/richardroach/Documents/Builder_Projects/Better/backend-node/src/modules/transition/enhanced-transition.service.ts`
+
+**Fix Applied**:
+```typescript
+// Filter out null/undefined/empty createdBy to avoid foreign key constraint violation
+const cleanedData = { ...transitionData };
+if (cleanedData.createdBy === null || cleanedData.createdBy === undefined || cleanedData.createdBy === '') {
+  delete cleanedData.createdBy;
+}
+```
+
+**Key Insight**: Handle all three problematic values for optional foreign keys:
+- `null` - JavaScript null value
+- `undefined` - Missing property
+- `''` - Empty string (the actual issue encountered)
+
+### Verification & Testing
+**Test Results**:
+- ✅ Enhanced transition creation successful (HTTP 201)
+- ✅ Multiple transitions created without errors
+- ✅ Debug logs confirmed proper data cleaning
+- ✅ No more foreign key constraint violations
+
+**Debug Output Confirmed Fix**:
+```
+Original transitionData: { "createdBy": "" }
+createdBy value:
+createdBy type: string
+Removing createdBy field from data
+Cleaned data for Prisma: { /* createdBy field removed */ }
+```
+
+### Technical Impact
+- **Immediate**: Enhanced transition creation fully operational
+- **Long-term**: Established pattern for handling optional foreign key fields
+- **User Experience**: Eliminated cryptic database errors for users
+- **System Reliability**: Proper validation prevents constraint violations
+
+### Best Practice Established
+**New Pattern for Optional Foreign Keys**:
+```typescript
+// General validation pattern for optional foreign key fields
+if (!fieldValue || fieldValue === '') {
+  delete cleanedData.fieldName;
+}
+```
+
+**Prevention Strategy**: Always validate and clean optional foreign key fields before database operations
+
+### Development Process Notes
+- **Debugging Approach**: Added temporary logging to understand data flow
+- **Iterative Testing**: Multiple transition creation attempts to verify fix
+- **Clean-up**: Removed debug logs after verification
+- **Documentation**: Updated implementation memory with lessons learned
+
+### Files Modified
+1. `backend-node/src/modules/transition/enhanced-transition.service.ts` - Applied foreign key validation fix
+2. `docs/log/implementation-memory.md` - Added new best practice and prevention checklist items
+3. `docs/log/development-log.md` - This development log entry
+
+**Status**: ✅ **PRODUCTION READY** - Enhanced transition creation functionality fully operational
+
+---

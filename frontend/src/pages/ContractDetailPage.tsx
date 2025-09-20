@@ -34,9 +34,10 @@ export function ContractDetailPage() {
     }
   };
 
-  const handleTransitionCreated = async (newTransition: EnhancedTransition) => {
+  const handleTransitionCreated = (newTransition: EnhancedTransition) => {
+    // Add the new transition to the local state immediately
     setTransitions(prev => [newTransition, ...prev]);
-    await fetchContractDetails();
+    // No need to refetch since we already have the new transition
   };
 
   useEffect(() => {

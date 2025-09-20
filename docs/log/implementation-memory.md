@@ -170,6 +170,99 @@ if (error.code === 'P2003') {
 
 ---
 
+## 2025-09-19: Enhanced Transition Creation Foreign Key Fix
+
+### Project Context
+Fixing a critical bug preventing users from creating new enhanced transitions in the application.
+
+### Problem
+Enhanced transition creation was failing with foreign key constraint violation error:
+- Error: `Foreign key constraint violated on constraint: 'Transition_createdBy_fkey'`
+- Frontend console showed: `Failed to create transition: Error: Failed to create transition`
+- Backend returned 500 Internal Server Error
+
+### Root Cause Analysis
+**Primary Issue**: Frontend sending empty string for `createdBy` field
+- Frontend component (`NewEnhancedTransitionDialog.tsx:45`) was sending `createdBy: null` which was converted to empty string `""`
+- Backend service was passing this empty string to Prisma
+- Database foreign key constraint `Transition_createdBy_fkey` requires either a valid User ID or `NULL`, not empty string
+
+**Investigation Steps**:
+1. Added debug logging to backend service to inspect incoming data
+2. Discovered `createdBy` value was `""` (empty string) with type `string`
+3. Confirmed the field was being passed to Prisma create operation causing constraint violation
+
+### Solution Implemented
+**Backend Fix** in `/Users/richardroach/Documents/Builder_Projects/Better/backend-node/src/modules/transition/enhanced-transition.service.ts`:
+
+```typescript
+// Filter out null/undefined/empty createdBy to avoid foreign key constraint violation
+const cleanedData = { ...transitionData };
+if (cleanedData.createdBy === null || cleanedData.createdBy === undefined || cleanedData.createdBy === '') {
+  delete cleanedData.createdBy;
+}
+```
+
+**Key Insight**: The fix handles all three problematic values:
+- `null` - JavaScript null value
+- `undefined` - Missing property
+- `''` - Empty string (the actual issue)
+
+### Verification
+**Test Results**:
+- ✅ Enhanced transition creation successful (Status: 201)
+- ✅ Multiple transitions created without errors
+- ✅ Debug logs confirmed proper data cleaning
+- ✅ No more foreign key constraint violations
+
+**Debug Output Confirmation**:
+```
+Original transitionData: {
+  "createdBy": ""     // Empty string identified
+}
+createdBy value:
+createdBy type: string
+Removing createdBy field from data
+Cleaned data for Prisma: {
+  // createdBy field completely removed
+}
+```
+
+### Technical Details
+**File Modified**: `/Users/richardroach/Documents/Builder_Projects/Better/backend-node/src/modules/transition/enhanced-transition.service.ts:54-58`
+
+**Database Schema Context**:
+```prisma
+model Transition {
+  createdBy  String?    // Optional field
+  user       User?      @relation(fields: [createdBy], references: [id])
+}
+```
+
+The foreign key relationship requires either a valid User ID or NULL - empty strings cause constraint violations.
+
+### Prevention Strategy
+**Best Practice Added**: Always validate and clean optional foreign key fields before database operations
+- Check for `null`, `undefined`, and empty string values
+- Remove invalid foreign key references rather than passing them to database
+- Add comprehensive validation for all optional relationship fields
+
+**Error Handling Pattern**:
+```typescript
+// General pattern for optional foreign keys
+if (!fieldValue || fieldValue === '') {
+  delete cleanedData.fieldName;
+}
+```
+
+### Impact
+- ✅ Enhanced transition creation functionality fully operational
+- ✅ User experience improved - no more cryptic foreign key errors
+- ✅ System reliability increased - proper handling of optional relationships
+- ✅ Development workflow smoother - consistent transition management
+
+---
+
 ## Backend 502 via Traefik (Bad Gateway) — Root Cause and Fix
 
 ### Symptom
@@ -266,6 +359,7 @@ if (error.code === 'P2003') {
 6. **Implement comprehensive error handling with specific user messages**
 7. **Test migration scripts in development before production**
 8. **Document database user roles and permissions clearly**
+9. **Clean optional foreign key fields before database operations (check null, undefined, empty string)**
 
 ## Future Prevention Checklist
 
@@ -276,6 +370,8 @@ if (error.code === 'P2003') {
 - [ ] Test error scenarios and user-facing error messages
 - [ ] Document database setup procedures for team members
 - [ ] Create rollback plans for schema changes
+- [ ] Validate optional foreign key fields for null/undefined/empty string before database operations
+- [ ] Add debug logging for complex data transformations and API requests
 
 ---
 
