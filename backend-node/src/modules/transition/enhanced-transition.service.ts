@@ -51,9 +51,22 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
     // Remove contractId from data since it's not a valid field in the schema
     const { contractId, ...transitionData } = data;
 
+    console.log('Original transitionData:', JSON.stringify(transitionData, null, 2));
+    console.log('createdBy value:', transitionData.createdBy);
+    console.log('createdBy type:', typeof transitionData.createdBy);
+
+    // Filter out null/undefined createdBy to avoid foreign key constraint violation
+    const cleanedData = { ...transitionData };
+    if (cleanedData.createdBy === null || cleanedData.createdBy === undefined || cleanedData.createdBy === '') {
+      console.log('Removing createdBy field from data');
+      delete cleanedData.createdBy;
+    }
+
+    console.log('Cleaned data for Prisma:', JSON.stringify(cleanedData, null, 2));
+
     const transition = await prisma.transition.create({
       data: {
-        ...transitionData,
+        ...cleanedData,
         startDate,
         endDate,
       },

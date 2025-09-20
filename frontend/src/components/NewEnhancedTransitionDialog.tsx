@@ -42,7 +42,7 @@ export function NewEnhancedTransitionDialog({ contractId, contractName, contract
         contractName,
         contractNumber,
         ...formData,
-        createdBy: formData.createdBy || undefined,
+        createdBy: null, // Set to null instead of a non-existent user ID
         keyPersonnel: formData.keyPersonnel || undefined,
         description: formData.description || undefined,
         startDate: formData.startDate.split('T')[0], // Remove time part if present

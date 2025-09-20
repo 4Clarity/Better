@@ -1,6 +1,5 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { useEnhancedAuth } from '../contexts/EnhancedAuthContext';
 import UserMenu from './auth/UserMenu';
 import tipLogo from '@/assets/tip-logo-blue.svg';

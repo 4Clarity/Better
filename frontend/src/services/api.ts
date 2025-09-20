@@ -87,7 +87,9 @@ export interface Contract {
 export interface EnhancedTransition {
   id: string;
   contractId?: string;
-  name?: string;
+  contractName: string;
+  contractNumber: string;
+  name: string;
   description?: string;
   startDate: string;
   endDate: string;
@@ -474,6 +476,8 @@ export const enhancedTransitionApi = {
   },
 
   async create(data: Omit<EnhancedTransition, 'id' | 'createdAt' | 'updatedAt' | 'contract' | 'creator' | 'milestones' | '_count'>): Promise<EnhancedTransition> {
+    console.log('Creating enhanced transition with data:', data);
+
     const response = await fetch(`${API_BASE_URL}/enhanced-transitions`, {
       method: 'POST',
       headers: {
@@ -481,10 +485,22 @@ export const enhancedTransitionApi = {
       },
       body: JSON.stringify(data),
     });
-    
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `Failed to create enhanced transition: ${response.statusText}`);
+      const responseText = await response.text();
+      console.log('Error response body:', responseText);
+
+      let errorMessage = `Failed to create enhanced transition: ${response.statusText}`;
+      try {
+        const error = JSON.parse(responseText);
+        errorMessage = error.message || errorMessage;
+      } catch (parseError) {
+        errorMessage = `HTTP ${response.status}: ${responseText}`;
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   },

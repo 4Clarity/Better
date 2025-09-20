@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEnhancedAuth } from '../../contexts/EnhancedAuthContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { CheckCircle, XCircle, Mail, Loader2 } from 'lucide-react';
@@ -45,12 +45,12 @@ export function EmailVerificationPage() {
         message: 'Verifying your email address...'
       });
 
-      const result = await verifyEmail(token);
+      await verifyEmail(token);
 
       setVerificationState({
         status: 'success',
         message: 'Email verified successfully!',
-        nextStep: result.data.nextStep
+        nextStep: 'approval_pending'
       });
 
     } catch (error) {

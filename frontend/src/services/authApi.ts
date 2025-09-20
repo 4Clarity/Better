@@ -6,6 +6,7 @@ export interface AuthUser {
   username: string;
   email: string;
   roles: string[];
+  isFirstUser?: boolean;
   person?: {
     id: string;
     firstName: string;
@@ -210,9 +211,31 @@ export class AuthenticationApi {
       body: JSON.stringify({}), // Empty body but properly formatted
     });
 
-    const result = await response.json();
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+    // Check if response has content
+    const responseText = await response.text();
+    console.log('Response body:', responseText);
+
     if (!response.ok) {
-      throw new Error(result.message || 'Demo login failed');
+      let errorMessage = 'Demo login failed';
+      try {
+        const errorResult = JSON.parse(responseText);
+        errorMessage = errorResult.message || errorMessage;
+      } catch (parseError) {
+        errorMessage = `HTTP ${response.status}: ${responseText || response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    // Parse the response text as JSON
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse JSON response:', parseError);
+      throw new Error(`Invalid JSON response: ${responseText}`);
     }
 
     // Transform the response to match LoginResponse format
