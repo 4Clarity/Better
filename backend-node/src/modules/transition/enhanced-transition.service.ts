@@ -16,6 +16,7 @@ export const createEnhancedTransitionSchema = z.object({
   keyPersonnel: z.string().optional(),
   duration: z.enum(['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS']).default('THIRTY_DAYS'),
   requiresContinuousService: z.boolean().default(true),
+  transitionLevel: z.enum(['MAJOR', 'PERSONNEL', 'OPERATIONAL']).default('OPERATIONAL'),
 });
 
 export const updateEnhancedTransitionSchema = createEnhancedTransitionSchema.partial();
@@ -26,6 +27,7 @@ export const getEnhancedTransitionsQuerySchema = z.object({
   businessOperationId: z.string().optional(),
   search: z.string().optional(),
   status: z.enum(['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']).optional(),
+  transitionLevel: z.enum(['MAJOR', 'PERSONNEL', 'OPERATIONAL']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
   sortBy: z.enum(['name', 'startDate', 'endDate', 'status', 'createdAt']).default('createdAt'),
@@ -107,7 +109,8 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
     search,
     contractId,
     businessOperationId,
-    status
+    status,
+    transitionLevel
   } = query;
   const skip = (page - 1) * limit;
 
@@ -126,6 +129,10 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
 
   if (status) {
     where.status = status;
+  }
+
+  if (transitionLevel) {
+    where.transitionLevel = transitionLevel;
   }
 
 
@@ -393,25 +400,30 @@ export async function createOperationalChange(data: CreateEnhancedTransitionInpu
 
 // Level-specific query functions
 export async function getMajorTransitions(query: GetEnhancedTransitionsQuery) {
-  return getEnhancedTransitions(query);
+  return getEnhancedTransitions({ ...query, transitionLevel: 'MAJOR' });
 }
 
 export async function getPersonnelTransitions(query: GetEnhancedTransitionsQuery) {
-  return getEnhancedTransitions(query);
+  return getEnhancedTransitions({ ...query, transitionLevel: 'PERSONNEL' });
 }
 
 export async function getOperationalChanges(query: GetEnhancedTransitionsQuery) {
-  return getEnhancedTransitions(query);
+  return getEnhancedTransitions({ ...query, transitionLevel: 'OPERATIONAL' });
 }
 
 // Analytics functions for dashboard
 export async function getTransitionCounts() {
-  const total = await prisma.transition.count();
+  const [major, personnel, operational, total] = await Promise.all([
+    prisma.transition.count({ where: { transitionLevel: 'MAJOR' } }),
+    prisma.transition.count({ where: { transitionLevel: 'PERSONNEL' } }),
+    prisma.transition.count({ where: { transitionLevel: 'OPERATIONAL' } }),
+    prisma.transition.count()
+  ]);
 
   return {
-    major: 0,
-    personnel: 0,
-    operational: total,
+    major,
+    personnel,
+    operational,
     total
   };
 }

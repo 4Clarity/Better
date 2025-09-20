@@ -169,6 +169,7 @@ model Transition {
   description             String?
   status                  TransitionStatus   @default(NOT_STARTED)
   requiresContinuousService Boolean            @default(true)
+  transitionLevel         TransitionLevel    @default(OPERATIONAL)
   createdBy               String?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
@@ -182,6 +183,7 @@ model Transition {
   @@index([createdBy])
   @@index([startDate])
   @@index([endDate])
+  @@index([transitionLevel])
 }
 
 model Milestone {

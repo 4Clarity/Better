@@ -97,6 +97,7 @@ export interface EnhancedTransition {
   keyPersonnel?: string;
   status: 'NOT_STARTED' | 'ON_TRACK' | 'AT_RISK' | 'BLOCKED' | 'COMPLETED';
   requiresContinuousService: boolean;
+  transitionLevel: 'MAJOR' | 'PERSONNEL' | 'OPERATIONAL';
   createdBy?: string;
   createdAt: string;
   updatedAt: string;

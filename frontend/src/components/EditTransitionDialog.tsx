@@ -35,6 +35,7 @@ export function EditTransitionDialog({
     keyPersonnel: transition.keyPersonnel || '',
     status: transition.status,
     requiresContinuousService: transition.requiresContinuousService,
+    transitionLevel: transition.transitionLevel || 'OPERATIONAL',
   });
 
   // Initialize selected contract when dialog opens
@@ -186,7 +187,7 @@ export function EditTransitionDialog({
                   <option value="NINETY_DAYS">90 Days</option>
                 </select>
               </div>
-              
+
               <div>
                 <Label htmlFor="status">Status</Label>
                 <select
@@ -202,6 +203,21 @@ export function EditTransitionDialog({
                   <option value="COMPLETED">Completed</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="transitionLevel">Transition Type *</Label>
+              <select
+                id="transitionLevel"
+                value={formData.transitionLevel}
+                onChange={(e) => setFormData({ ...formData, transitionLevel: e.target.value as EnhancedTransition['transitionLevel'] })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="MAJOR">Major Transition</option>
+                <option value="PERSONNEL">Personnel Transition</option>
+                <option value="OPERATIONAL">Operational Change</option>
+              </select>
             </div>
 
             <div>
