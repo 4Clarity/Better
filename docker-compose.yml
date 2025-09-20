@@ -32,6 +32,8 @@ services:
     build:
       context: ./backend-node
       dockerfile: Dockerfile.dev
+    mem_limit: 4g
+    mem_reservation: 2g
     volumes:
       - ./backend-node:/app
       - /app/node_modules

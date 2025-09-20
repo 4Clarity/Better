@@ -129,7 +129,7 @@ async function createTransition(data, userId) {
                 },
                 _count: {
                     select: {
-                        milestones: true,
+                        Milestone: true,
                     },
                 },
             },
@@ -178,7 +178,7 @@ async function getTransitions(query, userId) {
                 },
                 _count: {
                     select: {
-                        milestones: true,
+                        Milestone: true,
                     },
                 },
             },
@@ -210,12 +210,12 @@ async function getTransitionById(id, userId) {
                     email: true,
                 },
             },
-            milestones: {
+            Milestone: {
                 orderBy: { dueDate: 'asc' },
             },
             _count: {
                 select: {
-                    milestones: true,
+                    Milestone: true,
                 },
             },
         },
@@ -260,7 +260,7 @@ async function updateTransition(id, data, userId) {
                 },
                 _count: {
                     select: {
-                        milestones: true,
+                        Milestone: true,
                     },
                 },
             },
@@ -309,7 +309,7 @@ async function updateTransitionStatus(id, data, userId) {
 async function deleteTransition(id, userId) {
     const existingTransition = await prisma.transition.findFirst({
         where: { id, createdBy: userId },
-        include: { milestones: true },
+        include: { Milestone: true },
     });
     if (!existingTransition) {
         throw new Error('Transition not found');

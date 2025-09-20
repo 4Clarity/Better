@@ -58,15 +58,29 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
     throw new Error('Support period end date must be after start date');
   }
 
-  if (contractEndDate > endDate) {
-    throw new Error('Current contract end cannot be after support period end');
-  }
+  // Allow contracts to extend beyond support period for flexibility
+  // Note: Removed validation that required contractEndDate <= endDate
+  // This allows for contract extensions and transition periods
 
   try {
+    // Validate required user IDs exist
+    const [governmentPM, director] = await Promise.all([
+      prisma.user.findUnique({ where: { id: data.governmentPMId } }),
+      prisma.user.findUnique({ where: { id: data.directorId } })
+    ]);
+
+    if (!governmentPM) {
+      throw new Error(`Government PM with ID "${data.governmentPMId}" not found. Please select a valid user.`);
+    }
+
+    if (!director) {
+      throw new Error(`Director with ID "${data.directorId}" not found. Please select a valid user.`);
+    }
+
     // Check if currentManagerId is a valid User ID, otherwise set to null
     let validCurrentManagerId = null;
     if (data.currentManagerId) {
-      const userExists = await prisma.users.findUnique({
+      const userExists = await prisma.user.findUnique({
         where: { id: data.currentManagerId }
       });
       validCurrentManagerId = userExists ? data.currentManagerId : null;
@@ -88,37 +102,37 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
       data: createData,
       include: {
         governmentPM: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
           }
         },
         director: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
           }
         },
         currentManager: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
           }
         },
-        contracts: {
+        Contract: {
           select: { id: true, contractName: true, contractNumber: true, status: true }
         },
-        stakeholders: {
+        OperationStakeholder: {
           select: { id: true, name: true, role: true, stakeholderType: true }
         },
         _count: {
-          select: { contracts: true, stakeholders: true }
+          select: { Contract: true, OperationStakeholder: true }
         }
       }
     });
@@ -148,79 +162,84 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
 }
 
 export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
-  const { page, limit, sortBy, sortOrder, search, businessFunction, technicalDomain } = query;
-  const skip = (page - 1) * limit;
+  try {
+    const { page, limit, sortBy, sortOrder, search, businessFunction, technicalDomain } = query;
+    const skip = (page - 1) * limit;
 
-  const where: any = {};
+    const where: any = {};
 
-  if (search) {
-    where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
-      { businessFunction: { contains: search, mode: 'insensitive' } },
-      { technicalDomain: { contains: search, mode: 'insensitive' } },
-      { description: { contains: search, mode: 'insensitive' } },
-    ];
-  }
-
-  if (businessFunction) {
-    where.businessFunction = { contains: businessFunction, mode: 'insensitive' };
-  }
-
-  if (technicalDomain) {
-    where.technicalDomain = { contains: technicalDomain, mode: 'insensitive' };
-  }
-
-  const [data, total] = await Promise.all([
-    prisma.businessOperation.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { [sortBy]: sortOrder },
-      include: {
-        governmentPM: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-        },
-        director: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-        },
-        currentManager: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-        },
-        contracts: {
-          select: { id: true, contractName: true, contractNumber: true, status: true }
-        },
-        _count: {
-          select: { contracts: true, stakeholders: true }
-        }
-      }
-    }),
-    prisma.businessOperation.count({ where })
-  ]);
-
-  return {
-    data,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { businessFunction: { contains: search, mode: 'insensitive' } },
+        { technicalDomain: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
     }
-  };
+
+    if (businessFunction) {
+      where.businessFunction = { contains: businessFunction, mode: 'insensitive' };
+    }
+
+    if (technicalDomain) {
+      where.technicalDomain = { contains: technicalDomain, mode: 'insensitive' };
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.businessOperation.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          governmentPM: {
+            select: {
+              id: true,
+              person: {
+                select: { firstName: true, lastName: true, primaryEmail: true }
+              }
+            }
+          },
+          director: {
+            select: {
+              id: true,
+              person: {
+                select: { firstName: true, lastName: true, primaryEmail: true }
+              }
+            }
+          },
+          currentManager: {
+            select: {
+              id: true,
+              person: {
+                select: { firstName: true, lastName: true, primaryEmail: true }
+              }
+            }
+          },
+          Contract: {
+            select: { id: true, contractName: true, contractNumber: true, status: true }
+          },
+          _count: {
+            select: { Contract: true, OperationStakeholder: true }
+          }
+        }
+      }),
+      prisma.businessOperation.count({ where })
+    ]);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      }
+    };
+  } catch (error) {
+    console.error('Error in getBusinessOperations:', error);
+    throw error;
+  }
 }
 
 export async function getBusinessOperationById(id: string) {
@@ -228,50 +247,50 @@ export async function getBusinessOperationById(id: string) {
     where: { id },
     include: {
       governmentPM: {
-        select: { 
-          id: true, 
-          person: { 
-            select: { firstName: true, lastName: true, primaryEmail: true } 
-          } 
+        select: {
+          id: true,
+          person: {
+            select: { firstName: true, lastName: true, primaryEmail: true }
+          }
         }
       },
       director: {
-        select: { 
-          id: true, 
-          person: { 
-            select: { firstName: true, lastName: true, primaryEmail: true } 
-          } 
+        select: {
+          id: true,
+          person: {
+            select: { firstName: true, lastName: true, primaryEmail: true }
+          }
         }
       },
       currentManager: {
-        select: { 
-          id: true, 
-          person: { 
-            select: { firstName: true, lastName: true, primaryEmail: true } 
-          } 
+        select: {
+          id: true,
+          person: {
+            select: { firstName: true, lastName: true, primaryEmail: true }
+          }
         }
       },
-      contracts: {
+      Contract: {
         include: {
-          transitions: {
+          Transition: {
             select: { id: true, name: true, status: true, startDate: true, endDate: true }
           }
         }
       },
-      stakeholders: {
+      OperationStakeholder: {
         include: {
           user: {
-            select: { 
-              id: true, 
-              person: { 
-                select: { firstName: true, lastName: true, primaryEmail: true } 
-              } 
+            select: {
+              id: true,
+              person: {
+                select: { firstName: true, lastName: true, primaryEmail: true }
+              }
             }
           }
         }
       },
       _count: {
-        select: { contracts: true, stakeholders: true }
+        select: { Contract: true, OperationStakeholder: true }
       }
     }
   });
@@ -287,18 +306,17 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
   const existing = await getBusinessOperationById(id);
 
   // Validate dates if provided
-  if (data.supportPeriodStart || data.supportPeriodEnd || data.currentContractEnd) {
+  if (data.supportPeriodStart || data.supportPeriodEnd) {
     const startDate = data.supportPeriodStart ? new Date(data.supportPeriodStart) : existing.supportPeriodStart;
     const endDate = data.supportPeriodEnd ? new Date(data.supportPeriodEnd) : existing.supportPeriodEnd;
-    const contractEndDate = data.currentContractEnd ? new Date(data.currentContractEnd) : existing.currentContractEnd;
 
     if (endDate <= startDate) {
       throw new Error('Support period end date must be after start date');
     }
 
-    if (contractEndDate > endDate) {
-      throw new Error('Current contract end cannot be after support period end');
-    }
+    // Allow contracts to extend beyond support period for flexibility
+    // Note: Removed validation that required contractEndDate <= endDate
+    // This allows for contract extensions and transition periods
   }
 
   try {
@@ -308,10 +326,25 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
     if (data.supportPeriodEnd) updateData.supportPeriodEnd = new Date(data.supportPeriodEnd);
     if (data.currentContractEnd) updateData.currentContractEnd = new Date(data.currentContractEnd);
 
+    // Validate required user IDs exist if they're being updated
+    if ('governmentPMId' in data && data.governmentPMId) {
+      const governmentPM = await prisma.user.findUnique({ where: { id: data.governmentPMId } });
+      if (!governmentPM) {
+        throw new Error(`Government PM with ID "${data.governmentPMId}" not found. Please select a valid user.`);
+      }
+    }
+
+    if ('directorId' in data && data.directorId) {
+      const director = await prisma.user.findUnique({ where: { id: data.directorId } });
+      if (!director) {
+        throw new Error(`Director with ID "${data.directorId}" not found. Please select a valid user.`);
+      }
+    }
+
     // Check if currentManagerId is a valid User ID, otherwise set to null
     if ('currentManagerId' in data) {
       if (data.currentManagerId) {
-        const userExists = await prisma.users.findUnique({
+        const userExists = await prisma.user.findUnique({
           where: { id: data.currentManagerId }
         });
         updateData.currentManagerId = userExists ? data.currentManagerId : null;
@@ -325,37 +358,37 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
       data: updateData,
       include: {
         governmentPM: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
           }
         },
         director: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
           }
         },
         currentManager: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
           }
         },
-        contracts: {
+        Contract: {
           select: { id: true, contractName: true, contractNumber: true, status: true }
         },
-        stakeholders: {
+        OperationStakeholder: {
           select: { id: true, name: true, role: true, stakeholderType: true }
         },
         _count: {
-          select: { contracts: true, stakeholders: true }
+          select: { Contract: true, OperationStakeholder: true }
         }
       }
     });
@@ -385,7 +418,8 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
 }
 
 export async function deleteBusinessOperation(id: string) {
-  const existing = await getBusinessOperationById(id);
+  // Verify the business operation exists
+  await getBusinessOperationById(id);
 
   // Check if there are active contracts
   const activeContracts = await prisma.contract.count({

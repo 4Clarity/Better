@@ -1,6 +1,5 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { useEnhancedAuth } from '../contexts/EnhancedAuthContext';
 import UserMenu from './auth/UserMenu';
 import tipLogo from '@/assets/tip-logo-blue.svg';
@@ -121,13 +120,12 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         </svg>
       )
     },
-    { 
-      name: 'Knowledge Platform', 
-      path: '/knowledge', 
+    {
+      name: 'Operational Knowledge Platform',
+      path: '/knowledge',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M12 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-2 0a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       )
     },

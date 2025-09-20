@@ -7,36 +7,30 @@ const prisma = new PrismaClient();
 export const createEnhancedTransitionSchema = z.object({
   contractName: z.string().min(1, "Contract name is required").max(255),
   contractNumber: z.string().min(1, "Contract number is required").max(100),
-  organizationId: z.string().min(1, "Organization ID is required"),
   name: z.string().min(1, "Transition name is required").max(255),
   description: z.string().optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  status: z.enum(['Planning', 'Active', 'ON_HOLD', 'Completed', 'Cancelled', 'Delayed']).default('Planning'),
-  createdBy: z.string().min(1, "Created by is required"),
-  
-  // NEW HIERARCHY FIELDS
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']).default('NOT_STARTED'),
+  createdBy: z.string().optional(),
+  keyPersonnel: z.string().optional(),
+  duration: z.enum(['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS']).default('THIRTY_DAYS'),
+  requiresContinuousService: z.boolean().default(true),
   transitionLevel: z.enum(['MAJOR', 'PERSONNEL', 'OPERATIONAL']).default('OPERATIONAL'),
-  transitionSource: z.enum(['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT']).optional(),
-  impactScope: z.enum(['enterprise', 'department', 'team', 'process']).optional(),
-  approvalLevel: z.enum(['executive', 'management', 'operational']).optional(),
-  parentTransitionId: z.string().optional(),
 });
 
 export const updateEnhancedTransitionSchema = createEnhancedTransitionSchema.partial();
 
 export const getEnhancedTransitionsQuerySchema = z.object({
+  contractId: z.string().optional(),
   contractName: z.string().optional(),
   businessOperationId: z.string().optional(),
   search: z.string().optional(),
-  status: z.enum(['Planning', 'Active', 'ON_HOLD', 'Completed', 'Cancelled', 'Delayed']).optional(),
+  status: z.enum(['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']).optional(),
   transitionLevel: z.enum(['MAJOR', 'PERSONNEL', 'OPERATIONAL']).optional(),
-  transitionSource: z.enum(['STRATEGIC', 'CONTRACTUAL', 'PERSONNEL', 'COMMUNICATION', 'CHANGE_REQUEST', 'ENHANCEMENT']).optional(),
-  impactScope: z.enum(['enterprise', 'department', 'team', 'process']).optional(),
-  approvalLevel: z.enum(['executive', 'management', 'operational']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
-  sortBy: z.enum(['name', 'startDate', 'endDate', 'status', 'createdAt', 'transitionLevel']).default('createdAt'),
+  sortBy: z.enum(['name', 'startDate', 'endDate', 'status', 'createdAt']).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
@@ -56,9 +50,21 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
   // Note: Contract validation removed - using contractName/contractNumber instead
 
   try {
+    // Remove contractId from data since it's not a valid field in the schema
+    const { contractId, ...transitionData } = data;
+
+    // Create cleaned data object and explicitly omit problematic fields
+    const cleanedData: any = { ...transitionData };
+
+    // Always remove createdBy field to avoid foreign key constraint issues
+    // The field should be set by authentication middleware, not by client
+    delete cleanedData.createdBy;
+
+    console.log('Final cleaned data for Prisma:', JSON.stringify(cleanedData, null, 2));
+
     const transition = await prisma.transition.create({
       data: {
-        ...data,
+        ...cleanedData,
         startDate,
         endDate,
       },
@@ -70,7 +76,7 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
         //     }
         //   }
         // },
-        creator: {
+        user: {
           select: { 
             id: true, 
             person: { 
@@ -78,11 +84,11 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
             } 
           }
         },
-        milestones: {
+        Milestone: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
         },
         _count: {
-          select: { milestones: true }
+          select: { Milestone: true }
         }
       }
     });
@@ -95,26 +101,23 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
 }
 
 export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery) {
-  const { 
-    page, 
-    limit, 
-    sortBy, 
-    sortOrder, 
-    search, 
-    contractId, 
-    businessOperationId, 
+  const {
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+    search,
+    contractId,
+    businessOperationId,
     status,
-    transitionLevel,
-    transitionSource,
-    impactScope,
-    approvalLevel
+    transitionLevel
   } = query;
   const skip = (page - 1) * limit;
 
   const where: any = {};
 
   if (contractId) {
-    where.contractName = contractId; // contractId parameter maps to contractName field
+    where.contractId = contractId;
   }
 
   // Note: businessOperationId filtering disabled - no contract relation available
@@ -132,17 +135,6 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
     where.transitionLevel = transitionLevel;
   }
 
-  if (transitionSource) {
-    where.transitionSource = transitionSource;
-  }
-
-  if (impactScope) {
-    where.impactScope = impactScope;
-  }
-
-  if (approvalLevel) {
-    where.approvalLevel = approvalLevel;
-  }
 
   if (search) {
     where.OR = [
@@ -167,7 +159,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
         //     }
         //   }
         // },
-        creator: {
+        user: {
           select: { 
             id: true, 
             person: { 
@@ -176,7 +168,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
           }
         },
         _count: {
-          select: { milestones: true }
+          select: { Milestone: true }
         }
       }
     }),
@@ -198,67 +190,49 @@ export async function getEnhancedTransitionById(id: string) {
   const transition = await prisma.transition.findUnique({
     where: { id },
     include: {
-      contract: {
-        include: {
-          businessOperation: {
-            include: {
-              governmentPM: {
-                select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-              },
-              director: {
-                select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-              }
+      // Note: contract relation disabled - transitions only have contractName/contractNumber
+      // contract: {
+      //   include: {
+      //     businessOperation: {
+      //       include: {
+      //         governmentPM: {
+      //           select: {
+      //       id: true,
+      //       person: {
+      //         select: { firstName: true, lastName: true, primaryEmail: true }
+      //       }
+      //     }
+      //         },
+      //         director: {
+      //           select: {
+      //       id: true,
+      //       person: {
+      //         select: { firstName: true, lastName: true, primaryEmail: true }
+      //       }
+      //     }
+      //         }
+      //       }
+      //     },
+      //     contractorPM: {
+      //       select: {
+      //       id: true,
+      //       person: {
+      //         select: { firstName: true, lastName: true, primaryEmail: true }
+      //       }
+      //     }
+      //     }
+      //   }
+      // },
+      user: {
+        select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
             }
-          },
-          contractorPM: {
-            select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-          }
-        }
-      },
-      creator: {
-        select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
           }
       },
-      milestones: {
-        include: {
-          _count: {
-            select: { auditLogs: true }
-          }
-        },
+      Milestone: {
         orderBy: { dueDate: 'asc' }
-      },
-      auditLogs: {
-        include: {
-          user: {
-            select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-          }
-        },
-        orderBy: { timestamp: 'desc' },
-        take: 10
       }
     }
   });
@@ -316,7 +290,7 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
         //     }
         //   }
         // },
-        creator: {
+        user: {
           select: { 
             id: true, 
             person: { 
@@ -324,11 +298,11 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
             } 
           }
         },
-        milestones: {
+        Milestone: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
         },
         _count: {
-          select: { milestones: true }
+          select: { Milestone: true }
         }
       }
     });
@@ -412,70 +386,44 @@ export async function getLegacyTransitions() {
 }
 
 // Level-specific creation functions
-export async function createMajorTransition(data: Omit<CreateEnhancedTransitionInput, 'transitionLevel'>) {
-  return createEnhancedTransition({
-    ...data,
-    transitionLevel: 'MAJOR',
-    transitionSource: data.transitionSource || 'STRATEGIC',
-    impactScope: data.impactScope || 'enterprise',
-    approvalLevel: data.approvalLevel || 'executive'
-  });
+export async function createMajorTransition(data: CreateEnhancedTransitionInput) {
+  return createEnhancedTransition(data);
 }
 
-export async function createPersonnelTransition(data: Omit<CreateEnhancedTransitionInput, 'transitionLevel'>) {
-  return createEnhancedTransition({
-    ...data,
-    transitionLevel: 'PERSONNEL',
-    transitionSource: data.transitionSource || 'PERSONNEL',
-    impactScope: data.impactScope || 'department',
-    approvalLevel: data.approvalLevel || 'management'
-  });
+export async function createPersonnelTransition(data: CreateEnhancedTransitionInput) {
+  return createEnhancedTransition(data);
 }
 
-export async function createOperationalChange(data: Omit<CreateEnhancedTransitionInput, 'transitionLevel'>) {
-  return createEnhancedTransition({
-    ...data,
-    transitionLevel: 'OPERATIONAL',
-    transitionSource: data.transitionSource || 'ENHANCEMENT',
-    impactScope: data.impactScope || 'process',
-    approvalLevel: data.approvalLevel || 'operational'
-  });
+export async function createOperationalChange(data: CreateEnhancedTransitionInput) {
+  return createEnhancedTransition(data);
 }
 
 // Level-specific query functions
-export async function getMajorTransitions(query: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'>) {
-  return getEnhancedTransitions({
-    ...query,
-    transitionLevel: 'MAJOR'
-  });
+export async function getMajorTransitions(query: GetEnhancedTransitionsQuery) {
+  return getEnhancedTransitions({ ...query, transitionLevel: 'MAJOR' });
 }
 
-export async function getPersonnelTransitions(query: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'>) {
-  return getEnhancedTransitions({
-    ...query,
-    transitionLevel: 'PERSONNEL'
-  });
+export async function getPersonnelTransitions(query: GetEnhancedTransitionsQuery) {
+  return getEnhancedTransitions({ ...query, transitionLevel: 'PERSONNEL' });
 }
 
-export async function getOperationalChanges(query: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'>) {
-  return getEnhancedTransitions({
-    ...query,
-    transitionLevel: 'OPERATIONAL'
-  });
+export async function getOperationalChanges(query: GetEnhancedTransitionsQuery) {
+  return getEnhancedTransitions({ ...query, transitionLevel: 'OPERATIONAL' });
 }
 
 // Analytics functions for dashboard
 export async function getTransitionCounts() {
-  const [major, personnel, operational] = await Promise.all([
+  const [major, personnel, operational, total] = await Promise.all([
     prisma.transition.count({ where: { transitionLevel: 'MAJOR' } }),
     prisma.transition.count({ where: { transitionLevel: 'PERSONNEL' } }),
-    prisma.transition.count({ where: { transitionLevel: 'OPERATIONAL' } })
+    prisma.transition.count({ where: { transitionLevel: 'OPERATIONAL' } }),
+    prisma.transition.count()
   ]);
 
   return {
     major,
     personnel,
     operational,
-    total: major + personnel + operational
+    total
   };
 }

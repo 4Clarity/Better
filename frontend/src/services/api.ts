@@ -19,6 +19,17 @@ const inferDefaultApiBase = () => {
 
 export const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || inferDefaultApiBase();
 
+// Helper function to create URLs that works with both relative and absolute API base URLs
+const createApiUrl = (path: string): URL => {
+  const fullPath = `${API_BASE_URL}${path}`;
+  // If API_BASE_URL starts with '/', it's relative, so we need to provide the base
+  if (API_BASE_URL.startsWith('/')) {
+    return new URL(fullPath, window.location.origin);
+  }
+  // Otherwise, it's an absolute URL
+  return new URL(fullPath);
+};
+
 // Types
 export interface BusinessOperation {
   id: string;
@@ -76,7 +87,9 @@ export interface Contract {
 export interface EnhancedTransition {
   id: string;
   contractId?: string;
-  name?: string;
+  contractName: string;
+  contractNumber: string;
+  name: string;
   description?: string;
   startDate: string;
   endDate: string;
@@ -84,6 +97,7 @@ export interface EnhancedTransition {
   keyPersonnel?: string;
   status: 'NOT_STARTED' | 'ON_TRACK' | 'AT_RISK' | 'BLOCKED' | 'COMPLETED';
   requiresContinuousService: boolean;
+  transitionLevel: 'MAJOR' | 'PERSONNEL' | 'OPERATIONAL';
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
@@ -164,7 +178,7 @@ export const taskApi = {
     priority?: Task['priority'];
     page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc'|'desc';
   }): Promise<PaginatedResponse<Task>> {
-    const url = new URL(`${API_BASE_URL}/transitions/${transitionId}/tasks`);
+    const url = createApiUrl(`/transitions/${transitionId}/tasks`);
     if (params) {
       Object.entries(params).forEach(([k,v])=>{ if (v!==undefined && v!==null) url.searchParams.append(k, v.toString()); });
     }
@@ -255,7 +269,7 @@ export const businessOperationApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<BusinessOperation>> {
-    const url = new URL(`${API_BASE_URL}/business-operations`);
+    const url = createApiUrl(`/business-operations`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -350,7 +364,7 @@ export const contractApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<Contract>> {
-    const url = new URL(`${API_BASE_URL}/contracts`);
+    const url = createApiUrl(`/contracts`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -438,7 +452,7 @@ export const enhancedTransitionApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<EnhancedTransition>> {
-    const url = new URL(`${API_BASE_URL}/enhanced-transitions`);
+    const url = createApiUrl(`/enhanced-transitions`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -463,6 +477,8 @@ export const enhancedTransitionApi = {
   },
 
   async create(data: Omit<EnhancedTransition, 'id' | 'createdAt' | 'updatedAt' | 'contract' | 'creator' | 'milestones' | '_count'>): Promise<EnhancedTransition> {
+    console.log('Creating enhanced transition with data:', data);
+
     const response = await fetch(`${API_BASE_URL}/enhanced-transitions`, {
       method: 'POST',
       headers: {
@@ -470,10 +486,22 @@ export const enhancedTransitionApi = {
       },
       body: JSON.stringify(data),
     });
-    
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `Failed to create enhanced transition: ${response.statusText}`);
+      const responseText = await response.text();
+      console.log('Error response body:', responseText);
+
+      let errorMessage = `Failed to create enhanced transition: ${response.statusText}`;
+      try {
+        const error = JSON.parse(responseText);
+        errorMessage = error.message || errorMessage;
+      } catch (parseError) {
+        errorMessage = `HTTP ${response.status}: ${responseText}`;
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   },

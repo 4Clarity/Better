@@ -8,11 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface NewEnhancedTransitionDialogProps {
   contractId: string;
+  contractName: string;
+  contractNumber: string;
   onTransitionCreated: (transition: EnhancedTransition) => void;
   userRole: string;
 }
 
-export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, userRole }: NewEnhancedTransitionDialogProps) {
+export function NewEnhancedTransitionDialog({ contractId, contractName, contractNumber, onTransitionCreated, userRole }: NewEnhancedTransitionDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, u
     keyPersonnel: '',
     status: 'NOT_STARTED' as EnhancedTransition['status'],
     requiresContinuousService: true,
+    transitionLevel: 'OPERATIONAL' as EnhancedTransition['transitionLevel'],
     createdBy: 'default-user-id', // TODO: Replace with actual user ID
   });
 
@@ -37,8 +40,10 @@ export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, u
     try {
       const transition = await enhancedTransitionApi.create({
         contractId,
+        contractName,
+        contractNumber,
         ...formData,
-        createdBy: formData.createdBy || undefined,
+        createdBy: null, // Set to null instead of a non-existent user ID
         keyPersonnel: formData.keyPersonnel || undefined,
         description: formData.description || undefined,
         startDate: formData.startDate.split('T')[0], // Remove time part if present
@@ -58,6 +63,7 @@ export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, u
         keyPersonnel: '',
         status: 'NOT_STARTED',
         requiresContinuousService: true,
+        transitionLevel: 'OPERATIONAL',
         createdBy: 'default-user-id',
       });
     } catch (err) {
@@ -156,7 +162,7 @@ export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, u
                 <option value="NINETY_DAYS">90 Days</option>
               </select>
             </div>
-            
+
             <div>
               <Label htmlFor="status">Status</Label>
               <select
@@ -172,6 +178,21 @@ export function NewEnhancedTransitionDialog({ contractId, onTransitionCreated, u
                 <option value="COMPLETED">Completed</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="transitionLevel">Transition Type *</Label>
+            <select
+              id="transitionLevel"
+              value={formData.transitionLevel}
+              onChange={(e) => setFormData({ ...formData, transitionLevel: e.target.value as EnhancedTransition['transitionLevel'] })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="MAJOR">Major Transition</option>
+              <option value="PERSONNEL">Personnel Transition</option>
+              <option value="OPERATIONAL">Operational Change</option>
+            </select>
           </div>
 
           <div>

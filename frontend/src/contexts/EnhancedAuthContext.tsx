@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { ReactKeycloakProvider, useKeycloak } from '@react-keycloak/web';
 import keycloak, { keycloakInitOptions } from '../config/keycloak';
 import { authApi, AuthUser, LoginRequest } from '../services/authApi';

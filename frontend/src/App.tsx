@@ -13,6 +13,7 @@ import { EditBusinessOperationPage } from './pages/EditBusinessOperationPage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { TransitionUserPage } from './pages/TransitionUserPage';
 import { TasksAndMilestonesPage } from './pages/TasksAndMilestonesPage';
+import { KnowledgeManagementPage } from './pages/KnowledgeManagementPage';
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -112,14 +113,9 @@ function AppRoutes() {
             </div>
           </Layout>
         } />
-        <Route path="/knowledge" element={
-          <Layout pageTitle="Knowledge Platform">
-            <div className="p-8">
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-semibold mb-4">Knowledge Platform</h2>
-                <p className="text-muted-foreground">This section will contain knowledge management and documentation features.</p>
-              </div>
-            </div>
+        <Route path="/knowledge/*" element={
+          <Layout pageTitle="Operational Knowledge Platform">
+            <KnowledgeManagementPage />
           </Layout>
         } />
         <Route path="/tasks" element={

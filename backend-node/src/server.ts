@@ -16,6 +16,8 @@ import { userManagementRoutes } from './modules/user-management/user-management.
 import taskRoutes from './modules/task/task.route';
 import { authRoutes, registrationRoutes, registerAuthDecorators } from './modules/auth';
 import { registrationManagementRoutes } from './modules/admin';
+import approvalQueueRoutes from './modules/knowledge/approval-queue.route';
+import documentsRoutes from './modules/knowledge/documents.route';
 
 export function buildServer() {
   const server = Fastify({
@@ -71,7 +73,7 @@ export function buildServer() {
     errorResponseBuilder: (request, context) => {
       return {
         error: 'Rate limit exceeded',
-        message: `Too many requests from this IP. Limit: ${context.max} requests per ${context.after}. Try again later.`,
+        message: `Too many requests from this IP. Limit: ${context.max} requests per ${context.after}. Try again later.`, 
         retryAfter: context.after,
         timestamp: new Date().toISOString()
       };
@@ -155,11 +157,14 @@ export function buildServer() {
   });
 
   // Register routes (auth routes already registered above with rate limiting)
+  console.log('Registering business operation routes');
   server.register(transitionRoutes, { prefix: '/api/transitions' });
   server.register(businessOperationRoutes, { prefix: '/api/business-operations' });
   server.register(contractRoutes, { prefix: '/api/contracts' });
   server.register(enhancedTransitionRoutes, { prefix: '/api/enhanced-transitions' });
   server.register(userManagementRoutes, { prefix: '/api/user-management' });
+  server.register(approvalQueueRoutes, { prefix: '/api' });
+  server.register(documentsRoutes, { prefix: '/api' });
   
   // Register nested milestone routes under transitions
   server.register(async function (server) {
@@ -181,3 +186,4 @@ export function buildServer() {
 
   return server;
 }
+

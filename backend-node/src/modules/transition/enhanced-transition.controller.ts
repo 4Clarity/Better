@@ -245,7 +245,7 @@ export async function getLegacyTransitionsHandler(
 
 // Level-specific handlers
 export async function createMajorTransitionHandler(
-  request: FastifyRequest<{ Body: Omit<CreateEnhancedTransitionInput, 'transitionLevel'> }>,
+  request: FastifyRequest<{ Body: CreateEnhancedTransitionInput }>,
   reply: FastifyReply
 ) {
   try {
@@ -279,7 +279,7 @@ export async function createMajorTransitionHandler(
 }
 
 export async function createPersonnelTransitionHandler(
-  request: FastifyRequest<{ Body: Omit<CreateEnhancedTransitionInput, 'transitionLevel'> }>,
+  request: FastifyRequest<{ Body: CreateEnhancedTransitionInput }>,
   reply: FastifyReply
 ) {
   try {
@@ -313,7 +313,7 @@ export async function createPersonnelTransitionHandler(
 }
 
 export async function createOperationalChangeHandler(
-  request: FastifyRequest<{ Body: Omit<CreateEnhancedTransitionInput, 'transitionLevel'> }>,
+  request: FastifyRequest<{ Body: CreateEnhancedTransitionInput }>,
   reply: FastifyReply
 ) {
   try {
@@ -347,7 +347,7 @@ export async function createOperationalChangeHandler(
 }
 
 export async function getMajorTransitionsHandler(
-  request: FastifyRequest<{ Querystring: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'> }>,
+  request: FastifyRequest<{ Querystring: GetEnhancedTransitionsQuery }>,
   reply: FastifyReply
 ) {
   try {
@@ -364,7 +364,7 @@ export async function getMajorTransitionsHandler(
 }
 
 export async function getPersonnelTransitionsHandler(
-  request: FastifyRequest<{ Querystring: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'> }>,
+  request: FastifyRequest<{ Querystring: GetEnhancedTransitionsQuery }>,
   reply: FastifyReply
 ) {
   try {
@@ -381,7 +381,7 @@ export async function getPersonnelTransitionsHandler(
 }
 
 export async function getOperationalChangesHandler(
-  request: FastifyRequest<{ Querystring: Omit<GetEnhancedTransitionsQuery, 'transitionLevel'> }>,
+  request: FastifyRequest<{ Querystring: GetEnhancedTransitionsQuery }>,
   reply: FastifyReply
 ) {
   try {

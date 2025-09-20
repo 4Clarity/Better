@@ -110,12 +110,11 @@ export class RegistrationApi {
    * Verify email with token
    */
   async verifyEmail(token: string): Promise<EmailVerificationResponse> {
-    const response = await fetch(`${this.baseUrl}/verify-email`, {
+    const response = await fetch(`${this.baseUrl}/verify-email?${new URLSearchParams({ token })}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
-      params: new URLSearchParams({ token }),
     });
 
     const result = await response.json();

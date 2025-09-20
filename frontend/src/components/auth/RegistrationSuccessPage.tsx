@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEnhancedAuth } from '../../contexts/EnhancedAuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -105,7 +105,7 @@ export function RegistrationSuccessPage() {
         icon: <Clock className="h-5 w-5 text-yellow-600" />,
         title: 'Admin review',
         description: 'Wait for admin to approve your registration',
-        completed: status === 'approved'
+        completed: false
       });
     }
 

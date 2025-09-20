@@ -362,8 +362,10 @@ export class AuthenticationService {
     // SECURITY FIX: Generate secure session fingerprint
     const sessionFingerprint = this.generateSessionFingerprint(userAgent, ipAddress);
 
+    const sessionId = randomUUID();
     const session = await prisma.user_sessions.create({
       data: {
+        id: sessionId,
         userId,
         refreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
@@ -372,6 +374,8 @@ export class AuthenticationService {
         ipAddress,
         sessionFingerprint,
         lastUsedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
     
@@ -663,6 +667,8 @@ export class AuthenticationService {
           title: keycloakData.job_title || keycloakData.position,
           workLocation: keycloakData.organization || keycloakData.company,
           skills: keycloakData.skills ? JSON.parse(JSON.stringify(keycloakData.skills)) : null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }
       });
 
@@ -680,6 +686,8 @@ export class AuthenticationService {
           emailVerifiedAt: keycloakData.email_verified ? new Date() : null,
           lastLoginAt: new Date(),
           accountApprovalStatus: 'APPROVED', // Keycloak users are pre-approved
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }
       });
 
@@ -1082,15 +1090,15 @@ export class AuthenticationService {
    */
   createDemoUser(): AuthUser {
     return {
-      id: 'demo-user-id',
-      username: 'demo_admin',
-      email: 'admin@example.com',
-      roles: ['admin', 'program_manager'],
+      id: 'dan-demont-user-id',
+      username: 'dan.demont',
+      email: 'dan.demo@tip.gov',
+      roles: ['program_manager', 'user'],
       person: {
-        id: 'demo-person-id',
-        firstName: 'Demo',
-        lastName: 'Administrator',
-        displayName: 'Demo Administrator',
+        id: 'dan-demont-person-id',
+        firstName: 'Dan',
+        lastName: 'Demont',
+        displayName: 'Dan Demont',
       },
     };
   }
@@ -1293,4 +1301,5 @@ export class AuthenticationService {
       console.error('Error recording login:', error);
     }
   }
+
 }

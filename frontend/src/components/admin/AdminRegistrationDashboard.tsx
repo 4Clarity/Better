@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useEnhancedAuth } from '../../contexts/EnhancedAuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
@@ -16,8 +16,6 @@ import {
   Calendar,
   Users,
   AlertTriangle,
-  Filter,
-  MoreHorizontal,
   Eye,
   UserCheck,
   UserX,
