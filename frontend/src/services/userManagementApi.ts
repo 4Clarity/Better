@@ -37,22 +37,28 @@ export interface Person {
 
 export interface User {
   id: string;
-  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string; // Current API returns single role
+  username?: string;
   keycloakId?: string;
-  accountStatus: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'LOCKED' | 'EXPIRED' | 'DEACTIVATED';
+  accountStatus?: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'LOCKED' | 'EXPIRED' | 'DEACTIVATED';
   statusReason?: string;
-  roles: string[];
+  roles?: string[]; // Legacy field for compatibility
   permissions?: Record<string, any>;
   sessionTimeout?: number;
   allowedIpRanges?: string[];
   lastLoginAt?: string;
   invitationToken?: string;
   invitationExpiresAt?: string;
-  invitedBy: string;
+  invitedBy?: string;
   createdAt: string;
   updatedAt: string;
   deactivatedBy?: string;
   deactivatedAt?: string;
+  personId: string;
+  registrationRequestId?: string;
   person: Person;
   organizationAffiliations?: OrganizationAffiliation[];
 }
@@ -135,11 +141,33 @@ export interface SecurityDashboard {
 
 // API functions
 export class UserManagementApi {
+  private static getAuthHeaders(): Record<string, string> {
+    // Get stored token from localStorage (same as authApi does)
+    const token = localStorage.getItem('sessionToken');
+    const authBypass = localStorage.getItem('authBypass') === 'true';
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add auth headers if token exists
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Add auth bypass for development
+    if (authBypass) {
+      headers['x-auth-bypass'] = 'true';
+    }
+
+    return headers;
+  }
+
   private static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
         ...options.headers,
       },
       ...options,
@@ -235,10 +263,11 @@ export class UserManagementApi {
     });
   }
 
-  // Update user status
+  // Update user status with enhanced reason tracking
   static async updateUserStatus(userId: string, data: {
     accountStatus: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'LOCKED' | 'EXPIRED' | 'DEACTIVATED';
     statusReason?: string;
+    reasonCode?: string;
   }): Promise<{
     message: string;
     user: {
@@ -248,6 +277,51 @@ export class UserManagementApi {
     };
   }> {
     return this.request(`/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Get user status history for audit trail
+  static async getUserStatusHistory(userId: string): Promise<{
+    userId: string;
+    statusHistory: Array<{
+      id: string;
+      fromStatus: string;
+      toStatus: string;
+      reason?: string;
+      reasonCode?: string;
+      changedBy?: string;
+      changedAt: string;
+      changedByUser?: {
+        person: {
+          firstName: string;
+          lastName: string;
+          primaryEmail: string;
+        };
+      };
+    }>;
+  }> {
+    return this.request(`/users/${userId}/status-history`, {
+      method: 'GET',
+    });
+  }
+
+  // Approve or reject status change
+  static async approveStatusChange(userId: string, data: {
+    approved: boolean;
+    approvalReason?: string;
+  }): Promise<{
+    message: string;
+    approval: {
+      userId: string;
+      approved: boolean;
+      approvalReason?: string;
+      approvedBy: string;
+      approvedAt: string;
+    };
+  }> {
+    return this.request(`/users/${userId}/approve-status`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });

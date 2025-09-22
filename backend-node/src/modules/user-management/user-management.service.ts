@@ -76,7 +76,9 @@ export interface UpdateUserStatusInput {
   userId: string;
   accountStatus: AccountStatus;
   statusReason?: string;
+  reasonCode?: string;
   deactivatedBy?: string;
+  adminId?: string;
 }
 
 export interface UpdateSecurityStatusInput {
@@ -228,7 +230,7 @@ export class UserManagementService {
     twoFactorEnabled?: boolean; 
     deviceFingerprint?: string 
   }): Promise<User> {
-    const user = await prisma.users.findFirst({
+    const user = await prisma.user.findFirst({
       where: {
         invitationToken,
         invitationStatus: 'INVITATION_SENT',
@@ -242,7 +244,7 @@ export class UserManagementService {
       throw new Error('Invalid or expired invitation token');
     }
 
-    return prisma.users.update({
+    return prisma.user.update({
       where: { id: user.id },
       data: {
         keycloakId,
@@ -268,7 +270,7 @@ export class UserManagementService {
     const invitationExpiresAt = new Date();
     invitationExpiresAt.setHours(invitationExpiresAt.getHours() + this.INVITATION_EXPIRY_HOURS);
 
-    const user = await prisma.users.update({
+    const user = await prisma.user.update({
       where: { id: userId },
       data: {
         invitationToken,
@@ -287,25 +289,18 @@ export class UserManagementService {
    * Get user by ID with related data
    */
   async getUserById(id: string, includeRelations = true): Promise<any> {
-    return prisma.users.findUnique({
+    return prisma.user.findUnique({
       where: { id },
       include: includeRelations ? {
-        person: {
-          include: {
-            organizationAffiliations: {
-              include: {
-                organization: true,
-              },
-            },
-          },
-        },
-        transitionUsers: {
-          include: {
-            transition: true,
-          },
-        },
-        invitedUsers: true,
-        invitedByUser: true,
+        person: true,
+        // Note: organizationAffiliations field doesn't exist in current schema
+        // transitionUsers: {
+        //   include: {
+        //     transition: true,
+        //   },
+        // },
+        // invitedUsers: true,
+        // invitedByUser: true,
       } : undefined,
     });
   }
@@ -314,7 +309,7 @@ export class UserManagementService {
    * Get user by username
    */
   async getUserByUsername(username: string): Promise<User | null> {
-    return prisma.users.findUnique({
+    return prisma.user.findUnique({
       where: { username },
       include: {
         person: true,
@@ -326,7 +321,7 @@ export class UserManagementService {
    * Get user by Keycloak ID
    */
   async getUserByKeycloakId(keycloakId: string): Promise<User | null> {
-    return prisma.users.findUnique({
+    return prisma.user.findUnique({
       where: { keycloakId },
       include: {
         person: true,
@@ -335,19 +330,155 @@ export class UserManagementService {
   }
 
   /**
-   * Update user account status
+   * Update user account status with enhanced audit trail
    */
   async updateUserStatus(data: UpdateUserStatusInput): Promise<User> {
-    return prisma.users.update({
+    // First get the current user to capture the previous status for audit
+    const currentUser = await prisma.user.findUnique({
       where: { id: data.userId },
-      data: {
-        accountStatus: data.accountStatus,
-        statusReason: data.statusReason,
-        deactivatedAt: data.accountStatus === 'DEACTIVATED' ? new Date() : null,
-        deactivatedBy: data.deactivatedBy,
-        updatedAt: new Date(),
-      },
+      select: { accountStatus: true }
     });
+
+    if (!currentUser) {
+      throw new Error('User not found');
+    }
+
+    const previousStatus = currentUser.accountStatus;
+
+    const updateData: any = {
+      accountStatus: data.accountStatus,
+      statusReason: data.statusReason,
+      updatedAt: new Date(),
+    };
+
+    // Handle deactivation specific fields
+    if (data.accountStatus === 'DEACTIVATED') {
+      updateData.deactivatedAt = new Date();
+      updateData.deactivatedBy = data.adminId || data.deactivatedBy;
+    } else if (data.accountStatus === 'ACTIVE') {
+      // Clear deactivation fields when reactivating
+      updateData.deactivatedAt = null;
+      updateData.deactivatedBy = null;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: data.userId },
+      data: updateData,
+    });
+
+    // Log status change for audit trail with correct from/to statuses
+    await this.logStatusChange({
+      userId: data.userId,
+      fromStatus: previousStatus,
+      toStatus: data.accountStatus,
+      reason: data.statusReason,
+      reasonCode: data.reasonCode,
+      changedBy: data.adminId,
+      timestamp: new Date(),
+    });
+
+    return updatedUser;
+  }
+
+  /**
+   * Update user status with validation - optimized single-call version
+   */
+  async updateUserStatusWithValidation(data: UpdateUserStatusInput): Promise<User> {
+    // Get current user to validate existence and capture previous status
+    const currentUser = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { accountStatus: true }
+    });
+
+    if (!currentUser) {
+      throw new Error('User not found');
+    }
+
+    // Validate status transition
+    const validation = this.validateStatusChange(currentUser.accountStatus, data.accountStatus);
+    if (!validation.isValid) {
+      throw new Error(`Invalid status transition: ${validation.reason}`);
+    }
+
+    // Proceed with update
+    return this.updateUserStatus(data);
+  }
+
+  /**
+   * Log status change for audit trail
+   */
+  private async logStatusChange(logData: {
+    userId: string;
+    fromStatus: string;
+    toStatus: string;
+    reason?: string;
+    reasonCode?: string;
+    changedBy?: string;
+    timestamp: Date;
+  }): Promise<void> {
+    // TODO: Create audit log table and implement logging
+    console.log('User status change:', {
+      userId: logData.userId,
+      statusChange: `${logData.fromStatus} -> ${logData.toStatus}`,
+      reason: logData.reason,
+      reasonCode: logData.reasonCode,
+      changedBy: logData.changedBy,
+      timestamp: logData.timestamp.toISOString(),
+    });
+  }
+
+  /**
+   * Get user status history for audit trail
+   */
+  async getUserStatusHistory(userId: string): Promise<Array<{
+    id: string;
+    fromStatus: string;
+    toStatus: string;
+    reason?: string;
+    reasonCode?: string;
+    changedBy?: string;
+    changedAt: Date;
+    changedByUser?: {
+      person: {
+        firstName: string;
+        lastName: string;
+        primaryEmail: string;
+      };
+    };
+  }>> {
+    // TODO: Implement with actual audit log table
+    // For now return empty array
+    return [];
+  }
+
+  /**
+   * Validate status change business rules
+   */
+  validateStatusChange(fromStatus: AccountStatus, toStatus: AccountStatus): {
+    isValid: boolean;
+    reason?: string;
+  } {
+    // Define valid status transitions
+    const validTransitions: Record<AccountStatus, AccountStatus[]> = {
+      PENDING: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'],
+      ACTIVE: ['INACTIVE', 'SUSPENDED', 'DEACTIVATED'],
+      INACTIVE: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'],
+      SUSPENDED: ['ACTIVE', 'DEACTIVATED'],
+      LOCKED: ['ACTIVE', 'DEACTIVATED'],
+      EXPIRED: ['ACTIVE', 'DEACTIVATED'],
+      DEACTIVATED: [], // Generally cannot reactivate deactivated users
+    };
+
+    const allowedTransitions = validTransitions[fromStatus] || [];
+
+    if (!allowedTransitions.includes(toStatus)) {
+      return {
+        isValid: false,
+        reason: `Cannot transition from ${fromStatus} to ${toStatus}`,
+      };
+    }
+
+    return { isValid: true };
   }
 
   /**
@@ -375,7 +506,7 @@ export class UserManagementService {
    */
   async updateUserRoles(userId: string, roles: string[], updatedBy: string): Promise<User> {
     // TODO: Implement approval workflow for sensitive role changes
-    return prisma.users.update({
+    return prisma.user.update({
       where: { id: userId },
       data: {
         roles,
@@ -562,7 +693,7 @@ export class UserManagementService {
    * Record user login
    */
   async recordUserLogin(userId: string, ipAddress?: string, userAgent?: string): Promise<void> {
-    await prisma.users.update({
+    await prisma.user.update({
       where: { id: userId },
       data: {
         lastLoginAt: new Date(),
@@ -577,7 +708,7 @@ export class UserManagementService {
    * Record failed login attempt
    */
   async recordFailedLogin(username: string): Promise<void> {
-    const user = await prisma.users.findUnique({
+    const user = await prisma.user.findUnique({
       where: { username },
     });
 
@@ -585,7 +716,7 @@ export class UserManagementService {
       const failedAttempts = user.failedLoginAttempts + 1;
       const shouldLock = failedAttempts >= 5;
 
-      await prisma.users.update({
+      await prisma.user.update({
         where: { id: user.id },
         data: {
           failedLoginAttempts: failedAttempts,
@@ -671,7 +802,7 @@ export class UserManagementService {
   }> {
     try {
       // Validate admin permissions
-      const adminUser = await prisma.users.findUnique({
+      const adminUser = await prisma.user.findUnique({
         where: { id: adminUserId },
         include: { 
           // Note: This would need to be adjusted based on your roles schema
@@ -684,7 +815,7 @@ export class UserManagementService {
       }
 
       // Find target user
-      const targetUser = await prisma.users.findUnique({
+      const targetUser = await prisma.user.findUnique({
         where: { id: userId },
         include: { person: true }
       });
@@ -718,7 +849,7 @@ export class UserManagementService {
       const hashedPassword = await hash(newPassword, saltRounds);
 
       // Update user's password
-      await prisma.users.update({
+      await prisma.user.update({
         where: { id: userId },
         data: {
           passwordHash: hashedPassword,
@@ -764,7 +895,7 @@ export class UserManagementService {
    */
   private async validateAdminPermissions(adminUserId: string): Promise<boolean> {
     try {
-      const adminUser = await prisma.users.findUnique({
+      const adminUser = await prisma.user.findUnique({
         where: { id: adminUserId },
         // This would need to include roles/permissions based on your schema
       });
@@ -803,7 +934,7 @@ export class UserManagementService {
 
       // This would require adding password reset tracking to your schema
       // For now, we'll return basic info from the user record
-      const user = await prisma.users.findUnique({
+      const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
           passwordResetAt: true,
@@ -846,7 +977,7 @@ export class UserManagementService {
         throw new Error('Insufficient permissions');
       }
 
-      await prisma.users.update({
+      await prisma.user.update({
         where: { id: userId },
         data: {
           mustChangePassword: true,

@@ -228,7 +228,7 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
                   </Button>
                 )}
                 <Badge variant={getPivStatusColor(user.person.pivStatus) as any}>
-                  PIV: {user.person.pivStatus.replace('PIV_', '').replace(/_/g, ' ')}
+                  PIV: {user.person.pivStatus ? user.person.pivStatus.replace('PIV_', '').replace(/_/g, ' ') : 'Not Set'}
                 </Badge>
               </div>
             </div>
@@ -565,7 +565,7 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
                         <div>
                           <p className="font-medium">PIV Status</p>
                           <p className="text-lg text-gray-900 dark:text-white">
-                            {user.person.pivStatus.replace('PIV_', '').replace(/_/g, ' ')}
+                            {user.person.pivStatus ? user.person.pivStatus.replace('PIV_', '').replace(/_/g, ' ') : 'Not Set'}
                           </p>
                           {user.person.pivExpirationDate && (
                             <p className="text-sm text-gray-500">
@@ -598,11 +598,21 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
                   <div>
                     <Label>Assigned Roles</Label>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {user.roles.map((role, index) => (
-                        <Badge key={index} variant="default">
-                          {role}
+                      {user.roles && Array.isArray(user.roles) ? (
+                        user.roles.map((role, index) => (
+                          <Badge key={index} variant="default">
+                            {role}
+                          </Badge>
+                        ))
+                      ) : (user as any).role ? (
+                        <Badge variant="default">
+                          {(user as any).role}
                         </Badge>
-                      ))}
+                      ) : (
+                        <Badge variant="outline">
+                          No roles assigned
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   

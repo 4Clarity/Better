@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, logout, isAdmin, isManager } = useAuth();
+  const { user, logout, isAdmin, isManager, isImpersonating, currentRole } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -21,6 +21,16 @@ export function UserMenu() {
 
   const displayName = user.person?.displayName || `${user.person?.firstName} ${user.person?.lastName}` || user.username;
 
+  // Format role names for display
+  const formatRoleDisplayName = (role: string): string => {
+    if (!role) return 'Unknown Role';
+    return role
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   return (
     <div className="relative">
       <button
@@ -32,8 +42,12 @@ export function UserMenu() {
         </div>
         <div className="hidden md:block text-left">
           <div className="font-medium text-gray-700">{displayName}</div>
-          <div className="text-xs text-gray-500">
-            {isAdmin ? 'Administrator' : isManager ? 'Program Manager' : 'User'}
+          <div className={`text-xs ${isImpersonating ? 'text-orange-600' : 'text-gray-500'}`}>
+            {isImpersonating ? (
+              <span>Impersonating: {formatRoleDisplayName(currentRole || 'Unknown')}</span>
+            ) : (
+              <span>{isAdmin ? 'Administrator' : isManager ? 'Program Manager' : 'User'}</span>
+            )}
           </div>
         </div>
         <svg 
@@ -77,22 +91,59 @@ export function UserMenu() {
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                 Roles & Permissions
               </div>
+
+              {/* Impersonation Status */}
+              {isImpersonating && (
+                <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="text-xs text-orange-600 font-medium mb-1">
+                    ⚠️ Currently Impersonating
+                  </div>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    {formatRoleDisplayName(currentRole || 'Unknown')}
+                  </span>
+                  <div className="text-xs text-orange-500 mt-1">
+                    Limited permissions active
+                  </div>
+                </div>
+              )}
+
+              {/* Effective Roles */}
               <div className="flex flex-wrap gap-1">
                 {user.roles.map((role) => (
-                  <span 
+                  <span
                     key={role}
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      role === 'admin' 
-                        ? 'bg-red-100 text-red-800' 
+                      isImpersonating
+                        ? 'bg-gray-100 text-gray-600' // Dimmed when impersonating
+                        : role === 'admin'
+                        ? 'bg-red-100 text-red-800'
                         : role === 'program_manager'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}
                   >
-                    {role.replace('_', ' ')}
+                    {formatRoleDisplayName(role)}
+                    {isImpersonating && <span className="ml-1 text-gray-400">•</span>}
                   </span>
                 ))}
               </div>
+
+              {/* Original Roles When Impersonating */}
+              {isImpersonating && user.originalRoles && (
+                <div className="mt-2">
+                  <div className="text-xs text-gray-400 mb-1">Original roles:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {user.originalRoles.map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200"
+                      >
+                        {formatRoleDisplayName(role)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Menu options */}

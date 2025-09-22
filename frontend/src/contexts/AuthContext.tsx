@@ -94,6 +94,13 @@ interface AuthContextType extends AuthState {
   clearError: () => void;
   hasRoles: (roles: string[]) => boolean;
   hasAllRoles: (roles: string[]) => boolean;
+  // Impersonation methods
+  impersonateRole: (roleToImpersonate: string) => Promise<void>;
+  clearImpersonation: () => Promise<void>;
+  getAvailableRoles: () => Promise<string[]>;
+  canImpersonate: boolean;
+  isImpersonating: boolean;
+  currentRole: string | undefined;
   isAdmin: boolean;
   isManager: boolean;
 }
@@ -121,19 +128,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Check if user is already authenticated
       if (authApi.isAuthenticated()) {
-        // Validate the current session
-        const validation = await authApi.validateSession();
-        
-        if (validation.data.valid && validation.data.user) {
-          dispatch({ type: 'AUTH_SUCCESS', payload: validation.data.user });
-        } else {
+        try {
+          // Validate the current session
+          const validation = await authApi.validateSession();
+
+          // Handle different response structures
+          const validationData = validation.data || validation;
+
+          if (validationData && validationData.valid && validationData.user) {
+            dispatch({ type: 'AUTH_SUCCESS', payload: validationData.user });
+          } else {
+            throw new Error('Session validation failed');
+          }
+        } catch (validationError) {
+          console.error('Session validation error:', validationError);
           // Session is invalid, try to refresh
           const refreshToken = authApi.getStoredRefreshToken();
           if (refreshToken) {
             try {
               const refreshResult = await authApi.refreshSession({ refreshToken });
               authApi.storeTokens(refreshResult.data.sessionToken, refreshResult.data.refreshToken);
-              
+
               // Get user profile after refresh
               const userResult = await authApi.getCurrentUser();
               dispatch({ type: 'AUTH_SUCCESS', payload: userResult.data });
@@ -282,9 +297,61 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return authApi.hasAllRoles(roles, state.user || undefined);
   }
 
+  // Impersonation functions
+  async function impersonateRole(roleToImpersonate: string) {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      const result = await authApi.impersonateRole(roleToImpersonate);
+
+      // Store new tokens
+      authApi.storeTokens(result.tokens.accessToken, result.tokens.refreshToken);
+
+      // Get updated user profile with impersonation data
+      const userResult = await authApi.getCurrentUser();
+      dispatch({ type: 'AUTH_SUCCESS', payload: userResult.data });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Role impersonation failed';
+      dispatch({ type: 'AUTH_ERROR', payload: message });
+      throw error;
+    }
+  }
+
+  async function clearImpersonation() {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      const result = await authApi.clearImpersonation();
+
+      // Store new tokens
+      authApi.storeTokens(result.tokens.accessToken, result.tokens.refreshToken);
+
+      // Get updated user profile without impersonation data
+      const userResult = await authApi.getCurrentUser();
+      dispatch({ type: 'AUTH_SUCCESS', payload: userResult.data });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Clear impersonation failed';
+      dispatch({ type: 'AUTH_ERROR', payload: message });
+      throw error;
+    }
+  }
+
+  async function getAvailableRoles(): Promise<string[]> {
+    try {
+      const result = await authApi.getImpersonationRoles();
+      return result.availableRoles;
+    } catch (error) {
+      console.error('Failed to get available roles:', error);
+      return [];
+    }
+  }
+
   // Computed properties
   const isAdmin = hasRoles(['admin']);
   const isManager = hasRoles(['program_manager', 'admin']);
+  const canImpersonate = isAdmin || process.env.NODE_ENV === 'development';
+  const isImpersonating = state.user?.isImpersonating || false;
+  const currentRole = state.user?.impersonatedRole || (state.user?.roles?.[0]);
 
   // Auto-refresh token before expiry
   useEffect(() => {
@@ -316,6 +383,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     clearError,
     hasRoles,
     hasAllRoles,
+    // Impersonation methods
+    impersonateRole,
+    clearImpersonation,
+    getAvailableRoles,
+    canImpersonate,
+    isImpersonating,
+    currentRole,
     isAdmin,
     isManager,
   };

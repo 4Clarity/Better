@@ -10,6 +10,7 @@ import { UserDetailDialog } from '@/components/UserManagement/UserDetailDialog';
 import { AdvancedSearchDialog } from '@/components/UserManagement/AdvancedSearchDialog';
 import { SecurityDashboard } from '@/components/UserManagement/SecurityDashboard';
 import { UserManagementApi, type User, type SecurityDashboard as SecurityDashboardType, type UserInvitationData } from '@/services/userManagementApi';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Users, 
   UserPlus, 
@@ -26,6 +27,7 @@ import {
 
 
 export function UserManagementPage() {
+  const { user: currentUser } = useAuth(); // Get current authenticated user
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [securityData, setSecurityData] = useState<SecurityDashboardType | null>(null);
@@ -144,6 +146,26 @@ export function UserManagementPage() {
   const handleResetAdvancedFilters = () => {
     setAdvancedFilters({});
     setCurrentPage(1);
+  };
+
+  // Helper function to determine if a user is the current user
+  const isCurrentUser = (user: User) => {
+    return currentUser && (
+      user.id === currentUser.id ||
+      user.person.primaryEmail === currentUser.email
+    );
+  };
+
+  // Helper function to sort users with current user first
+  const getSortedUsers = (userList: User[]) => {
+    return [...userList].sort((a, b) => {
+      const aIsCurrent = isCurrentUser(a);
+      const bIsCurrent = isCurrentUser(b);
+
+      if (aIsCurrent && !bIsCurrent) return -1;
+      if (!aIsCurrent && bIsCurrent) return 1;
+      return 0; // Keep original order for other users
+    });
   };
 
   const handleManageAccess = (userId: string) => {
@@ -340,15 +362,21 @@ export function UserManagementPage() {
           {!loading && !error && (
             <>
               <div data-testid="user-grid" className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredUsers.map(user => (
-                  <UserCard
-                    key={user.id}
-                    user={user}
-                    onViewDetails={handleViewDetails}
-                    onManageAccess={handleManageAccess}
-                    onUpdateStatus={handleUpdateStatus}
-                    onReactivateUser={handleReactivateUser}
-                  />
+                {getSortedUsers(filteredUsers).map(user => (
+                  <div key={user.id} className={`relative ${isCurrentUser(user) ? "ring-2 ring-blue-500 ring-opacity-50 rounded-lg" : ""}`}>
+                    <UserCard
+                      user={user}
+                      onViewDetails={handleViewDetails}
+                      onManageAccess={handleManageAccess}
+                      onUpdateStatus={handleUpdateStatus}
+                      onReactivateUser={handleReactivateUser}
+                    />
+                    {isCurrentUser(user) && (
+                      <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full z-10">
+                        Your Account
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
 

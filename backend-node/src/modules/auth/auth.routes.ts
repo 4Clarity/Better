@@ -377,17 +377,24 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Protected admin route example - SECURITY FIX: Complete token validation
-  fastify.get('/admin/test', async (request: FastifyRequest, reply: FastifyReply) => {
+  // Role impersonation endpoint - POST /api/auth/impersonate
+  fastify.post('/impersonate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      const { roleToImpersonate } = request.body as any;
+
+      if (!roleToImpersonate) {
+        return reply.code(400).send({
+          error: 'Missing role',
+          message: 'roleToImpersonate is required',
+        });
+      }
+
+      // Authenticate user
       let user;
-      
       if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
         user = authService.createDemoUser();
       } else {
-        // SECURITY FIX: Implement proper token validation
         const authHeader = request.headers.authorization;
-        
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
           return reply.code(401).send({
             error: 'Authentication required',
@@ -396,7 +403,150 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
 
         const token = authHeader.substring(7);
-        
+        user = await authService.validateToken(token);
+      }
+
+      // Check if user can impersonate
+      if (!authService.canImpersonate(user)) {
+        return reply.code(403).send({
+          error: 'Insufficient permissions',
+          message: 'User does not have permission to impersonate roles',
+        });
+      }
+
+      // Impersonate the role
+      const ipAddress = request.ip;
+      const impersonatedUser = await authService.impersonateRole(user, roleToImpersonate, ipAddress);
+
+      // Generate new tokens with impersonation data
+      const userAgent = request.headers['user-agent'];
+      const tokens = authService.generateTokens(impersonatedUser, userAgent, ipAddress);
+
+      return reply.code(200).send({
+        success: true,
+        impersonatedRole: roleToImpersonate,
+        originalRole: user.roles.includes('admin') ? 'System Administrator' : user.roles[0],
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: tokens.expiresIn,
+          tokenType: 'Bearer',
+        },
+      });
+    } catch (error) {
+      fastify.log.error('Role impersonation error:', error);
+      return reply.code(400).send({
+        error: 'Impersonation failed',
+        message: error instanceof Error ? error.message : 'Role impersonation failed',
+      });
+    }
+  });
+
+  // Clear role impersonation endpoint - DELETE /api/auth/impersonate
+  fastify.delete('/impersonate', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Authenticate user
+      let user;
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+        user = authService.createDemoUser();
+      } else {
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return reply.code(401).send({
+            error: 'Authentication required',
+            message: 'Valid Bearer token required',
+          });
+        }
+
+        const token = authHeader.substring(7);
+        user = await authService.validateToken(token);
+      }
+
+      // Clear impersonation
+      const ipAddress = request.ip;
+      const originalUser = await authService.clearImpersonation(user, ipAddress);
+
+      // Generate new tokens without impersonation data
+      const userAgent = request.headers['user-agent'];
+      const tokens = authService.generateTokens(originalUser, userAgent, ipAddress);
+
+      return reply.code(200).send({
+        success: true,
+        message: 'Impersonation cleared',
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: tokens.expiresIn,
+          tokenType: 'Bearer',
+        },
+      });
+    } catch (error) {
+      fastify.log.error('Clear impersonation error:', error);
+      return reply.code(400).send({
+        error: 'Clear impersonation failed',
+        message: error instanceof Error ? error.message : 'Failed to clear impersonation',
+      });
+    }
+  });
+
+  // Get available roles for impersonation endpoint - GET /api/auth/impersonate/roles
+  fastify.get('/impersonate/roles', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Authenticate user
+      let user;
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+        user = authService.createDemoUser();
+      } else {
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return reply.code(401).send({
+            error: 'Authentication required',
+            message: 'Valid Bearer token required',
+          });
+        }
+
+        const token = authHeader.substring(7);
+        user = await authService.validateToken(token);
+      }
+
+      const availableRoles = authService.getAvailableRoles(user);
+
+      return reply.code(200).send({
+        success: true,
+        canImpersonate: authService.canImpersonate(user),
+        availableRoles,
+        currentRole: user.impersonatedRole || (user.roles.includes('admin') ? 'System Administrator' : user.roles[0]),
+        isImpersonating: user.isImpersonating || false,
+      });
+    } catch (error) {
+      fastify.log.error('Get impersonation roles error:', error);
+      return reply.code(500).send({
+        error: 'Failed to get available roles',
+        message: error instanceof Error ? error.message : 'Internal server error',
+      });
+    }
+  });
+
+  // Protected admin route example - SECURITY FIX: Complete token validation
+  fastify.get('/admin/test', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      let user;
+
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+        user = authService.createDemoUser();
+      } else {
+        // SECURITY FIX: Implement proper token validation
+        const authHeader = request.headers.authorization;
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return reply.code(401).send({
+            error: 'Authentication required',
+            message: 'Valid Bearer token required',
+          });
+        }
+
+        const token = authHeader.substring(7);
+
         try {
           user = await authService.validateToken(token);
         } catch (tokenError) {
@@ -414,7 +564,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           message: 'Admin role required',
         });
       }
-      
+
       return reply.code(200).send({
         message: 'Admin access granted',
         user: {
@@ -428,6 +578,58 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.code(500).send({
         error: 'Internal server error',
         message: 'Failed to process admin request',
+      });
+    }
+  });
+
+  // Session validation endpoint - GET /api/auth/validate
+  fastify.get('/validate', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Authenticate user
+      let user;
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+        user = authService.createDemoUser();
+      } else {
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return reply.code(401).send({
+            valid: false,
+            error: 'Authentication required',
+            message: 'Valid Bearer token required',
+          });
+        }
+
+        const token = authHeader.substring(7);
+        try {
+          user = await authService.validateToken(token);
+        } catch (tokenError) {
+          return reply.code(401).send({
+            valid: false,
+            error: 'Invalid token',
+            message: 'Token expired or invalid',
+          });
+        }
+      }
+
+      return reply.code(200).send({
+        valid: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          roles: user.roles,
+          person: user.person,
+          isImpersonating: user.isImpersonating || false,
+          impersonatedRole: user.impersonatedRole,
+          originalRoles: user.originalRoles,
+        },
+      });
+    } catch (error) {
+      fastify.log.error('Session validation error:', error);
+      return reply.code(500).send({
+        valid: false,
+        error: 'Validation failed',
+        message: error instanceof Error ? error.message : 'Session validation failed',
       });
     }
   });

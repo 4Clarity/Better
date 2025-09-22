@@ -100,6 +100,7 @@ async function seedDemoUser() {
               lastName: 'Demont',
               role: 'program_manager',
               personId: person.id,
+              passwordHash: hashedPassword,
             }
           });
           console.log('✅ User record created for Dan Demont');

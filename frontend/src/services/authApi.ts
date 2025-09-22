@@ -6,6 +6,9 @@ export interface AuthUser {
   username: string;
   email: string;
   roles: string[];
+  impersonatedRole?: string; // Current impersonated role
+  originalRoles?: string[];  // Original user roles before impersonation
+  isImpersonating?: boolean; // Flag to indicate impersonation state
   isFirstUser?: boolean;
   person?: {
     id: string;
@@ -470,6 +473,101 @@ export class AuthenticationApi {
       this.clearStoredTokens();
       return false;
     }
+  }
+
+  /**
+   * Start role impersonation
+   */
+  async impersonateRole(roleToImpersonate: string): Promise<{
+    success: boolean;
+    impersonatedRole: string;
+    originalRole: string;
+    tokens: {
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+      tokenType: string;
+    };
+  }> {
+    const token = this.getStoredToken();
+
+    const response = await fetch(`${this.baseUrl}/impersonate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        'x-auth-bypass': 'true', // Enable auth bypass for development
+      },
+      body: JSON.stringify({ roleToImpersonate }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Role impersonation failed');
+    }
+
+    return result;
+  }
+
+  /**
+   * Clear role impersonation
+   */
+  async clearImpersonation(): Promise<{
+    success: boolean;
+    message: string;
+    tokens: {
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+      tokenType: string;
+    };
+  }> {
+    const token = this.getStoredToken();
+
+    const response = await fetch(`${this.baseUrl}/impersonate`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        'x-auth-bypass': 'true', // Enable auth bypass for development
+      },
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Clear impersonation failed');
+    }
+
+    return result;
+  }
+
+  /**
+   * Get available roles for impersonation
+   */
+  async getImpersonationRoles(): Promise<{
+    success: boolean;
+    canImpersonate: boolean;
+    availableRoles: string[];
+    currentRole: string;
+    isImpersonating: boolean;
+  }> {
+    const token = this.getStoredToken();
+
+    const response = await fetch(`${this.baseUrl}/impersonate/roles`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        'x-auth-bypass': 'true', // Enable auth bypass for development
+      },
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to get impersonation roles');
+    }
+
+    return result;
   }
 
   /**

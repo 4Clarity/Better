@@ -42,7 +42,7 @@ export class UserRegistrationService {
       this.validateRegistrationData(data);
 
       // 2. Validate email uniqueness
-      const existingUser = await prisma.users.findFirst({
+      const existingUser = await prisma.user.findFirst({
         where: { persons: { primaryEmail: data.email.toLowerCase() } }
       });
 
@@ -132,7 +132,7 @@ export class UserRegistrationService {
       }
 
       // Check if this would be the first user
-      const userCount = await prisma.users.count();
+      const userCount = await prisma.user.count();
       const isFirstUser = userCount === 0;
 
       // Mark email as verified
@@ -385,9 +385,9 @@ export class UserRegistrationService {
   private async notifyAdminsForApproval(request: any): Promise<void> {
     try {
       // Find active admin users
-      const admins = await prisma.users.findMany({
+      const admins = await prisma.user.findMany({
         where: {
-          user_roles_user_roles_userIdTousers: {
+          user_roles: {
             some: {
               roles: { name: 'admin' },
               isActive: true

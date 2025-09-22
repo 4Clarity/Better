@@ -101,20 +101,23 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Update user status
+  // Update user status with enhanced validation and audit trail
   fastify.put('/users/:id/status', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const { id } = request.params;
-      const { accountStatus, statusReason } = request.body as any;
-      const deactivatedBy = accountStatus === 'DEACTIVATED' ? 'current-user-id' : undefined;
-      
-      const user = await userService.updateUserStatus({
+      const { accountStatus, statusReason, reasonCode } = request.body as any;
+      const adminId = 'current-user-id'; // This should come from JWT token
+
+      // Validate and update user status (includes user existence check)
+      const user = await userService.updateUserStatusWithValidation({
         userId: id,
         accountStatus,
         statusReason,
-        deactivatedBy,
+        reasonCode,
+        adminId,
+        deactivatedBy: accountStatus === 'DEACTIVATED' ? adminId : undefined,
       });
-      
+
       return reply.code(200).send({
         message: 'User status updated successfully',
         user: {
@@ -129,33 +132,83 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get user status history for audit trail
+  fastify.get('/users/:id/status-history', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    try {
+      const { id } = request.params;
+
+      // Verify user exists
+      const user = await userService.getUserById(id);
+      if (!user) {
+        return reply.code(404).send({ error: 'User not found' });
+      }
+
+      const history = await userService.getUserStatusHistory(id);
+
+      return reply.code(200).send({
+        userId: id,
+        statusHistory: history,
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ error: 'Failed to fetch user status history' });
+    }
+  });
+
+  // Approve status change (for approval workflow)
+  fastify.put('/users/:id/approve-status', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    try {
+      const { id } = request.params;
+      const { approved, approvalReason } = request.body as any;
+      const adminId = 'current-user-id'; // This should come from JWT token
+
+      // TODO: Implement approval workflow
+      // For now, this is a placeholder for future enhancement
+
+      return reply.code(200).send({
+        message: approved ? 'Status change approved' : 'Status change rejected',
+        approval: {
+          userId: id,
+          approved,
+          approvalReason,
+          approvedBy: adminId,
+          approvedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ error: 'Failed to process status approval' });
+    }
+  });
+
   // Reactivate suspended user account
   fastify.post('/users/:id/reactivate', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       const { reason } = request.body as any;
       const reactivatedBy = 'current-user-id'; // This should come from JWT token
-      
+
       // First check if user exists and is suspended
       const existingUser = await userService.getUserById(id);
       if (!existingUser) {
         return reply.code(404).send({ error: 'User not found' });
       }
-      
+
       if (existingUser.accountStatus !== 'SUSPENDED') {
-        return reply.code(400).send({ 
+        return reply.code(400).send({
           error: 'Invalid operation',
           message: `Cannot reactivate user with status: ${existingUser.accountStatus}. Only SUSPENDED users can be reactivated.`
         });
       }
-      
+
       const user = await userService.updateUserStatus({
         userId: id,
         accountStatus: 'ACTIVE',
         statusReason: reason || 'Account reactivated',
+        adminId: reactivatedBy,
         deactivatedBy: undefined, // Clear the deactivation info
       });
-      
+
       return reply.code(200).send({
         message: 'User account reactivated successfully',
         user: {

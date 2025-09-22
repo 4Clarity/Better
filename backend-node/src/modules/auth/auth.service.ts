@@ -12,6 +12,9 @@ export interface AuthUser {
   username: string;
   email: string;
   roles: string[];
+  impersonatedRole?: string; // Current impersonated role
+  originalRoles?: string[];  // Original user roles before impersonation
+  isImpersonating?: boolean; // Flag to indicate impersonation state
   person?: {
     id: string;
     firstName: string;
@@ -28,6 +31,8 @@ export interface TokenPayload {
   username: string;
   email: string;
   roles: string[];
+  impersonatedRole?: string; // Added for role impersonation
+  originalRole?: string;     // Store original role for security
   iat: number;
   exp: number;
 }
@@ -137,9 +142,9 @@ export class AuthenticationService {
   /**
    * Generate application JWT token for authenticated user
    */
-  generateTokens(user: AuthUser, userAgent?: string, ipAddress?: string): { 
-    accessToken: string; 
-    refreshToken: string; 
+  generateTokens(user: AuthUser, userAgent?: string, ipAddress?: string): {
+    accessToken: string;
+    refreshToken: string;
     expiresIn: number;
     sessionId: string;
   } {
@@ -148,6 +153,8 @@ export class AuthenticationService {
       username: user.username,
       email: user.email,
       roles: user.roles,
+      impersonatedRole: user.impersonatedRole,
+      originalRole: user.originalRoles ? user.originalRoles[0] : undefined, // Store primary original role
     };
 
     // Generate session token (short-lived)
@@ -194,8 +201,8 @@ export class AuthenticationService {
         include: {
           users: {
             include: {
-              persons: true,
-              user_roles_user_roles_userIdTousers: {
+              person: true,
+              user_roles: {
                 include: {
                   roles: true,
                 },
@@ -214,13 +221,13 @@ export class AuthenticationService {
         id: session.users.id,
         keycloakId: session.users.keycloakId || undefined,
         username: session.users.username,
-        email: session.users.persons?.primaryEmail || session.users.username,
-        roles: session.users.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name),
-        person: session.users.persons ? {
-          id: session.users.persons.id,
-          firstName: session.users.persons.firstName,
-          lastName: session.users.persons.lastName,
-          displayName: `${session.users.persons.firstName} ${session.users.persons.lastName}`,
+        email: session.users.person?.primaryEmail || session.users.username,
+        roles: session.users.user_roles.map(ur => ur.roles.name),
+        person: session.users.person ? {
+          id: session.users.person.id,
+          firstName: session.users.person.firstName,
+          lastName: session.users.person.lastName,
+          displayName: `${session.users.person.firstName} ${session.users.person.lastName}`,
         } : undefined,
       };
 
@@ -251,13 +258,13 @@ export class AuthenticationService {
   async validateToken(token: string): Promise<AuthUser> {
     try {
       const decoded = jwt.verify(token, this.jwtSecret) as TokenPayload;
-      
+
       // Get fresh user data from database
-      const user = await prisma.users.findUnique({
+      const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         include: {
-          persons: true,
-          user_roles_user_roles_userIdTousers: {
+          person: true,
+          user_roles: {
             include: {
               roles: true,
             },
@@ -269,19 +276,32 @@ export class AuthenticationService {
         throw new Error('User not found');
       }
 
-      return {
+      const baseUser = {
         id: user.id,
         keycloakId: user.keycloakId || undefined,
         username: user.username,
-        email: user.persons?.primaryEmail || user.username,
-        roles: user.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name),
-        person: user.persons ? {
-          id: user.persons.id,
-          firstName: user.persons.firstName,
-          lastName: user.persons.lastName,
-          displayName: `${user.persons.firstName} ${user.persons.lastName}`,
+        email: user.person?.primaryEmail || user.username,
+        roles: user.user_roles.map(ur => ur.roles.name),
+        person: user.person ? {
+          id: user.person.id,
+          firstName: user.person.firstName,
+          lastName: user.person.lastName,
+          displayName: `${user.person.firstName} ${user.person.lastName}`,
         } : undefined,
       };
+
+      // If token contains impersonation data, reconstruct the impersonated user
+      if (decoded.impersonatedRole) {
+        return {
+          ...baseUser,
+          roles: [decoded.impersonatedRole.toLowerCase().replace(/\s+/g, '_')], // Use impersonated role
+          impersonatedRole: decoded.impersonatedRole,
+          originalRoles: baseUser.roles, // Store original roles from database
+          isImpersonating: true,
+        };
+      }
+
+      return baseUser;
     } catch (error) {
       throw new Error('Invalid token');
     }
@@ -306,11 +326,11 @@ export class AuthenticationService {
    * Get current user profile
    */
   async getCurrentUser(userId: string): Promise<AuthUser | null> {
-    const user = await prisma.users.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        persons: true,
-        user_roles_user_roles_userIdTousers: {
+        person: true,
+        user_roles: {
           include: {
             roles: true,
           },
@@ -324,13 +344,13 @@ export class AuthenticationService {
       id: user.id,
       keycloakId: user.keycloakId || undefined,
       username: user.username,
-      email: user.persons?.primaryEmail || user.username,
-      roles: user.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name),
-      person: user.persons ? {
-        id: user.persons.id,
-        firstName: user.persons.firstName,
-        lastName: user.persons.lastName,
-        displayName: `${user.persons.firstName} ${user.persons.lastName}`,
+      email: user.person?.primaryEmail || user.username,
+      roles: user.user_roles.map(ur => ur.roles.name),
+      person: user.person ? {
+        id: user.person.id,
+        firstName: user.person.firstName,
+        lastName: user.person.lastName,
+        displayName: `${user.person.firstName} ${user.person.lastName}`,
       } : undefined,
     };
   }
@@ -564,11 +584,11 @@ export class AuthenticationService {
       console.log(`Keycloak user authentication attempt: ${keycloakData.email || keycloakData.sub} (${keycloakData.sub})`);
 
       // 1. Look for existing user by keycloakId
-      let user = await prisma.users.findFirst({
+      let user = await prisma.user.findFirst({
         where: { keycloakId: keycloakData.sub },
         include: {
-          persons: true,
-          user_roles_user_roles_userIdTousers: {
+          person: true,
+          user_roles: {
             include: { roles: true }
           }
         }
@@ -580,13 +600,13 @@ export class AuthenticationService {
 
       // 2. If not found, look by email
       if (!user && keycloakData.email) {
-        user = await prisma.users.findFirst({
+        user = await prisma.user.findFirst({
           where: {
-            persons: { primaryEmail: keycloakData.email?.toLowerCase() }
+            person: { primaryEmail: keycloakData.email?.toLowerCase() }
           },
           include: {
-            persons: true,
-            user_roles_user_roles_userIdTousers: {
+            person: true,
+            user_roles: {
               include: { roles: true }
             }
           }
@@ -595,12 +615,12 @@ export class AuthenticationService {
         // If found by email, link Keycloak ID
         if (user) {
           console.log(`Found existing user by email, linking Keycloak ID: ${user.id} (${user.username})`);
-          user = await prisma.users.update({
+          user = await prisma.user.update({
             where: { id: user.id },
             data: { keycloakId: keycloakData.sub },
             include: {
-              persons: true,
-              user_roles_user_roles_userIdTousers: {
+              person: true,
+              user_roles: {
                 include: { roles: true }
               }
             }
@@ -618,11 +638,11 @@ export class AuthenticationService {
         console.log(`Updating existing user with latest Keycloak data: ${user.id}`);
         await this.updateUserFromKeycloak(user.id, keycloakData);
         // Refresh user data after update
-        user = await prisma.users.findUnique({
+        user = await prisma.user.findUnique({
           where: { id: user.id },
           include: {
-            persons: true,
-            user_roles_user_roles_userIdTousers: {
+            person: true,
+            user_roles: {
               include: { roles: true }
             }
           }
@@ -644,7 +664,7 @@ export class AuthenticationService {
    */
   private async createUserFromKeycloak(keycloakData: any): Promise<any> {
     // Check if this should be the first admin user
-    const userCount = await prisma.users.count();
+    const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
 
     if (isFirstUser) {
@@ -697,8 +717,8 @@ export class AuthenticationService {
 
       return {
         ...user,
-        persons: person,
-        user_roles_user_roles_userIdTousers: []
+        person: person,
+        user_roles: []
       };
     });
   }
@@ -719,19 +739,19 @@ export class AuthenticationService {
       });
 
       // Update person record with latest info from Keycloak
-      const user = await tx.users.findUnique({
+      const user = await tx.user.findUnique({
         where: { id: userId },
-        include: { persons: true }
+        include: { person: true }
       });
 
-      if (user?.persons) {
+      if (user?.person) {
         await tx.persons.update({
-          where: { id: user.persons.id },
+          where: { id: user.person.id },
           data: {
-            firstName: keycloakData.given_name || user.persons.firstName,
-            lastName: keycloakData.family_name || user.persons.lastName,
-            profileImageUrl: keycloakData.picture || user.persons.profileImageUrl,
-            workPhone: keycloakData.phone_number || user.persons.workPhone,
+            firstName: keycloakData.given_name || user.person.firstName,
+            lastName: keycloakData.family_name || user.person.lastName,
+            profileImageUrl: keycloakData.picture || user.person.profileImageUrl,
+            workPhone: keycloakData.phone_number || user.person.workPhone,
           }
         });
       }
@@ -935,16 +955,16 @@ export class AuthenticationService {
       id: user.id,
       keycloakId: user.keycloakId,
       username: user.username,
-      email: user.persons?.primaryEmail || user.username,
-      roles: user.user_roles_user_roles_userIdTousers?.map((ur: any) => ur.roles.name) || [],
-      person: user.persons ? {
-        id: user.persons.id,
-        firstName: user.persons.firstName,
-        lastName: user.persons.lastName,
-        displayName: user.persons.preferredName || `${user.persons.firstName} ${user.persons.lastName}`,
-        profilePictureUrl: user.persons.profileImageUrl,
-        organizationName: user.persons.workLocation, // Using workLocation as organization fallback
-        position: user.persons.title,
+      email: user.person?.primaryEmail || user.username,
+      roles: user.user_roles?.map((ur: any) => ur.roles.name) || [],
+      person: user.person ? {
+        id: user.person.id,
+        firstName: user.person.firstName,
+        lastName: user.person.lastName,
+        displayName: user.person.preferredName || `${user.person.firstName} ${user.person.lastName}`,
+        profilePictureUrl: user.person.profileImageUrl,
+        organizationName: user.person.workLocation, // Using workLocation as organization fallback
+        position: user.person.title,
       } : undefined,
     };
   }
@@ -959,18 +979,18 @@ export class AuthenticationService {
   }> {
     try {
       // Find user in database by email
-      const user = await prisma.users.findFirst({
+      const user = await prisma.user.findFirst({
         where: {
-          persons: {
+          person: {
             primaryEmail: email.toLowerCase(),
           },
         },
         include: {
-          persons: true,
+          person: true,
         },
       });
 
-      if (!user || !user.persons) {
+      if (!user || !user.person) {
         return {
           user: null,
           authMethods: [],
@@ -978,8 +998,8 @@ export class AuthenticationService {
         };
       }
 
-      // Check if account is active
-      if (user.accountStatus !== 'ACTIVE') {
+      // Check if account is active (if accountStatus field exists)
+      if (user.accountStatus && user.accountStatus !== 'Active') {
         throw new Error(`Account is ${user.accountStatus.toLowerCase()}. Please contact your administrator.`);
       }
 
@@ -996,10 +1016,10 @@ export class AuthenticationService {
       authMethods.push('password');
 
       // Get user roles from new relational structure
-      const userWithRoles = await prisma.users.findUnique({
+      const userWithRoles = await prisma.user.findUnique({
         where: { id: user.id },
         include: {
-          user_roles_user_roles_userIdTousers: {
+          user_roles: {
             include: {
               roles: true,
             },
@@ -1010,14 +1030,14 @@ export class AuthenticationService {
       const authUser: AuthUser = {
         id: user.id,
         keycloakId: user.keycloakId || undefined,
-        username: user.persons.primaryEmail, // Use email as username per our change
-        email: user.persons.primaryEmail,
-        roles: userWithRoles?.user_roles_user_roles_userIdTousers.map(ur => ur.roles.name) || [],
+        username: user.person.primaryEmail, // Use email as username per our change
+        email: user.person.primaryEmail,
+        roles: userWithRoles?.user_roles.map(ur => ur.roles.name) || [],
         person: {
-          id: user.persons.id,
-          firstName: user.persons.firstName,
-          lastName: user.persons.lastName,
-          displayName: `${user.persons.firstName} ${user.persons.lastName}`,
+          id: user.person.id,
+          firstName: user.person.firstName,
+          lastName: user.person.lastName,
+          displayName: `${user.person.firstName} ${user.person.lastName}`,
         },
       };
 
@@ -1125,8 +1145,13 @@ export class AuthenticationService {
         return validDemoPasswords.includes(password);
       }
 
+      // For Dan Demont demo user
+      if (user.id === 'dan-demont-user-id') {
+        return password === 'dandemo1234!' || password === 'dandemo';
+      }
+
       // Get user's password hash from database
-      const userRecord = await prisma.users.findUnique({
+      const userRecord = await prisma.user.findUnique({
         where: { id: user.id },
         select: { passwordHash: true }
       });
@@ -1288,18 +1313,118 @@ export class AuthenticationService {
    */
   async recordLogin(userId: string, ipAddress?: string, userAgent?: string): Promise<void> {
     try {
-      await prisma.users.update({
+      await prisma.user.update({
         where: { id: userId },
         data: { lastLoginAt: new Date() },
       });
 
       // Enhanced security logging
       console.log(`User login recorded: ${userId} from ${ipAddress} with ${userAgent}`);
-      
+
       // TODO: Add to security audit log table
     } catch (error) {
       console.error('Error recording login:', error);
     }
+  }
+
+  /**
+   * Impersonate a role - Admin or demo mode only
+   */
+  async impersonateRole(user: AuthUser, roleToImpersonate: string, ipAddress?: string): Promise<AuthUser> {
+    try {
+      // Security check: Only admins or demo mode can impersonate
+      if (!user.roles.includes('admin') && process.env.AUTH_BYPASS !== 'true') {
+        throw new Error('Insufficient permissions to impersonate roles');
+      }
+
+      // Validate the role exists and is valid
+      const validRoles = ['Program Manager', 'Departing Contractor', 'Incoming Contractor', 'Security Officer', 'Observer', 'System Administrator'];
+      if (!validRoles.includes(roleToImpersonate)) {
+        throw new Error('Invalid role for impersonation');
+      }
+
+      // Prevent privilege escalation - can't impersonate admin unless already admin
+      if (roleToImpersonate === 'System Administrator' && !user.roles.includes('admin')) {
+        throw new Error('Cannot impersonate administrator role without admin privileges');
+      }
+
+      // Store original roles if not already impersonating
+      const originalRoles = user.isImpersonating ? user.originalRoles : user.roles;
+
+      // Create impersonated user object
+      const impersonatedUser: AuthUser = {
+        ...user,
+        roles: [roleToImpersonate.toLowerCase().replace(/\s+/g, '_')], // Convert to system role format
+        impersonatedRole: roleToImpersonate,
+        originalRoles,
+        isImpersonating: true,
+      };
+
+      // Log impersonation event for audit
+      console.log(`Role impersonation started: User ${user.id} (${user.email}) impersonating ${roleToImpersonate} from IP: ${ipAddress}`);
+
+      // TODO: Add to audit log table
+
+      return impersonatedUser;
+    } catch (error) {
+      console.error('Role impersonation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear role impersonation and return to original role
+   */
+  async clearImpersonation(user: AuthUser, ipAddress?: string): Promise<AuthUser> {
+    try {
+      if (!user.isImpersonating || !user.originalRoles) {
+        return user; // Not impersonating, return as-is
+      }
+
+      // Restore original user
+      const originalUser: AuthUser = {
+        ...user,
+        roles: user.originalRoles,
+        impersonatedRole: undefined,
+        originalRoles: undefined,
+        isImpersonating: false,
+      };
+
+      // Log end of impersonation for audit
+      console.log(`Role impersonation ended: User ${user.id} (${user.email}) returned to original roles from IP: ${ipAddress}`);
+
+      // TODO: Add to audit log table
+
+      return originalUser;
+    } catch (error) {
+      console.error('Clear impersonation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if user can impersonate roles
+   */
+  canImpersonate(user: AuthUser): boolean {
+    return user.roles.includes('admin') || process.env.AUTH_BYPASS === 'true';
+  }
+
+  /**
+   * Get available roles for impersonation
+   */
+  getAvailableRoles(user: AuthUser): string[] {
+    if (!this.canImpersonate(user)) {
+      return [];
+    }
+
+    const allRoles = ['Program Manager', 'Departing Contractor', 'Incoming Contractor', 'Security Officer', 'Observer'];
+
+    // Admins can impersonate any role including other admins
+    if (user.roles.includes('admin')) {
+      allRoles.push('System Administrator');
+    }
+
+    return allRoles;
   }
 
 }

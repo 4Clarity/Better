@@ -48,7 +48,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 }
 
 /**
- * Role-based authorization middleware
+ * Role-based authorization middleware - ENHANCED for impersonation
  */
 export function requireRoles(requiredRoles: string[]) {
   return async function (request: FastifyRequest, reply: FastifyReply) {
@@ -59,14 +59,21 @@ export function requireRoles(requiredRoles: string[]) {
       });
     }
 
-    const hasRequiredRole = requiredRoles.some(role => 
-      request.user?.roles.includes(role)
-    );
+    // For impersonated users, check the current effective roles
+    const effectiveRoles = request.user.roles;
+    const hasRequiredRole = requiredRoles.some(role => effectiveRoles.includes(role));
 
     if (!hasRequiredRole) {
+      // Enhanced error message for impersonated users
+      const roleContext = request.user.isImpersonating
+        ? ` (currently impersonating: ${request.user.impersonatedRole})`
+        : '';
+
       return reply.status(403).send({
         error: 'Insufficient permissions',
-        message: `Required roles: ${requiredRoles.join(', ')}`,
+        message: `Required roles: ${requiredRoles.join(', ')}${roleContext}`,
+        isImpersonating: request.user.isImpersonating || false,
+        currentRole: request.user.impersonatedRole || effectiveRoles[0],
       });
     }
   };
@@ -141,6 +148,26 @@ export async function registerAuthDecorators(fastify: FastifyInstance) {
   fastify.decorateRequest('isAdmin', function (this: FastifyRequest): boolean {
     return this.user?.roles.includes('admin') || false;
   });
+
+  // Helper decorator to check if user is currently impersonating
+  fastify.decorateRequest('isImpersonating', function (this: FastifyRequest): boolean {
+    return this.user?.isImpersonating || false;
+  });
+
+  // Helper decorator to get current effective role
+  fastify.decorateRequest('getCurrentRole', function (this: FastifyRequest): string | undefined {
+    return this.user?.impersonatedRole || (this.user?.roles?.[0]);
+  });
+
+  // Helper decorator to get original roles before impersonation
+  fastify.decorateRequest('getOriginalRoles', function (this: FastifyRequest): string[] {
+    return this.user?.originalRoles || this.user?.roles || [];
+  });
+
+  // Helper decorator to check if user can impersonate
+  fastify.decorateRequest('canImpersonate', function (this: FastifyRequest): boolean {
+    return this.user?.roles.includes('admin') || process.env.AUTH_BYPASS === 'true';
+  });
 }
 
 // Extend Fastify instance type to include our decorators
@@ -155,5 +182,9 @@ declare module 'fastify' {
     hasRole: (role: string) => boolean;
     hasAnyRole: (roles: string[]) => boolean;
     isAdmin: () => boolean;
+    isImpersonating: () => boolean;
+    getCurrentRole: () => string | undefined;
+    getOriginalRoles: () => string[];
+    canImpersonate: () => boolean;
   }
 }
