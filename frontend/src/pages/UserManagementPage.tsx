@@ -119,6 +119,11 @@ export function UserManagementPage() {
       loadSecurityData(); // Reload dashboard data
     } catch (err) {
       console.error('Error inviting user:', err);
+      console.error('Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : 'No stack trace',
+        invitationData
+      });
       alert(err instanceof Error ? err.message : 'Failed to invite user');
     }
   };

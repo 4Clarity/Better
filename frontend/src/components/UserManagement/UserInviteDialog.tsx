@@ -28,20 +28,20 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
     mobilePhone: '',
     workLocation: '',
     professionalSummary: '',
-    securityClearanceLevel: 'NONE',
-    pivStatus: 'PIV_EXCEPTION_PENDING',
+    securityClearanceLevel: 'None',
     
     // User data
     username: '',
+    password: '',
     roles: [] as string[],
     
     // Organization affiliation
     organizationId: '',
     jobTitle: '',
     department: '',
-    affiliationType: 'EMPLOYEE',
-    employmentStatus: 'ACTIVE',
-    accessLevel: 'STANDARD',
+    affiliationType: 'Employee',
+    employmentStatus: 'Active',
+    accessLevel: 'Standard',
     contractNumber: '',
   });
 
@@ -55,8 +55,24 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
     if (!formData.primaryEmail.trim()) newErrors.primaryEmail = 'Email is required';
     if (!formData.primaryEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) newErrors.primaryEmail = 'Valid email is required';
     if (!formData.username.trim()) newErrors.username = 'Username is required';
+    if (!formData.password.trim()) newErrors.password = 'Initial password is required';
+    if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+
+    // Password complexity validation
+    if (formData.password.trim()) {
+      const hasLowercase = /[a-z]/.test(formData.password);
+      const hasUppercase = /[A-Z]/.test(formData.password);
+      const hasNumbers = /\d/.test(formData.password);
+      const hasSpecialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\?]/.test(formData.password);
+      const complexityCount = [hasLowercase, hasUppercase, hasNumbers, hasSpecialChars].filter(Boolean).length;
+
+      if (complexityCount < 3) {
+        newErrors.password = 'Password must contain at least 3 of: lowercase, uppercase, numbers, special characters';
+      }
+    }
     if (formData.roles.length === 0) newErrors.roles = 'At least one role is required';
-    if (!formData.organizationId) newErrors.organizationId = 'Organization is required';
+    // Organization is optional - remove the required validation
+    // if (!formData.organizationId) newErrors.organizationId = 'Organization is required';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -81,24 +97,31 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
         workLocation: formData.workLocation || undefined,
         professionalSummary: formData.professionalSummary || undefined,
         securityClearanceLevel: formData.securityClearanceLevel || undefined,
-        pivStatus: formData.pivStatus,
       },
       userData: {
         username: formData.username,
+        password: formData.password,
         roles: formData.roles,
         invitedBy: 'current-user-id', // This should come from auth context
       },
-      organizationAffiliation: {
-        organizationId: formData.organizationId,
-        jobTitle: formData.jobTitle || undefined,
-        department: formData.department || undefined,
-        affiliationType: formData.affiliationType,
-        employmentStatus: formData.employmentStatus,
-        accessLevel: formData.accessLevel,
-        contractNumber: formData.contractNumber || undefined,
-      },
+      // Only include organizationAffiliation if organizationId is provided
+      ...(formData.organizationId && {
+        organizationAffiliation: {
+          organizationId: formData.organizationId,
+          jobTitle: formData.jobTitle || undefined,
+          department: formData.department || undefined,
+          affiliationType: formData.affiliationType,
+          employmentStatus: formData.employmentStatus,
+          accessLevel: formData.accessLevel,
+          contractNumber: formData.contractNumber || undefined,
+        },
+      }),
     };
-    
+
+    console.log('Sending invitation data:', invitationData);
+    console.log('organizationId:', formData.organizationId);
+    console.log('Condition check:', !!formData.organizationId);
+
     onInvite(invitationData);
     
     // Reset form
@@ -114,16 +137,16 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
       mobilePhone: '',
       workLocation: '',
       professionalSummary: '',
-      securityClearanceLevel: 'NONE',
-      pivStatus: 'PIV_EXCEPTION_PENDING',
+      securityClearanceLevel: 'None',
       username: '',
+      password: '',
       roles: [],
       organizationId: '',
       jobTitle: '',
       department: '',
-      affiliationType: 'EMPLOYEE',
-      employmentStatus: 'ACTIVE',
-      accessLevel: 'STANDARD',
+      affiliationType: 'Employee',
+      employmentStatus: 'Active',
+      accessLevel: 'Standard',
       contractNumber: '',
     });
     
@@ -299,31 +322,16 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
                     <SelectValue placeholder="Select clearance level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NONE">None</SelectItem>
-                    <SelectItem value="PUBLIC_TRUST">Public Trust</SelectItem>
-                    <SelectItem value="CONFIDENTIAL">Confidential</SelectItem>
-                    <SelectItem value="SECRET">Secret</SelectItem>
-                    <SelectItem value="TOP_SECRET">Top Secret</SelectItem>
+                    <SelectItem value="None">None</SelectItem>
+                    <SelectItem value="Public_Trust">Public Trust</SelectItem>
+                    <SelectItem value="Confidential">Confidential</SelectItem>
+                    <SelectItem value="Secret">Secret</SelectItem>
+                    <SelectItem value="Top_Secret">Top Secret</SelectItem>
                     <SelectItem value="TS_SCI">TS/SCI</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
-              <div>
-                <Label htmlFor="pivStatus">PIV Status</Label>
-                <Select value={formData.pivStatus} onValueChange={(value) => setFormData(prev => ({ ...prev, pivStatus: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PIV_VERIFIED">PIV Verified</SelectItem>
-                    <SelectItem value="PIV_EXCEPTION_PENDING">Exception Pending</SelectItem>
-                    <SelectItem value="PIV_EXCEPTION_INTERIM">Exception Interim</SelectItem>
-                    <SelectItem value="PIV_EXPIRED">PIV Expired</SelectItem>
-                    <SelectItem value="PIV_SUSPENDED">PIV Suspended</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
 
@@ -346,6 +354,23 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
                   </Button>
                 </div>
                 {errors.username && <p className="text-sm text-red-500 mt-1">{errors.username}</p>}
+              </div>
+
+              <div>
+                <Label htmlFor="password">Initial Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  className={errors.password ? 'border-red-500' : ''}
+                  placeholder="User will be required to change on first login"
+                />
+                {errors.password && <p className="text-sm text-red-500 mt-1">{errors.password}</p>}
+                <p className="text-sm text-gray-500 mt-1">
+                  Requirements: 8+ characters with at least 3 of: lowercase, uppercase, numbers, special characters (!@#$%^&*).
+                  User will be required to change this on first login.
+                </p>
               </div>
             </div>
             
@@ -384,7 +409,7 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="organizationId">Organization *</Label>
+                <Label htmlFor="organizationId">Organization</Label>
                 <Select value={formData.organizationId} onValueChange={(value) => setFormData(prev => ({ ...prev, organizationId: value }))}>
                   <SelectTrigger className={errors.organizationId ? 'border-red-500' : ''}>
                     <SelectValue placeholder="Select organization" />
@@ -417,10 +442,13 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                    <SelectItem value="CONTRACTOR">Contractor</SelectItem>
-                    <SelectItem value="CONSULTANT">Consultant</SelectItem>
-                    <SelectItem value="VENDOR">Vendor</SelectItem>
+                    <SelectItem value="Employee">Employee</SelectItem>
+                    <SelectItem value="Contractor">Contractor</SelectItem>
+                    <SelectItem value="Consultant">Consultant</SelectItem>
+                    <SelectItem value="Vendor">Vendor</SelectItem>
+                    <SelectItem value="Partner">Partner</SelectItem>
+                    <SelectItem value="Volunteer">Volunteer</SelectItem>
+                    <SelectItem value="Intern">Intern</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -432,9 +460,13 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="ON_LEAVE">On Leave</SelectItem>
-                    <SelectItem value="TERMINATED">Terminated</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="On_Leave">On Leave</SelectItem>
+                    <SelectItem value="Terminated">Terminated</SelectItem>
+                    <SelectItem value="Resigned">Resigned</SelectItem>
+                    <SelectItem value="Retired">Retired</SelectItem>
+                    <SelectItem value="Contract_Ended">Contract Ended</SelectItem>
+                    <SelectItem value="Transferred">Transferred</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -446,10 +478,11 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="VISITOR">Visitor</SelectItem>
-                    <SelectItem value="STANDARD">Standard</SelectItem>
-                    <SelectItem value="ELEVATED">Elevated</SelectItem>
-                    <SelectItem value="ADMINISTRATIVE">Administrative</SelectItem>
+                    <SelectItem value="Visitor">Visitor</SelectItem>
+                    <SelectItem value="Standard">Standard</SelectItem>
+                    <SelectItem value="Elevated">Elevated</SelectItem>
+                    <SelectItem value="Administrative">Administrative</SelectItem>
+                    <SelectItem value="Executive">Executive</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

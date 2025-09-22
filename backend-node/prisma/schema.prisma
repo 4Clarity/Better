@@ -14,6 +14,9 @@ model User {
   firstName                String
   lastName                 String
   role                     String
+  passwordHash             String?
+  mustChangePassword       Boolean                    @default(false)
+  passwordChangedAt        DateTime?
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
   BusinessOperation        BusinessOperation[]        @relation("BusinessOperation_currentManagerIdToUser")

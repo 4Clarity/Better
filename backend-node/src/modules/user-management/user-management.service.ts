@@ -2,6 +2,8 @@ import { PrismaClient, User, Person, Organization, PersonOrganizationAffiliation
 import { randomBytes } from 'crypto';
 import { hash, compare } from 'bcryptjs';
 import { sign } from 'jsonwebtoken';
+import { createId } from '@paralleldrive/cuid2';
+import { AuthenticationService } from '../auth/auth.service';
 
 const prisma = new PrismaClient();
 
@@ -99,10 +101,12 @@ export class UserManagementService {
   async createPerson(data: CreatePersonInput): Promise<Person> {
     return prisma.persons.create({
       data: {
+        id: createId(),
         ...data,
         skills: data.skills || [],
         certifications: data.certifications || [],
         education: data.education || {},
+        updatedAt: new Date(),
       },
     });
   }
@@ -169,49 +173,53 @@ export class UserManagementService {
       // Create person
       const person = await tx.persons.create({
         data: {
+          id: createId(),
           ...invitationData.personData,
           skills: invitationData.personData.skills || [],
           certifications: invitationData.personData.certifications || [],
           education: invitationData.personData.education || {},
+          updatedAt: new Date(),
         },
       });
+
+      // Hash the password for initial login
+      const authService = new AuthenticationService();
+      const hashedPassword = await authService.hashPassword(invitationData.userData.password);
 
       // Create user
       const user = await tx.user.create({
         data: {
-          personId: person.id,
-          username: invitationData.userData.username,
-          keycloakId: `pending-${person.id}`, // Will be updated when user completes registration
-          invitationStatus: 'INVITATION_SENT',
-          accountStatus: 'PENDING',
-          emailVerified: false,
-          roles: invitationData.userData.roles || [],
-          invitationToken,
-          invitationExpiresAt,
-          invitedBy: invitationData.userData.invitedBy,
-          invitedAt: new Date(),
-          sessionTimeout: invitationData.userData.sessionTimeout,
-          allowedIpRanges: invitationData.userData.allowedIpRanges || [],
-          permissions: invitationData.userData.permissions || {},
+          email: person.primaryEmail, // Use the person's primary email
+          firstName: person.firstName,
+          lastName: person.lastName,
+          role: invitationData.userData.roles?.[0] || 'Observer', // Use first role as primary role
+          passwordHash: hashedPassword,
+          mustChangePassword: true, // Force password change on first login
+          person: {
+            connect: { id: person.id }
+          }
         },
       });
 
       // Create organization affiliation if provided
       if (invitationData.organizationAffiliation) {
-        await tx.personOrganizationAffiliation.create({
+        await tx.person_organization_affiliations.create({
           data: {
+            id: createId(),
             personId: person.id,
             organizationId: invitationData.organizationAffiliation.organizationId,
             jobTitle: invitationData.organizationAffiliation.jobTitle,
             department: invitationData.organizationAffiliation.department,
             affiliationType: invitationData.organizationAffiliation.affiliationType,
             employmentStatus: invitationData.organizationAffiliation.employmentStatus,
-            securityClearanceRequired: invitationData.organizationAffiliation.securityClearanceRequired,
-            startDate: new Date(),
-            isPrimary: true,
             accessLevel: invitationData.organizationAffiliation.accessLevel,
             contractNumber: invitationData.organizationAffiliation.contractNumber,
             createdBy: user.id,
+            startDate: new Date(),
+            isActive: true,
+            isPrimary: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           },
         });
       }

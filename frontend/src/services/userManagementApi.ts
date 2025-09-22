@@ -27,10 +27,8 @@ export interface Person {
   mobilePhone?: string;
   workLocation?: string;
   professionalSummary?: string;
-  securityClearanceLevel?: 'NONE' | 'PUBLIC_TRUST' | 'CONFIDENTIAL' | 'SECRET' | 'TOP_SECRET' | 'TS_SCI';
+  securityClearanceLevel?: 'None' | 'Public_Trust' | 'Confidential' | 'Secret' | 'Top_Secret' | 'TS_SCI';
   clearanceExpirationDate?: string;
-  pivStatus: 'PIV_VERIFIED' | 'PIV_EXCEPTION_PENDING' | 'PIV_EXCEPTION_INTERIM' | 'PIV_EXPIRED' | 'PIV_SUSPENDED';
-  pivExpirationDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -92,11 +90,11 @@ export interface UserInvitationData {
     mobilePhone?: string;
     workLocation?: string;
     professionalSummary?: string;
-    securityClearanceLevel?: 'NONE' | 'PUBLIC_TRUST' | 'CONFIDENTIAL' | 'SECRET' | 'TOP_SECRET' | 'TS_SCI';
-    pivStatus?: 'PIV_VERIFIED' | 'PIV_EXCEPTION_PENDING' | 'PIV_EXCEPTION_INTERIM' | 'PIV_EXPIRED' | 'PIV_SUSPENDED';
+    securityClearanceLevel?: 'None' | 'Public_Trust' | 'Confidential' | 'Secret' | 'Top_Secret' | 'TS_SCI';
   };
   userData: {
     username: string;
+    password: string;
     roles: string[];
     sessionTimeout?: number;
     allowedIpRanges?: string[];
@@ -106,9 +104,9 @@ export interface UserInvitationData {
     organizationId: string;
     jobTitle?: string;
     department?: string;
-    affiliationType: 'EMPLOYEE' | 'CONTRACTOR' | 'CONSULTANT' | 'VENDOR' | 'PARTNER' | 'VOLUNTEER' | 'INTERN';
-    employmentStatus: 'ACTIVE' | 'ON_LEAVE' | 'TERMINATED' | 'RESIGNED' | 'RETIRED' | 'CONTRACT_ENDED' | 'TRANSFERRED';
-    accessLevel: 'VISITOR' | 'STANDARD' | 'ELEVATED' | 'ADMINISTRATIVE' | 'EXECUTIVE';
+    affiliationType: 'Employee' | 'Contractor' | 'Consultant' | 'Vendor' | 'Partner' | 'Volunteer' | 'Intern';
+    employmentStatus: 'Active' | 'On_Leave' | 'Terminated' | 'Resigned' | 'Retired' | 'Contract_Ended' | 'Transferred';
+    accessLevel: 'Visitor' | 'Standard' | 'Elevated' | 'Administrative' | 'Executive';
     contractNumber?: string;
   };
 }
@@ -128,7 +126,6 @@ export interface SecurityDashboard {
   activeUsers: number;
   pendingInvitations: number;
   expiringSecurity: number;
-  pivStatusCounts: Record<string, number>;
   clearanceLevelCounts: Record<string, number>;
   recentActivity: {
     id: string;
@@ -346,18 +343,14 @@ export class UserManagementApi {
 
   // Update user security information
   static async updateUserSecurity(userId: string, data: {
-    securityClearanceLevel?: 'NONE' | 'PUBLIC_TRUST' | 'CONFIDENTIAL' | 'SECRET' | 'TOP_SECRET' | 'TS_SCI';
+    securityClearanceLevel?: 'None' | 'Public_Trust' | 'Confidential' | 'Secret' | 'Top_Secret' | 'TS_SCI';
     clearanceExpirationDate?: string;
-    pivStatus?: 'PIV_VERIFIED' | 'PIV_EXCEPTION_PENDING' | 'PIV_EXCEPTION_INTERIM' | 'PIV_EXPIRED' | 'PIV_SUSPENDED';
-    pivExpirationDate?: string;
   }): Promise<{
     message: string;
     person: {
       id: string;
       securityClearanceLevel?: string;
       clearanceExpirationDate?: string;
-      pivStatus: string;
-      pivExpirationDate?: string;
     };
   }> {
     return this.request(`/users/${userId}/security`, {

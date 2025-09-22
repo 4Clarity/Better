@@ -110,6 +110,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           username: user.username,
           email: user.email,
           roles: user.roles,
+          mustChangePassword: user.mustChangePassword,
           person: user.person,
         },
         tokens: {
@@ -630,6 +631,32 @@ export async function authRoutes(fastify: FastifyInstance) {
         valid: false,
         error: 'Validation failed',
         message: error instanceof Error ? error.message : 'Session validation failed',
+      });
+    }
+  });
+
+  // Change password endpoint
+  fastify.post('/change-password', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { userId, newPassword } = request.body as any;
+
+      if (!userId || !newPassword) {
+        return reply.code(400).send({
+          error: 'Missing required fields',
+          message: 'userId and newPassword are required',
+        });
+      }
+
+      await authService.changePassword(userId, newPassword);
+
+      return reply.code(200).send({
+        message: 'Password changed successfully',
+      });
+    } catch (error) {
+      fastify.log.error('Password change error:', error);
+      return reply.code(500).send({
+        error: 'Password change failed',
+        message: error instanceof Error ? error.message : 'Failed to change password',
       });
     }
   });

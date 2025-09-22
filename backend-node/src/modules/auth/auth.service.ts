@@ -12,6 +12,7 @@ export interface AuthUser {
   username: string;
   email: string;
   roles: string[];
+  mustChangePassword?: boolean; // Flag indicating user must change password
   impersonatedRole?: string; // Current impersonated role
   originalRoles?: string[];  // Original user roles before impersonation
   isImpersonating?: boolean; // Flag to indicate impersonation state
@@ -1033,6 +1034,7 @@ export class AuthenticationService {
         username: user.person.primaryEmail, // Use email as username per our change
         email: user.person.primaryEmail,
         roles: userWithRoles?.user_roles.map(ur => ur.roles.name) || [],
+        mustChangePassword: user.mustChangePassword || false,
         person: {
           id: user.person.id,
           firstName: user.person.firstName,
@@ -1087,6 +1089,23 @@ export class AuthenticationService {
 
       // Clear failed attempts on successful login
       this.failedAttempts.delete(lockKey);
+
+      // Check if user must change password
+      const userRecord = await prisma.user.findUnique({
+        where: { id: result.user.id },
+        select: { mustChangePassword: true }
+      });
+
+      if (userRecord?.mustChangePassword) {
+        // Return user but with a flag indicating password change is required
+        const userWithPasswordChangeFlag = {
+          ...result.user,
+          mustChangePassword: true
+        };
+
+        // Don't record login yet - wait until password is changed
+        return userWithPasswordChangeFlag;
+      }
 
       // Record successful login for audit
       await this.recordLogin(result.user.id, ipAddress);
@@ -1166,6 +1185,31 @@ export class AuthenticationService {
     } catch (error) {
       console.error('Password verification error:', error);
       return false;
+    }
+  }
+
+  /**
+   * Change user password and clear mustChangePassword flag
+   */
+  async changePassword(userId: string, newPassword: string): Promise<void> {
+    try {
+      // Hash the new password
+      const hashedPassword = await this.hashPassword(newPassword);
+
+      // Update user password and clear the mustChangePassword flag
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: hashedPassword,
+          mustChangePassword: false,
+          passwordChangedAt: new Date(),
+        },
+      });
+
+      console.log(`Password changed successfully for user ${userId}`);
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw new Error('Failed to change password');
     }
   }
 
