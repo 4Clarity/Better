@@ -18,6 +18,8 @@ import { authRoutes, registrationRoutes, registerAuthDecorators } from './module
 import { registrationManagementRoutes } from './modules/admin';
 import approvalQueueRoutes from './modules/knowledge/approval-queue.route';
 import documentsRoutes from './modules/knowledge/documents.route';
+import knowledgeSourceRoutes from './modules/knowledge/knowledge-source.routes';
+import n8nIntegrationRoutes from './modules/knowledge/n8n-integration.routes';
 
 export function buildServer() {
   const server = Fastify({
@@ -165,6 +167,8 @@ export function buildServer() {
   server.register(userManagementRoutes, { prefix: '/api/user-management' });
   server.register(approvalQueueRoutes, { prefix: '/api' });
   server.register(documentsRoutes, { prefix: '/api' });
+  server.register(knowledgeSourceRoutes, { prefix: '/api/knowledge-sources' });
+  server.register(n8nIntegrationRoutes, { prefix: '/api/n8n' });
   
   // Register nested milestone routes under transitions
   server.register(async function (server) {

@@ -70,7 +70,7 @@ Once the containers are running, you can access the different parts of the appli
 - **Python API:** [http://py.tip.localhost](http://py.tip.localhost)
 - **Traefik Dashboard (Reverse Proxy):** [http://localhost:8080](http://localhost:8080)
 - **Keycloak (Authentication):** [http://auth.tip.localhost](http://auth.tip.localhost)
-- **n8n (Workflows):** [http://n8n.tip.localhost](http://n8n.tip.localhost)
+- **n8n (Workflows):** [http://n8n.tip.localhost](http://n8n.tip.localhost) -localhost:5678 richard@rubyengineering.com | TIPN8N25
 - **MinIO (S3 Storage):** [http://localhost:9001](http://localhost:9001)
 
 **Note:** You may need to add entries to your `/etc/hosts` file to map these hostnames to your localhost IP address (`127.0.0.1`):

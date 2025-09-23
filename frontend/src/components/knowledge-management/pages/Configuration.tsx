@@ -1,10 +1,102 @@
+import { useState, useEffect } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
+import { Alert, AlertDescription } from '../../ui/alert';
+import { Loader2, Plus, Database, AlertTriangle } from 'lucide-react';
+import { knowledgeSourceApi, type KnowledgeSource } from '../../../services/knowledgeSourceApi';
+import { KnowledgeSourceConfigModal } from '../../KnowledgeManagement/KnowledgeSourceConfigModal';
+import { ConfigurationIntegrationCard } from '../../KnowledgeManagement/ConfigurationIntegrationCard';
 
 export function Configuration() {
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [editingSource, setEditingSource] = useState<KnowledgeSource | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadKnowledgeSources();
+  }, []);
+
+  const loadKnowledgeSources = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const sources = await knowledgeSourceApi.getAllKnowledgeSources();
+      setKnowledgeSources(sources);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load knowledge sources');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddSource = () => {
+    setEditingSource(null);
+    setConfigModalOpen(true);
+  };
+
+  const handleEditSource = (source: KnowledgeSource) => {
+    setEditingSource(source);
+    setConfigModalOpen(true);
+  };
+
+  const handleDeleteSource = async (source: KnowledgeSource) => {
+    if (!confirm(`Are you sure you want to delete "${source.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setActionLoading(source.id);
+      await knowledgeSourceApi.deleteKnowledgeSource(source.id);
+      await loadKnowledgeSources();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete knowledge source');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleTestConnection = async (source: KnowledgeSource) => {
+    try {
+      setActionLoading(source.id);
+      const result = await knowledgeSourceApi.testConnection(source.id);
+
+      if (result.status === 'healthy') {
+        alert(`Connection successful! Response time: ${result.responseTime || 'N/A'}ms`);
+      } else {
+        alert(`Connection failed: ${result.details || 'Unknown error'}`);
+      }
+
+      await loadKnowledgeSources(); // Refresh to update health status
+    } catch (err) {
+      alert(`Connection test failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleStatus = async (source: KnowledgeSource) => {
+    try {
+      setActionLoading(source.id);
+      const newStatus = source.status === 'active' ? 'inactive' : 'active';
+      await knowledgeSourceApi.updateKnowledgeSource(source.id, { status: newStatus });
+      await loadKnowledgeSources();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update source status');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleConfigSuccess = async (source: KnowledgeSource) => {
+    await loadKnowledgeSources();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -17,6 +109,7 @@ export function Configuration() {
           <TabsTrigger value="general">General Settings</TabsTrigger>
           <TabsTrigger value="approval">Approval Workflow</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="knowledge-sources">Knowledge Sources</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
@@ -163,6 +256,70 @@ export function Configuration() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="knowledge-sources" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium">Knowledge Sources</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Configure data source endpoints for N8N workflow integration
+              </p>
+            </div>
+            <Button onClick={handleAddSource}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Knowledge Source
+            </Button>
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Loading knowledge sources...</span>
+            </div>
+          ) : knowledgeSources.length === 0 ? (
+            <Card className="p-8">
+              <div className="text-center space-y-4">
+                <Database className="h-12 w-12 mx-auto text-muted-foreground" />
+                <div>
+                  <h4 className="text-lg font-medium">No Knowledge Sources Configured</h4>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Configure your first knowledge source to start integrating data sources with N8N workflows.
+                  </p>
+                </div>
+                <Button onClick={handleAddSource}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Your First Knowledge Source
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                {knowledgeSources.length} knowledge source{knowledgeSources.length !== 1 ? 's' : ''} configured
+              </div>
+              <div className="grid gap-4">
+                {knowledgeSources.map((source) => (
+                  <ConfigurationIntegrationCard
+                    key={source.id}
+                    source={source}
+                    onEdit={handleEditSource}
+                    onDelete={handleDeleteSource}
+                    onTestConnection={handleTestConnection}
+                    onToggleStatus={handleToggleStatus}
+                    loading={actionLoading === source.id}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="notifications" className="space-y-6">
           <Card className="p-6">
             <h3 className="text-lg font-medium mb-4">Notification Preferences</h3>
@@ -205,6 +362,17 @@ export function Configuration() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Knowledge Source Configuration Modal */}
+      <KnowledgeSourceConfigModal
+        isOpen={configModalOpen}
+        onClose={() => {
+          setConfigModalOpen(false);
+          setEditingSource(null);
+        }}
+        onSuccess={handleConfigSuccess}
+        editingSource={editingSource}
+      />
     </div>
   );
 }
