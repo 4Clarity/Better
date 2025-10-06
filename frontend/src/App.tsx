@@ -114,7 +114,7 @@ function AppRoutes() {
           </Layout>
         } />
         <Route path="/knowledge/*" element={
-          <Layout pageTitle="Operational Knowledge Platform">
+          <Layout pageTitle="Knowledge">
             <KnowledgeManagementPage />
           </Layout>
         } />

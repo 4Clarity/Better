@@ -11,6 +11,18 @@ interface LayoutProps {
   pageTitle?: string;
 }
 
+interface SubNavigationItem {
+  name: string;
+  path: string;
+}
+
+interface NavigationItem {
+  name: string;
+  path: string;
+  icon: ReactNode;
+  subItems?: SubNavigationItem[];
+}
+
 export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -74,7 +86,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
   );
 
   // Navigation items configuration
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     {
       name: 'Dashboard',
       path: '/',
@@ -93,52 +105,37 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         </svg>
       )
     },
-    { 
-      name: 'Products & Programs', 
-      path: '/programs', 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M11 3a1 1 0 100 2h2a1 1 0 100-2h-2z" />
-          <path fillRule="evenodd" d="M4 11a2 2 0 100 4 2 2 0 000-4zM2 13a4 4 0 118 0 4 4 0 01-8 0zm6-7a2 2 0 100 4 2 2 0 000-4zm-2 2a4 4 0 118 0 4 4 0 01-8 0zm10-2a2 2 0 100 4 2 2 0 000-4zm-2 2a4 4 0 118 0 4 4 0 01-8 0z" clipRule="evenodd" />
-        </svg>
-      )
-    },
-    { 
-      name: 'Transitions', 
-      path: '/transitions', 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-7-8a7 7 0 1114 0 7 7 0 01-14 0zm7-4a1 1 0 00-1 1v2a1 1 0 002 0V7a1 1 0 00-1-1zm1 4a1 1 0 00-2 0v2a1 1 0 002 0v-2zm-1 3a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
-        </svg>
-      )
-    },
-    { 
-      name: 'Business Operations', 
-      path: '/business-operations', 
+    {
+      name: 'Business Operations',
+      path: '/business-operations',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
           <path d="M12 10a2 2 0 11-4 0 2 2 0 014 0z" />
           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-2 0a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" />
         </svg>
-      )
+      ),
+      subItems: [
+        { name: 'Transitions', path: '/transitions' },
+        { name: 'Products & Programs', path: '/programs' },
+        { name: 'Tasks & Milestones', path: '/tasks' },
+      ]
     },
     {
-      name: 'Operational Knowledge Platform',
+      name: 'Knowledge',
       path: '/knowledge',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
           <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-      )
-    },
-    { 
-      name: 'Tasks & Milestones', 
-      path: '/tasks', 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.5-6a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-3z" clipRule="evenodd" />
-        </svg>
-      )
+      ),
+      subItems: [
+        { name: 'Weekly Curation', path: '/knowledge/weekly-curation' },
+        { name: 'Product Documents', path: '/knowledge/document-upload' },
+        { name: 'Communication Files', path: '/knowledge/communication-files' },
+        { name: 'Facts Curation', path: '/knowledge/facts-curation' },
+        { name: 'Approval Queue', path: '/knowledge/approval-queue' },
+        { name: 'Knowledge Search', path: '/knowledge/knowledge-search' },
+      ]
     },
     { 
       name: 'Artifact Vault', 
@@ -156,7 +153,10 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v5a1 1 0 102 0V7z" clipRule="evenodd" />
         </svg>
-      )
+      ),
+      subItems: [
+        { name: 'Knowledge Configuration', path: '/knowledge/configuration' },
+      ]
     },
     ...(hasAdminRole ? [{
       name: 'Administration',
@@ -249,6 +249,28 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
                     {item.name}
                   </span>
                 </button>
+                {/* Sub-navigation items */}
+                {item.subItems && !isSidebarCollapsed && (
+                  <ul className="ml-7 mt-1 space-y-1">
+                    {item.subItems.map((subItem) => (
+                      <li key={subItem.path}>
+                        <button
+                          onClick={() => {
+                            navigate(subItem.path);
+                            closeMobileSidebar();
+                          }}
+                          className={`flex items-center w-full p-2 space-x-2 rounded-lg transition-colors duration-200 text-left text-sm ${
+                            isCurrentPath(subItem.path)
+                              ? 'bg-primary/80 text-primary-foreground'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                          }`}
+                        >
+                          {subItem.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

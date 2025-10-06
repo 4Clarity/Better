@@ -23,6 +23,7 @@
   
 ## MCP's
 - Context7 - Lookup relevant feature documentation for analysis
+- N8N - Lookup n8n documentation and node implementation details
 
 
 ## When asked to design UI & frontend interface
@@ -40,6 +41,11 @@
 7. **Test migration scripts in development before production**
 8. **Document database user roles and permissions clearly**
 9. **New Migrations, seed new data tables with one test record**
+10. **Rebuild and restart docker containers after schema modifications**
+11. **Define TypeScript interfaces for complex navigation/data structures**
+12. **Create hierarchical navigation using subItems pattern for better UX**
+13. **Remove duplicate navigation elements (consolidate tabs into sidebar)**
+14. **Group related navigation items under logical parent categories**
 
 ## Future Prevention Checklist
 
@@ -102,7 +108,7 @@ The project is designed to be run entirely within Docker containers.
     ```
 *  **General Startup**
     ```bash
-    docker-compose up -d --build backend-node reverse-proxy frontend db
+    docker-compose up -d --build backend-node reverse-proxy frontend db n8n
     ```
 
 *   **Stop Services:**
