@@ -14,6 +14,8 @@ import { UserManagementPage } from './pages/UserManagementPage';
 import { TransitionUserPage } from './pages/TransitionUserPage';
 import { TasksAndMilestonesPage } from './pages/TasksAndMilestonesPage';
 import { KnowledgeManagementPage } from './pages/KnowledgeManagementPage';
+import { RolesMatrixPage } from './pages/RolesMatrixPage';
+import { UserProfilePage } from './pages/UserProfilePage';
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -141,6 +143,16 @@ function AppRoutes() {
         <Route path="/security" element={
           <Layout pageTitle="Security & Access">
             <UserManagementPage />
+          </Layout>
+        } />
+        <Route path="/security/roles-matrix" element={
+          <Layout pageTitle="Roles Capability Matrix">
+            <RolesMatrixPage />
+          </Layout>
+        } />
+        <Route path="/profile" element={
+          <Layout pageTitle="My Profile">
+            <UserProfilePage />
           </Layout>
         } />
       </Routes>

@@ -46,6 +46,12 @@
 12. **Create hierarchical navigation using subItems pattern for better UX**
 13. **Remove duplicate navigation elements (consolidate tabs into sidebar)**
 14. **Group related navigation items under logical parent categories**
+15. **Normalize role names when mapping between database and UI display formats**
+16. **Use Docker service names (not localhost) in container-to-container communication**
+17. **Never use JSX syntax in .ts files - use .tsx or refactor to helper functions**
+18. **Monitor Docker disk space - run `docker system prune` regularly to prevent "no space" errors**
+19. **Match API response structure to frontend interfaces to avoid runtime errors**
+20. **Create comprehensive permission matrices before implementing RBAC features**
 
 ## Future Prevention Checklist
 
@@ -60,11 +66,17 @@
 ### Core Technologies & Architecture:
 
 *   **Frontend:** A modern user interface built with **React** and **TypeScript**, using **Vite** for the build tooling.
-*   **Backend (Primary API):** A **Node.js** service using the **Express** framework and **Prisma** as the ORM for database interactions. This service handles the core business logic.
+*   **Backend (Primary API):** A **Node.js** service using the **Fastify** framework and **Prisma** as the ORM for database interactions. This service handles the core business logic.
 *   **Backend (AI/ML):** A **Python** service dedicated to AI, machine learning, and heavy data processing tasks.
 *   **Database:** **PostgreSQL** is the primary relational database.
 *   **Authentication:** Managed by **Keycloak**, providing robust, production-ready SSO capabilities. For development, the system uses JWTs and includes a simple "demo login" and an auth bypass mode.
 *   **Infrastructure & Orchestration:** The entire environment is containerized using **Docker** and orchestrated with **Docker Compose**. **Traefik** is used as a reverse proxy to manage routing to the various services under local hostnames. **MinIO** provides an S3-compatible object storage solution.
+
+### Key Documentation References:
+
+*   **Tech Stack:** See `/Users/richardroach/Documents/Builder_Projects/Better/docs/technical/tech-stack.md` for complete approved technology specifications
+*   **Source Tree:** See `/Users/richardroach/Documents/Builder_Projects/Better/docs/technical/specifications/source-tree-integration.md` for project file structure
+*   **Coding Standards:** See `/Users/richardroach/Documents/Builder_Projects/Better/docs/technical/specifications/coding-standards-and-conventions.md` for development conventions
 
 ### Key Directories:
 
@@ -90,7 +102,7 @@ The project is designed to be run entirely within Docker containers.
     ```
 2.  **Update `/etc/hosts`:** Add the following entries to your local hosts file to enable the custom domains used by the reverse proxy.
     ```text
-    127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost
+    127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost mail.tip.localhost pgadmin.tip.localhost
     ```
 
 ### Core Commands:
@@ -123,8 +135,11 @@ Once running, the services are available at these local URLs:
 *   **Frontend:** [http://tip.localhost](http://tip.localhost)
 *   **Node.js API:** [http://api.tip.localhost](http://api.tip.localhost)
 *   **Python API:** [http://py.tip.localhost](http://py.tip.localhost)
-*   **Traefik Dashboard:** [http://localhost:8080](http://localhost:8080)
+*   **Traefik Dashboard:** [http://localhost:8081](http://localhost:8081)
 *   **Keycloak (Auth):** [http://auth.tip.localhost](http://auth.tip.localhost)
+*   **n8n Workflows:** [http://n8n.tip.localhost](http://n8n.tip.localhost)
+*   **MailHog:** [http://mail.tip.localhost](http://mail.tip.localhost)
+*   **pgAdmin (Database):** [http://pgadmin.tip.localhost](http://pgadmin.tip.localhost) - Login: admin@admin.com / admin
 
 ## 3. Development Conventions
 

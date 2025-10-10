@@ -491,14 +491,14 @@ export class AuthenticationApi {
   }> {
     const token = this.getStoredToken();
 
-    const response = await fetch(`${this.baseUrl}/impersonate`, {
+    const response = await fetch(`${API_BASE_URL}/api/security/impersonation/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
         'x-auth-bypass': 'true', // Enable auth bypass for development
       },
-      body: JSON.stringify({ roleToImpersonate }),
+      body: JSON.stringify({ role: roleToImpersonate }),
     });
 
     const result = await response.json();
@@ -506,7 +506,18 @@ export class AuthenticationApi {
       throw new Error(result.message || 'Role impersonation failed');
     }
 
-    return result;
+    // Return expected format with tokens
+    return {
+      success: result.success,
+      impersonatedRole: result.impersonatedRole,
+      originalRole: 'Admin',
+      tokens: {
+        accessToken: token || '',
+        refreshToken: this.getStoredRefreshToken() || '',
+        expiresIn: 3600,
+        tokenType: 'Bearer',
+      },
+    };
   }
 
   /**
@@ -524,8 +535,8 @@ export class AuthenticationApi {
   }> {
     const token = this.getStoredToken();
 
-    const response = await fetch(`${this.baseUrl}/impersonate`, {
-      method: 'DELETE',
+    const response = await fetch(`${API_BASE_URL}/api/security/impersonation/end`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
@@ -538,7 +549,17 @@ export class AuthenticationApi {
       throw new Error(result.message || 'Clear impersonation failed');
     }
 
-    return result;
+    // Return expected format with tokens
+    return {
+      success: result.success,
+      message: result.restoredRole ? `Restored to ${result.restoredRole}` : 'Impersonation cleared',
+      tokens: {
+        accessToken: token || '',
+        refreshToken: this.getStoredRefreshToken() || '',
+        expiresIn: 3600,
+        tokenType: 'Bearer',
+      },
+    };
   }
 
   /**
@@ -553,7 +574,7 @@ export class AuthenticationApi {
   }> {
     const token = this.getStoredToken();
 
-    const response = await fetch(`${this.baseUrl}/impersonate/roles`, {
+    const response = await fetch(`${API_BASE_URL}/api/security/roles`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -562,12 +583,20 @@ export class AuthenticationApi {
       },
     });
 
-    const result = await response.json();
     if (!response.ok) {
-      throw new Error(result.message || 'Failed to get impersonation roles');
+      throw new Error('Failed to get available roles');
     }
 
-    return result;
+    const roles = await response.json();
+
+    // Return expected format
+    return {
+      success: true,
+      canImpersonate: true,
+      availableRoles: roles.map((r: any) => r.name),
+      currentRole: 'Admin',
+      isImpersonating: false,
+    };
   }
 
   /**

@@ -20,6 +20,8 @@ import approvalQueueRoutes from './modules/knowledge/approval-queue.route';
 import documentsRoutes from './modules/knowledge/documents.route';
 import knowledgeSourceRoutes from './modules/knowledge/knowledge-source.routes';
 import n8nIntegrationRoutes from './modules/knowledge/n8n-integration.routes';
+import { settingsRoutes } from './modules/settings/settings.routes';
+import { impersonationRoutes, roleManagementRoutes } from './modules/security';
 
 export function buildServer() {
   const server = Fastify({
@@ -169,7 +171,10 @@ export function buildServer() {
   server.register(documentsRoutes, { prefix: '/api' });
   server.register(knowledgeSourceRoutes, { prefix: '/api/knowledge-sources' });
   server.register(n8nIntegrationRoutes, { prefix: '/api/n8n' });
-  
+  server.register(settingsRoutes, { prefix: '/api/settings' });
+  server.register(impersonationRoutes);
+  server.register(roleManagementRoutes);
+
   // Register nested milestone routes under transitions
   server.register(async function (server) {
     server.register(milestoneRoutes, { prefix: '/:transitionId/milestones' });

@@ -61,6 +61,7 @@ model User {
   user_sessions            user_sessions[]
   user_roles               user_roles[]               @relation("user_roles_userIdTousers")
   user_roles_assigned      user_roles[]               @relation("user_roles_assignedByTousers")
+  impersonation_sessions   impersonation_sessions[]   @relation("impersonation_sessions_actualUserIdTousers")
   registration_request     user_registration_requests? @relation("user_registration_requests_to_users", fields: [registrationRequestId], references: [id])
   approved_requests        user_registration_requests[] @relation("user_registration_requests_approvedByTousers")
   km_documents_uploaded    km_documents[]             @relation("km_documents_uploadedByTousers")
@@ -999,18 +1000,19 @@ model user_registration_requests {
 }
 
 model user_sessions {
-  id                 String   @id
-  userId             String
-  refreshToken       String
-  expiresAt          DateTime
-  isActive           Boolean  @default(true)
-  userAgent          String?
-  ipAddress          String?
-  sessionFingerprint String?
-  createdAt          DateTime @default(now())
-  lastUsedAt         DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  users              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String                   @id
+  userId                 String
+  refreshToken           String
+  expiresAt              DateTime
+  isActive               Boolean                  @default(true)
+  userAgent              String?
+  ipAddress              String?
+  sessionFingerprint     String?
+  createdAt              DateTime                 @default(now())
+  lastUsedAt             DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  users                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonation_sessions impersonation_sessions[] @relation("impersonation_sessions_sessionIdTouser_sessions")
 
   @@index([userId], map: "idx_user_sessions_userId")
   @@index([refreshToken], map: "idx_user_sessions_refreshToken")
@@ -1049,6 +1051,27 @@ model user_roles {
   @@index([roleId], map: "idx_user_roles_roleId")
   @@index([assignedBy], map: "idx_user_roles_assignedBy")
   @@index([isActive], map: "idx_user_roles_isActive")
+}
+
+model impersonation_sessions {
+  id                  String    @id @default(cuid())
+  sessionId           String
+  actualUserId        String
+  impersonatedRole    String
+  startedAt           DateTime  @default(now())
+  endedAt             DateTime?
+  impersonationReason String?   @db.Text
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  actualUser          User      @relation("impersonation_sessions_actualUserIdTousers", fields: [actualUserId], references: [id], onDelete: Cascade)
+  userSession         user_sessions @relation("impersonation_sessions_sessionIdTouser_sessions", fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, isActive])
+  @@index([actualUserId], map: "idx_impersonation_sessions_actualUserId")
+  @@index([sessionId], map: "idx_impersonation_sessions_sessionId")
+  @@index([isActive], map: "idx_impersonation_sessions_isActive")
+  @@index([startedAt], map: "idx_impersonation_sessions_startedAt")
 }
 
 // Temporarily disabled - requires vector extension
@@ -2157,14 +2180,14 @@ model km_knowledge_sources {
   metadata                   Json?
   securityClassification     SecurityClassification     @default(Unclassified)
   accessLevel                AccessLevel                @default(Standard)
-  configuredBy               String
+  configuredBy               String?
   createdAt                  DateTime                   @default(now())
   updatedAt                  DateTime                   @updatedAt
   lastConfiguredAt           DateTime                   @default(now())
   archivedAt                 DateTime?
 
   // Relations
-  users_configured           User                       @relation("km_knowledge_sources_configuredByTousers", fields: [configuredBy], references: [id])
+  users_configured           User?                      @relation("km_knowledge_sources_configuredByTousers", fields: [configuredBy], references: [id])
   km_sync_logs               km_sync_logs[]
 
   @@index([sourceType])

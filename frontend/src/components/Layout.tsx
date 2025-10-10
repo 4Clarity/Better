@@ -1,9 +1,10 @@
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEnhancedAuth } from '../contexts/EnhancedAuthContext';
 import { useAuth } from '../contexts/AuthContext';
 import UserMenu from './auth/UserMenu';
 import { RoleImpersonationSelector } from './auth/RoleImpersonationSelector';
+import { filterNavigationByRole, getActiveRole, type UserContext } from '../utils/navigationFilter';
 import tipLogo from '@/assets/tip-logo-blue.svg';
 
 interface LayoutProps {
@@ -32,6 +33,9 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
 
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Get auth context for role-based filtering
+  const auth = useAuth();
 
   // Try to use enhanced auth context first, fall back to regular auth context
   let isEnhancedAuth = true;
@@ -115,8 +119,8 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         </svg>
       ),
       subItems: [
-        { name: 'Transitions', path: '/transitions' },
         { name: 'Products & Programs', path: '/programs' },
+        { name: 'Transitions', path: '/transitions' },
         { name: 'Tasks & Milestones', path: '/tasks' },
       ]
     },
@@ -155,6 +159,8 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         </svg>
       ),
       subItems: [
+        { name: 'User Management', path: '/security' },
+        { name: 'Roles Capability Matrix', path: '/security/roles-matrix' },
         { name: 'Knowledge Configuration', path: '/knowledge/configuration' },
       ]
     },
@@ -168,6 +174,20 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
       )
     }] : []),
   ];
+
+  // Create user context for navigation filtering
+  const userContext: UserContext = useMemo(() => ({
+    roles: auth.user?.roles || ['Observer'],
+    isImpersonating: auth.isImpersonating,
+    impersonatedRole: auth.currentRole,
+    userId: auth.user?.id || '',
+  }), [auth.user, auth.isImpersonating, auth.currentRole]);
+
+  // Filter navigation items based on user's active role
+  const filteredNavigationItems = useMemo(
+    () => filterNavigationByRole(navigationItems, userContext),
+    [navigationItems, userContext]
+  );
 
   const isCurrentPath = (path: string) => {
     if (path === '/' && location.pathname === '/') return true;
@@ -231,7 +251,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         {/* Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-2">
-            {navigationItems.map((item) => (
+            {filteredNavigationItems.map((item) => (
               <li key={item.path}>
                 <button
                   onClick={() => {

@@ -151,8 +151,7 @@ export function UserMenu() {
               <button
                 onClick={() => {
                   setIsOpen(false);
-                  // TODO: Implement profile management
-                  alert('Profile management coming soon!');
+                  window.location.href = '/profile';
                 }}
                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
               >
