@@ -119,7 +119,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
         </svg>
       ),
       subItems: [
-        { name: 'Products & Programs', path: '/programs' },
+        { name: 'Products & Programs', path: '/business-operations/products-programs' },
         { name: 'Transitions', path: '/transitions' },
         { name: 'Tasks & Milestones', path: '/tasks' },
       ]
