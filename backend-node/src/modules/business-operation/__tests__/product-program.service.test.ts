@@ -21,7 +21,7 @@ jest.mock('@prisma/client', () => {
     user: {
       findUnique: jest.fn(),
     },
-    productProgram: {
+    product_programs: {
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -29,7 +29,7 @@ jest.mock('@prisma/client', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
-    productProgramStakeholder: {
+    product_program_stakeholders: {
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -187,7 +187,7 @@ describe('ProductProgramService', () => {
         if (result.success) {
           expect(result.data.page).toBe(1);
           expect(result.data.limit).toBe(20);
-          expect(result.data.sortBy).toBe('createdAt');
+          expect(result.data.sortBy).toBe('created_at');
           expect(result.data.sortOrder).toBe('desc');
         }
       });
@@ -227,12 +227,12 @@ describe('ProductProgramService', () => {
 
     it('should create a product program successfully', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.create as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.create as jest.Mock).mockResolvedValue(mockProductProgram);
 
       const result = await createProductProgram(createData, mockUserId);
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: mockUserId } });
-      expect(prisma.productProgram.create).toHaveBeenCalled();
+      expect(prisma.product_programs.create).toHaveBeenCalled();
       expect(result).toEqual(mockProductProgram);
     });
 
@@ -246,7 +246,7 @@ describe('ProductProgramService', () => {
 
     it('should handle database errors', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.create as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (prisma.product_programs.create as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await expect(createProductProgram(createData, mockUserId)).rejects.toThrow(
         'Failed to create product/program'
@@ -256,11 +256,11 @@ describe('ProductProgramService', () => {
 
   describe('getProductProgramById', () => {
     it('should fetch a product program by ID successfully', async () => {
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
 
       const result = await getProductProgramById(mockProductProgram.id, mockUserId);
 
-      expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+      expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
         where: { id: mockProductProgram.id },
         include: expect.any(Object),
       });
@@ -268,7 +268,7 @@ describe('ProductProgramService', () => {
     });
 
     it('should throw error if product program not found', async () => {
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(getProductProgramById('invalid-id', mockUserId)).rejects.toThrow(
         'Product/Program with ID "invalid-id" not found'
@@ -276,7 +276,7 @@ describe('ProductProgramService', () => {
     });
 
     it('should handle database errors', async () => {
-      (prisma.productProgram.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (prisma.product_programs.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await expect(getProductProgramById(mockProductProgram.id, mockUserId)).rejects.toThrow(
         'Failed to fetch product/program'
@@ -290,18 +290,18 @@ describe('ProductProgramService', () => {
       search: '',
       page: 1,
       limit: 20,
-      sortBy: 'createdAt' as const,
+      sortBy: 'created_at' as const,
       sortOrder: 'desc' as const,
     };
 
     it('should fetch all product programs successfully', async () => {
-      (prisma.productProgram.findMany as jest.Mock).mockResolvedValue(mockProductPrograms);
-      (prisma.productProgram.count as jest.Mock).mockResolvedValue(1);
+      (prisma.product_programs.findMany as jest.Mock).mockResolvedValue(mockProductPrograms);
+      (prisma.product_programs.count as jest.Mock).mockResolvedValue(1);
 
       const result = await getAllProductPrograms(mockUserId, query);
 
-      expect(prisma.productProgram.findMany).toHaveBeenCalled();
-      expect(prisma.productProgram.count).toHaveBeenCalled();
+      expect(prisma.product_programs.findMany).toHaveBeenCalled();
+      expect(prisma.product_programs.count).toHaveBeenCalled();
       expect(result.data).toEqual(mockProductPrograms);
       expect(result.pagination).toEqual({
         page: 1,
@@ -313,12 +313,12 @@ describe('ProductProgramService', () => {
 
     it('should apply search filter', async () => {
       const searchQuery = { ...query, search: 'test' };
-      (prisma.productProgram.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.productProgram.count as jest.Mock).mockResolvedValue(0);
+      (prisma.product_programs.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.product_programs.count as jest.Mock).mockResolvedValue(0);
 
       await getAllProductPrograms(mockUserId, searchQuery);
 
-      expect(prisma.productProgram.findMany).toHaveBeenCalledWith(
+      expect(prisma.product_programs.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             OR: expect.arrayContaining([
@@ -333,15 +333,15 @@ describe('ProductProgramService', () => {
 
     it('should apply security classification filter', async () => {
       const filterQuery = { ...query, securityClassification: 'SECRET' as const };
-      (prisma.productProgram.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.productProgram.count as jest.Mock).mockResolvedValue(0);
+      (prisma.product_programs.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.product_programs.count as jest.Mock).mockResolvedValue(0);
 
       await getAllProductPrograms(mockUserId, filterQuery);
 
-      expect(prisma.productProgram.findMany).toHaveBeenCalledWith(
+      expect(prisma.product_programs.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            securityClassification: 'SECRET',
+            security_classification: 'SECRET',
           }),
         })
       );
@@ -349,12 +349,12 @@ describe('ProductProgramService', () => {
 
     it('should handle pagination correctly', async () => {
       const paginatedQuery = { ...query, page: 2, limit: 10 };
-      (prisma.productProgram.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.productProgram.count as jest.Mock).mockResolvedValue(25);
+      (prisma.product_programs.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.product_programs.count as jest.Mock).mockResolvedValue(25);
 
       const result = await getAllProductPrograms(mockUserId, paginatedQuery);
 
-      expect(prisma.productProgram.findMany).toHaveBeenCalledWith(
+      expect(prisma.product_programs.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           skip: 10,
           take: 10,
@@ -364,7 +364,7 @@ describe('ProductProgramService', () => {
     });
 
     it('should handle database errors', async () => {
-      (prisma.productProgram.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (prisma.product_programs.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await expect(getAllProductPrograms(mockUserId, query)).rejects.toThrow(
         'Failed to fetch product/programs'
@@ -380,8 +380,8 @@ describe('ProductProgramService', () => {
 
     it('should update a product program successfully', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-      (prisma.productProgram.update as jest.Mock).mockResolvedValue({
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.update as jest.Mock).mockResolvedValue({
         ...mockProductProgram,
         ...updateData,
       });
@@ -389,10 +389,10 @@ describe('ProductProgramService', () => {
       const result = await updateProductProgram(mockProductProgram.id, updateData, mockUserId);
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: mockUserId } });
-      expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+      expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
         where: { id: mockProductProgram.id },
       });
-      expect(prisma.productProgram.update).toHaveBeenCalled();
+      expect(prisma.product_programs.update).toHaveBeenCalled();
       expect(result.name).toBe('Updated Product');
     });
 
@@ -406,7 +406,7 @@ describe('ProductProgramService', () => {
 
     it('should throw error if product program does not exist', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(
         updateProductProgram('invalid-id', updateData, mockUserId)
@@ -415,8 +415,8 @@ describe('ProductProgramService', () => {
 
     it('should handle database errors', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-      (prisma.productProgram.update as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.update as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await expect(
         updateProductProgram(mockProductProgram.id, updateData, mockUserId)
@@ -427,16 +427,16 @@ describe('ProductProgramService', () => {
   describe('deleteProductProgram', () => {
     it('should delete a product program successfully', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-      (prisma.productProgram.delete as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.delete as jest.Mock).mockResolvedValue(mockProductProgram);
 
       const result = await deleteProductProgram(mockProductProgram.id, mockUserId);
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: mockUserId } });
-      expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+      expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
         where: { id: mockProductProgram.id },
       });
-      expect(prisma.productProgram.delete).toHaveBeenCalledWith({
+      expect(prisma.product_programs.delete).toHaveBeenCalledWith({
         where: { id: mockProductProgram.id },
       });
       expect(result.success).toBe(true);
@@ -452,7 +452,7 @@ describe('ProductProgramService', () => {
 
     it('should throw error if product program does not exist', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(deleteProductProgram('invalid-id', mockUserId)).rejects.toThrow(
         'Product/Program with ID "invalid-id" not found'
@@ -461,8 +461,8 @@ describe('ProductProgramService', () => {
 
     it('should handle database errors', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-      (prisma.productProgram.delete as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+      (prisma.product_programs.delete as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await expect(deleteProductProgram(mockProductProgram.id, mockUserId)).rejects.toThrow(
         'Failed to delete product/program'
@@ -557,12 +557,12 @@ describe('ProductProgramService', () => {
       };
 
       it('should add a stakeholder successfully', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
         (prisma.user.findUnique as jest.Mock)
           .mockResolvedValueOnce(mockStakeholderUser) // First call for stakeholder user
           .mockResolvedValueOnce(mockAssigningUser); // Second call for assigning user
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(null);
-        (prisma.productProgramStakeholder.create as jest.Mock).mockResolvedValue(mockStakeholder);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_program_stakeholders.create as jest.Mock).mockResolvedValue(mockStakeholder);
 
         const result = await addStakeholder(
           mockProductProgram.id,
@@ -570,7 +570,7 @@ describe('ProductProgramService', () => {
           mockAssigningUserId
         );
 
-        expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
           where: { id: mockProductProgram.id },
         });
         expect(prisma.user.findUnique).toHaveBeenCalledWith({
@@ -579,7 +579,7 @@ describe('ProductProgramService', () => {
         expect(prisma.user.findUnique).toHaveBeenCalledWith({
           where: { id: mockAssigningUserId },
         });
-        expect(prisma.productProgramStakeholder.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.findUnique).toHaveBeenCalledWith({
           where: {
             productProgramId_userId: {
               productProgramId: mockProductProgram.id,
@@ -587,7 +587,7 @@ describe('ProductProgramService', () => {
             },
           },
         });
-        expect(prisma.productProgramStakeholder.create).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.create).toHaveBeenCalledWith({
           data: {
             productProgramId: mockProductProgram.id,
             userId: mockStakeholderUserId,
@@ -601,12 +601,12 @@ describe('ProductProgramService', () => {
 
       it('should add stakeholder without role', async () => {
         const dataWithoutRole = { userId: mockStakeholderUserId };
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
         (prisma.user.findUnique as jest.Mock)
           .mockResolvedValueOnce(mockStakeholderUser)
           .mockResolvedValueOnce(mockAssigningUser);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(null);
-        (prisma.productProgramStakeholder.create as jest.Mock).mockResolvedValue({
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_program_stakeholders.create as jest.Mock).mockResolvedValue({
           ...mockStakeholder,
           role: null,
         });
@@ -617,7 +617,7 @@ describe('ProductProgramService', () => {
           mockAssigningUserId
         );
 
-        expect(prisma.productProgramStakeholder.create).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.create).toHaveBeenCalledWith({
           data: {
             productProgramId: mockProductProgram.id,
             userId: mockStakeholderUserId,
@@ -630,7 +630,7 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if product/program not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(
           addStakeholder(mockProductProgram.id, addStakeholderData, mockAssigningUserId)
@@ -638,7 +638,7 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if stakeholder user not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
         (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(
@@ -647,7 +647,7 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if assigning user not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
         (prisma.user.findUnique as jest.Mock)
           .mockResolvedValueOnce(mockStakeholderUser)
           .mockResolvedValueOnce(null);
@@ -658,11 +658,11 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if stakeholder already exists', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
         (prisma.user.findUnique as jest.Mock)
           .mockResolvedValueOnce(mockStakeholderUser)
           .mockResolvedValueOnce(mockAssigningUser);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(
           mockStakeholder
         );
 
@@ -672,12 +672,12 @@ describe('ProductProgramService', () => {
       });
 
       it('should handle database errors', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
         (prisma.user.findUnique as jest.Mock)
           .mockResolvedValueOnce(mockStakeholderUser)
           .mockResolvedValueOnce(mockAssigningUser);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(null);
-        (prisma.productProgramStakeholder.create as jest.Mock).mockRejectedValue(
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_program_stakeholders.create as jest.Mock).mockRejectedValue(
           new Error('Database error')
         );
 
@@ -689,11 +689,11 @@ describe('ProductProgramService', () => {
 
     describe('removeStakeholder', () => {
       it('should remove a stakeholder successfully', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(
           mockStakeholder
         );
-        (prisma.productProgramStakeholder.delete as jest.Mock).mockResolvedValue(mockStakeholder);
+        (prisma.product_program_stakeholders.delete as jest.Mock).mockResolvedValue(mockStakeholder);
 
         const result = await removeStakeholder(
           mockProductProgram.id,
@@ -701,10 +701,10 @@ describe('ProductProgramService', () => {
           mockAssigningUserId
         );
 
-        expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
           where: { id: mockProductProgram.id },
         });
-        expect(prisma.productProgramStakeholder.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.findUnique).toHaveBeenCalledWith({
           where: {
             productProgramId_userId: {
               productProgramId: mockProductProgram.id,
@@ -712,7 +712,7 @@ describe('ProductProgramService', () => {
             },
           },
         });
-        expect(prisma.productProgramStakeholder.delete).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.delete).toHaveBeenCalledWith({
           where: {
             productProgramId_userId: {
               productProgramId: mockProductProgram.id,
@@ -725,7 +725,7 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if product/program not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(
           removeStakeholder(mockProductProgram.id, mockStakeholderUserId, mockAssigningUserId)
@@ -733,8 +733,8 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if stakeholder not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(
           removeStakeholder(mockProductProgram.id, mockStakeholderUserId, mockAssigningUserId)
@@ -742,11 +742,11 @@ describe('ProductProgramService', () => {
       });
 
       it('should handle database errors', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(
           mockStakeholder
         );
-        (prisma.productProgramStakeholder.delete as jest.Mock).mockRejectedValue(
+        (prisma.product_program_stakeholders.delete as jest.Mock).mockRejectedValue(
           new Error('Database error')
         );
 
@@ -760,29 +760,29 @@ describe('ProductProgramService', () => {
       const mockStakeholders = [mockStakeholder];
 
       it('should get all stakeholders for a product/program successfully', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findMany as jest.Mock).mockResolvedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findMany as jest.Mock).mockResolvedValue(
           mockStakeholders
         );
 
         const result = await getStakeholders(mockProductProgram.id);
 
-        expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
           where: { id: mockProductProgram.id },
         });
-        expect(prisma.productProgramStakeholder.findMany).toHaveBeenCalledWith({
-          where: { productProgramId: mockProductProgram.id },
+        expect(prisma.product_program_stakeholders.findMany).toHaveBeenCalledWith({
+          where: { product_program_id: mockProductProgram.id },
           include: expect.any(Object),
           orderBy: {
-            assignedAt: 'desc',
+            assigned_at: 'desc',
           },
         });
         expect(result).toEqual(mockStakeholders);
       });
 
       it('should return empty array if no stakeholders found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findMany as jest.Mock).mockResolvedValue([]);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findMany as jest.Mock).mockResolvedValue([]);
 
         const result = await getStakeholders(mockProductProgram.id);
 
@@ -790,7 +790,7 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if product/program not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(getStakeholders(mockProductProgram.id)).rejects.toThrow(
           `Product/Program with ID "${mockProductProgram.id}" not found`
@@ -798,8 +798,8 @@ describe('ProductProgramService', () => {
       });
 
       it('should handle database errors', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findMany as jest.Mock).mockRejectedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findMany as jest.Mock).mockRejectedValue(
           new Error('Database error')
         );
 
@@ -813,11 +813,11 @@ describe('ProductProgramService', () => {
       const newRole = 'Technical Lead';
 
       it('should update stakeholder role successfully', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(
           mockStakeholder
         );
-        (prisma.productProgramStakeholder.update as jest.Mock).mockResolvedValue({
+        (prisma.product_program_stakeholders.update as jest.Mock).mockResolvedValue({
           ...mockStakeholder,
           role: newRole,
         });
@@ -829,10 +829,10 @@ describe('ProductProgramService', () => {
           mockAssigningUserId
         );
 
-        expect(prisma.productProgram.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_programs.findUnique).toHaveBeenCalledWith({
           where: { id: mockProductProgram.id },
         });
-        expect(prisma.productProgramStakeholder.findUnique).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.findUnique).toHaveBeenCalledWith({
           where: {
             productProgramId_userId: {
               productProgramId: mockProductProgram.id,
@@ -840,7 +840,7 @@ describe('ProductProgramService', () => {
             },
           },
         });
-        expect(prisma.productProgramStakeholder.update).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.update).toHaveBeenCalledWith({
           where: {
             productProgramId_userId: {
               productProgramId: mockProductProgram.id,
@@ -856,11 +856,11 @@ describe('ProductProgramService', () => {
       });
 
       it('should update stakeholder role to null', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(
           mockStakeholder
         );
-        (prisma.productProgramStakeholder.update as jest.Mock).mockResolvedValue({
+        (prisma.product_program_stakeholders.update as jest.Mock).mockResolvedValue({
           ...mockStakeholder,
           role: null,
         });
@@ -872,7 +872,7 @@ describe('ProductProgramService', () => {
           mockAssigningUserId
         );
 
-        expect(prisma.productProgramStakeholder.update).toHaveBeenCalledWith({
+        expect(prisma.product_program_stakeholders.update).toHaveBeenCalledWith({
           where: {
             productProgramId_userId: {
               productProgramId: mockProductProgram.id,
@@ -888,7 +888,7 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if product/program not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(
           updateStakeholderRole(
@@ -901,8 +901,8 @@ describe('ProductProgramService', () => {
       });
 
       it('should throw error if stakeholder not found', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(null);
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(null);
 
         await expect(
           updateStakeholderRole(
@@ -915,11 +915,11 @@ describe('ProductProgramService', () => {
       });
 
       it('should handle database errors', async () => {
-        (prisma.productProgram.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
-        (prisma.productProgramStakeholder.findUnique as jest.Mock).mockResolvedValue(
+        (prisma.product_programs.findUnique as jest.Mock).mockResolvedValue(mockProductProgram);
+        (prisma.product_program_stakeholders.findUnique as jest.Mock).mockResolvedValue(
           mockStakeholder
         );
-        (prisma.productProgramStakeholder.update as jest.Mock).mockRejectedValue(
+        (prisma.product_program_stakeholders.update as jest.Mock).mockRejectedValue(
           new Error('Database error')
         );
 
