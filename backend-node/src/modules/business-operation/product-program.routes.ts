@@ -6,6 +6,12 @@ import {
   updateProductProgramHandler,
   deleteProductProgramHandler,
 } from './product-program.controller';
+import {
+  addStakeholderHandler,
+  removeStakeholderHandler,
+  getStakeholdersHandler,
+  updateStakeholderRoleHandler,
+} from './product-program-stakeholders.controller';
 import { authenticate, requireRoles } from '../auth/auth.middleware';
 
 const errorSchema = {
@@ -98,7 +104,7 @@ async function productProgramRoutes(server: FastifyInstance) {
             securityClassification: { type: 'string', enum: ['UNCLASSIFIED', 'CUI', 'SECRET', 'TOP_SECRET'] },
             page: { type: 'number', minimum: 1, default: 1 },
             limit: { type: 'number', minimum: 1, maximum: 100, default: 20 },
-            sortBy: { type: 'string', enum: ['name', 'securityClassification', 'createdAt'], default: 'createdAt' },
+            sortBy: { type: 'string', enum: ['name', 'security_classification', 'created_at'], default: 'created_at' },
             sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
           },
         },
@@ -232,6 +238,140 @@ async function productProgramRoutes(server: FastifyInstance) {
       },
     },
     deleteProductProgramHandler
+  );
+
+  // Stakeholder Management Routes (Story 4.2 - Phase 1)
+
+  // POST /api/business-operations/products-programs/:id/stakeholders - Add stakeholder
+  server.post(
+    '/products-programs/:id/stakeholders',
+    {
+      onRequest: [authenticate, requireRoles(['Admin', 'Gov Program Director', 'Gov Program Manager'])],
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+        body: {
+          type: 'object',
+          required: ['userId'],
+          properties: {
+            userId: { type: 'string' },
+            role: { type: 'string', maxLength: 100 },
+          },
+        },
+        response: {
+          201: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'object' },
+            },
+          },
+          400: errorSchema,
+          401: errorSchema,
+          403: errorSchema,
+        },
+      },
+    },
+    addStakeholderHandler
+  );
+
+  // GET /api/business-operations/products-programs/:id/stakeholders - Get stakeholders
+  server.get(
+    '/products-programs/:id/stakeholders',
+    {
+      onRequest: [authenticate],
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'array' },
+            },
+          },
+          401: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    getStakeholdersHandler
+  );
+
+  // PUT /api/business-operations/products-programs/:id/stakeholders/:userId - Update stakeholder role
+  server.put(
+    '/products-programs/:id/stakeholders/:userId',
+    {
+      onRequest: [authenticate, requireRoles(['Admin', 'Gov Program Director', 'Gov Program Manager'])],
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            userId: { type: 'string' },
+          },
+          required: ['id', 'userId'],
+        },
+        body: {
+          type: 'object',
+          required: ['role'],
+          properties: {
+            role: { type: ['string', 'null'], maxLength: 100 },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'object' },
+            },
+          },
+          400: errorSchema,
+          401: errorSchema,
+          403: errorSchema,
+        },
+      },
+    },
+    updateStakeholderRoleHandler
+  );
+
+  // DELETE /api/business-operations/products-programs/:id/stakeholders/:userId - Remove stakeholder
+  server.delete(
+    '/products-programs/:id/stakeholders/:userId',
+    {
+      onRequest: [authenticate, requireRoles(['Admin', 'Gov Program Director', 'Gov Program Manager'])],
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            userId: { type: 'string' },
+          },
+          required: ['id', 'userId'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+            },
+          },
+          400: errorSchema,
+          401: errorSchema,
+          403: errorSchema,
+        },
+      },
+    },
+    removeStakeholderHandler
   );
 }
 

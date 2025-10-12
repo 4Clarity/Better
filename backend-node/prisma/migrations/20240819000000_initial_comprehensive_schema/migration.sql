@@ -1,6 +1,6 @@
 -- CreateExtension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "vector";
+-- CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- CreateEnum
@@ -499,18 +499,18 @@ CREATE TABLE "knowledge_chunks" (
 );
 
 -- CreateTable
-CREATE TABLE "vector_embeddings" (
-    "id" TEXT NOT NULL,
-    "knowledgeChunkId" TEXT NOT NULL,
-    "embedding" vector(1536) NOT NULL,
-    "embeddingModel" VARCHAR(100) NOT NULL,
-    "modelVersion" VARCHAR(50) NOT NULL,
-    "dimensions" INTEGER NOT NULL,
-    "magnitude" DECIMAL(10,6) NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "vector_embeddings_pkey" PRIMARY KEY ("id")
-);
+-- CREATE TABLE "vector_embeddings" (
+--     "id" TEXT NOT NULL,
+--     "knowledgeChunkId" TEXT NOT NULL,
+--     "embedding" vector(1536) NOT NULL,
+--     "embeddingModel" VARCHAR(100) NOT NULL,
+--     "modelVersion" VARCHAR(50) NOT NULL,
+--     "dimensions" INTEGER NOT NULL,
+--     "magnitude" DECIMAL(10,6) NOT NULL,
+--     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-- 
+--     CONSTRAINT "vector_embeddings_pkey" PRIMARY KEY ("id")
+-- );
 
 -- CreateTable
 CREATE TABLE "query_sessions" (
@@ -518,7 +518,7 @@ CREATE TABLE "query_sessions" (
     "transitionId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "query" TEXT NOT NULL,
-    "queryEmbedding" vector(1536) NOT NULL,
+    -- "queryEmbedding" vector(1536) NOT NULL,
     "response" TEXT NOT NULL,
     "sourceChunks" JSONB NOT NULL,
     "confidence" DECIMAL(3,2) NOT NULL,
@@ -785,8 +785,8 @@ CREATE INDEX "idx_knowledge_chunks_content_hash" ON "knowledge_chunks"("contentH
 CREATE INDEX "idx_knowledge_chunks_is_active" ON "knowledge_chunks"("isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "vector_embeddings_knowledgeChunkId_key" ON "vector_embeddings"("knowledgeChunkId");
-CREATE INDEX "idx_vector_embeddings_chunk_id" ON "vector_embeddings"("knowledgeChunkId");
+-- CREATE UNIQUE INDEX "vector_embeddings_knowledgeChunkId_key" ON "vector_embeddings"("knowledgeChunkId");
+-- CREATE INDEX "idx_vector_embeddings_chunk_id" ON "vector_embeddings"("knowledgeChunkId");
 
 -- CreateIndex
 CREATE INDEX "idx_query_sessions_transition_id" ON "query_sessions"("transitionId");
@@ -899,7 +899,7 @@ ALTER TABLE "knowledge_chunks" ADD CONSTRAINT "knowledge_chunks_artifactId_fkey"
 ALTER TABLE "knowledge_chunks" ADD CONSTRAINT "knowledge_chunks_transitionId_fkey" FOREIGN KEY ("transitionId") REFERENCES "transitions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "vector_embeddings" ADD CONSTRAINT "vector_embeddings_knowledgeChunkId_fkey" FOREIGN KEY ("knowledgeChunkId") REFERENCES "knowledge_chunks"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ALTER TABLE "vector_embeddings" ADD CONSTRAINT "vector_embeddings_knowledgeChunkId_fkey" FOREIGN KEY ("knowledgeChunkId") REFERENCES "knowledge_chunks"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "query_sessions" ADD CONSTRAINT "query_sessions_transitionId_fkey" FOREIGN KEY ("transitionId") REFERENCES "transitions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

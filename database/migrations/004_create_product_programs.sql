@@ -79,10 +79,10 @@ INSERT INTO product_programs (
   objectives,
   deliverables,
   dependencies,
-  "securityClassification",
-  "criticalDates",
-  "createdBy",
-  "updatedBy"
+  security_classification,
+  critical_dates,
+  created_by,
+  updated_by
 ) VALUES
 (
   gen_random_uuid(),

@@ -1,0 +1,426 @@
+{
+  "name": "Document Ingestion Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "doc-start",
+      "name": "Start - Document Received",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract file metadata and calculate hash\nconst crypto = require('crypto');\nconst fileData = $input.first().json;\n\n// Read file content\nconst fileContent = await window.fs.readFile(fileData.file_path);\nconst fileHash = crypto.createHash('sha256').update(fileContent).digest('hex');\n\nreturn [{\n  json: {\n    file_id: `file-${Date.now()}`,\n    file_path: fileData.file_path,\n    file_name: fileData.file_name,\n    file_size: fileContent.length,\n    file_hash: fileHash,\n    modified_date: fileData.modified_date || new Date().toISOString(),\n    content: fileContent.toString('utf8'),\n    ingestion_date: new Date().toISOString(),\n    priority: fileData.priority || 'normal',\n    transition_context: fileData.transition_id || null,\n    source: fileData.source || 'standard'\n  }\n}];"
+      },
+      "id": "extract-metadata",
+      "name": "Extract File Metadata & Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "duplicate_registry",
+        "query": "={ \"file_hash\": \"{{ $json.file_hash }}\" }",
+        "options": {}
+      },
+      "id": "check-duplicate-hash",
+      "name": "Check Duplicate Registry",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json._id !== undefined }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-duplicate-found",
+      "name": "IF Duplicate Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "duplicate_catalog",
+        "fields": "file_id,file_hash,primary_doc_id,reason,similarity_score,cataloged_date,source_path",
+        "options": {}
+      },
+      "id": "catalog-duplicate",
+      "name": "Catalog as Duplicate - STOP",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this content as Document (Class 1: SOP, policy, architecture, config, log) or Message (Class 2: Communication, Q&A, issue) or Update (Class 3: Temporal update).\\n\\nContent preview: {{ $json.content.substring(0, 2000) }}\\n\\nReturn JSON: {\\\"class\\\": 1|2|3, \\\"type\\\": \\\"specific_type\\\", \\\"confidence\\\": 0.0-1.0, \\\"rationale\\\": \\\"explanation\\\"}\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "classify-document",
+      "name": "Claude - Classify Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude response and check confidence\nconst response = $input.first().json;\nconst claudeContent = JSON.parse(response.content[0].text);\n\nconst item = $input.first().json;\n\nreturn [{\n  json: {\n    ...item,\n    classification: {\n      class: claudeContent.class,\n      type: claudeContent.type,\n      confidence: claudeContent.confidence,\n      rationale: claudeContent.rationale\n    },\n    requires_review: claudeContent.confidence < 0.7\n  }\n}];"
+      },
+      "id": "parse-classification",
+      "name": "Parse Classification Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.requires_review }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-low-confidence",
+      "name": "IF Low Confidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 500]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "review_queue",
+        "fields": "file_id,classification,confidence,status,queued_date",
+        "options": {}
+      },
+      "id": "queue-review",
+      "name": "Queue for Human Review",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract from this document:\\n1. Version number (v1.0, Version 2.3, Rev 4, etc.)\\n2. Publication/effective date\\n3. Author/owner\\n4. Expiration date if any\\n\\nDocument: {{ $json.content.substring(0, 3000) }}\\n\\nReturn JSON with fields: version, publish_date, author, expiration_date (null if not found)\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "extract-version",
+      "name": "Claude - Extract Version Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse version info and merge with document data\nconst response = $input.first().json;\nconst versionInfo = JSON.parse(response.content[0].text);\n\nconst previousData = $input.item(1).json; // Get data from previous node\n\nreturn [{\n  json: {\n    ...previousData,\n    version_info: versionInfo,\n    version: versionInfo.version || null,\n    publish_date: versionInfo.publish_date || previousData.modified_date,\n    author: versionInfo.author || 'unknown'\n  }\n}];"
+      },
+      "id": "merge-version-info",
+      "name": "Merge Version Information",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 600]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "documents",
+        "query": "={ \"product\": \"{{ $json.product }}\", \"topic\": \"{{ $json.topic }}\" }",
+        "options": {
+          "sort": "={ \"version\": -1, \"publish_date\": -1 }"
+        }
+      },
+      "id": "query-existing-docs",
+      "name": "Query Existing Versions",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2050, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine currency status\nconst currentDoc = $input.first().json;\nconst existingDocs = $input.item(1).json.documents || [];\n\nlet status = 'current';\nlet superseded_by = null;\nlet supersedes = null;\n\nif (existingDocs.length > 0) {\n  const latest = existingDocs[0];\n  \n  // Compare versions if both have version numbers\n  if (currentDoc.version && latest.version) {\n    const currentVer = parseFloat(currentDoc.version.replace(/[^0-9.]/g, ''));\n    const latestVer = parseFloat(latest.version.replace(/[^0-9.]/g, ''));\n    \n    if (currentVer < latestVer) {\n      status = 'superseded';\n      superseded_by = latest.doc_id;\n    } else if (currentVer > latestVer) {\n      status = 'current';\n      supersedes = latest.doc_id;\n      // Mark old doc as superseded\n    }\n  } else {\n    // Compare by date\n    const currentDate = new Date(currentDoc.publish_date);\n    const latestDate = new Date(latest.publish_date);\n    \n    if (currentDate < latestDate) {\n      status = 'superseded';\n      superseded_by = latest.doc_id;\n    } else {\n      status = 'current';\n      supersedes = latest.doc_id;\n    }\n  }\n}\n\n// Check for messaging overrides\nconst overrideCheck = await $input.first().getNode('check-overrides').execute();\n\nif (overrideCheck && overrideCheck.length > 0) {\n  status = 'overridden';\n  currentDoc.overridden_by = overrideCheck.map(o => o.message_id);\n}\n\nreturn [{\n  json: {\n    ...currentDoc,\n    currency_status: status,\n    superseded_by: superseded_by,\n    supersedes: supersedes\n  }\n}];"
+      },
+      "id": "determine-currency",
+      "name": "Determine Currency Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this document to determine optimal chunking strategy.\\n\\nDocument Type: {{ $json.classification.type }}\\nContent: {{ $json.content }}\\n\\nReturn a chunking schema that:\\n1. Preserves complete ideas and context\\n2. Maintains procedural steps together\\n3. Ensures each chunk can be understood with minimal additional context\\n4. Identifies interdependencies between chunks\\n\\nProvide: chunk boundaries (char positions), chunk type, semantic completeness score (0-1), required context from other chunks, recommended overlap.\\n\\nReturn JSON array of chunks with structure: {chunk_id, start_char, end_char, chunk_type, standalone_score, context_dependencies: [], overlap_next: 0}\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "claude-chunking",
+      "name": "Claude - Intelligent Chunking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apply Claude's chunking recommendations\nconst response = $input.first().json;\nconst chunkingSchema = JSON.parse(response.content[0].text);\nconst docData = $input.item(1).json;\n\nconst chunks = [];\n\nfor (let i = 0; i < chunkingSchema.chunks.length; i++) {\n  const schema = chunkingSchema.chunks[i];\n  \n  const chunkContent = docData.content.substring(\n    schema.start_char,\n    schema.end_char\n  );\n  \n  chunks.push({\n    chunk_id: `${docData.file_id}-chunk-${i + 1}`,\n    document_id: docData.file_id,\n    chunk_index: i + 1,\n    chunk_type: schema.chunk_type,\n    content: chunkContent,\n    standalone_score: schema.standalone_score,\n    requires_context_from: schema.context_dependencies.map(\n      dep => typeof dep === 'number' ? `${docData.file_id}-chunk-${dep}` : dep\n    ),\n    provides_context_to: i < chunkingSchema.chunks.length - 1 \n      ? [`${docData.file_id}-chunk-${i + 2}`] \n      : [],\n    char_range: [schema.start_char, schema.end_char],\n    semantic_summary: schema.summary || '',\n    created_date: new Date().toISOString()\n  });\n}\n\nreturn chunks.map(chunk => ({ json: chunk }));"
+      },
+      "id": "apply-chunking",
+      "name": "Apply Chunking Strategy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2650, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract structured facts from this content:\\n\\nChunk: {{ $json.content }}\\n\\nExtract:\\n1. Key facts (what, who, when, where, how)\\n2. Procedures/steps\\n3. Requirements/prerequisites\\n4. Entities (systems, products, people, versions)\\n5. Temporal markers (valid from/until, current as of)\\n6. Dependencies\\n\\nReturn JSON array of facts with confidence scores.\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "extract-facts",
+      "name": "Claude - Extract Facts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2850, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge facts with chunk data\nconst response = $input.first().json;\nconst facts = JSON.parse(response.content[0].text);\nconst chunkData = $input.item(1).json;\n\nreturn [{\n  json: {\n    ...chunkData,\n    extracted_facts: facts.facts || [],\n    entities: facts.entities || [],\n    temporal_markers: facts.temporal_markers || []\n  }\n}];"
+      },
+      "id": "merge-facts",
+      "name": "Merge Facts with Chunk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3050, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.content }}\"\n}",
+        "headerParametersJson": "={\n  \"content-type\": \"application/json\",\n  \"authorization\": \"Bearer {{$credentials.openAiApi.apiKey}}\"\n}"
+      },
+      "id": "generate-embedding",
+      "name": "Generate Chunk Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3250, 600],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "chunks",
+        "fields": "chunk_id,document_id,chunk_index,content,standalone_score,extracted_facts,entities,embedding",
+        "options": {}
+      },
+      "id": "store-chunk",
+      "name": "Store Chunk in Database",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3450, 600]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $json.vector_store_url }}/upsert",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"id\": \"{{ $json.chunk_id }}\",\n  \"vector\": {{ JSON.stringify($json.embedding) }},\n  \"metadata\": {\n    \"document_id\": \"{{ $json.document_id }}\",\n    \"chunk_index\": {{ $json.chunk_index }},\n    \"standalone_score\": {{ $json.standalone_score }},\n    \"chunk_type\": \"{{ $json.chunk_type }}\",\n    \"currency_status\": \"{{ $json.currency_status }}\"\n  }\n}"
+      },
+      "id": "index-vector",
+      "name": "Index in Vector Store",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3650, 600]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "documents",
+        "fields": "file_id,file_name,file_hash,classification,version_info,currency_status,chunks,ingestion_complete",
+        "options": {}
+      },
+      "id": "store-document",
+      "name": "Store Document Metadata",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3850, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create graph relationships\nconst doc = $input.first().json;\nconst relationships = [];\n\n// Version relationships\nif (doc.supersedes) {\n  relationships.push({\n    type: 'SUPERSEDES',\n    from: doc.file_id,\n    to: doc.supersedes,\n    created: new Date().toISOString()\n  });\n}\n\nif (doc.superseded_by) {\n  relationships.push({\n    type: 'SUPERSEDED_BY',\n    from: doc.file_id,\n    to: doc.superseded_by,\n    created: new Date().toISOString()\n  });\n}\n\n// Chunk context relationships\nif (doc.chunks) {\n  doc.chunks.forEach(chunk => {\n    if (chunk.requires_context_from) {\n      chunk.requires_context_from.forEach(dep => {\n        relationships.push({\n          type: 'REQUIRES_CONTEXT',\n          from: chunk.chunk_id,\n          to: dep,\n          created: new Date().toISOString()\n        });\n      });\n    }\n  });\n}\n\nreturn relationships.map(rel => ({ json: rel }));"
+      },
+      "id": "create-relationships",
+      "name": "Create Graph Relationships",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4050, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=CREATE (a)-[r:{{ $json.type }}]->(b)\nWHERE a.id = '{{ $json.from }}' AND b.id = '{{ $json.to }}'\nRETURN r"
+      },
+      "id": "store-graph",
+      "name": "Store in Graph DB",
+      "type": "n8n-nodes-base.neo4j",
+      "typeVersion": 1,
+      "position": [4250, 600],
+      "credentials": {
+        "neo4j": {
+          "id": "4",
+          "name": "Neo4j TIPS KB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final response\nconst doc = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'success',\n    document_id: doc.file_id,\n    chunks_created: doc.chunks ? doc.chunks.length : 0,\n    currency_status: doc.currency_status,\n    classification: doc.classification,\n    message: 'Document successfully ingested and indexed'\n  }\n}];"
+      },
+      "id": "final-response",
+      "name": "Return Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4450, 600]
+    }
+  ],
+  "connections": {
+    "Start - Document Received": {
+      "main": [[{"node": "Extract File Metadata & Hash", "type": "main", "index": 0}]]
+    },
+    "Extract File Metadata & Hash": {
+      "main": [[{"node": "Check Duplicate Registry", "type": "main", "index": 0}]]
+    },
+    "Check Duplicate Registry": {
+      "main": [[{"node": "IF Duplicate Found", "type": "main", "index": 0}]]
+    },
+    "IF Duplicate Found": {
+      "main": [
+        [{"node": "Catalog as Duplicate - STOP", "type": "main", "index": 0}],
+        [{"node": "Claude - Classify Document", "type": "main", "index": 0}]
+      ]
+    },
+    "Claude - Classify Document": {
+      "main": [[{"node": "Parse Classification Result", "type": "main", "index": 0}]]
+    },
+    "Parse Classification Result": {
+      "main": [[{"node": "IF Low Confidence", "type": "main", "index": 0}]]
+    },
+    "IF Low Confidence": {
+      "main": [
+        [{"node": "Queue for Human Review", "type": "main", "index": 0}],
+        [{"node": "Claude - Extract Version Info", "type": "main", "index": 0}]
+      ]
+    },
+    "Claude - Extract Version Info": {
+      "main": [[{"node": "Merge Version Information", "type": "main", "index": 0}]]
+    },
+    "Merge Version Information": {
+      "main": [[{"node": "Query Existing Versions", "type": "main", "index": 0}]]
+    },
+    "Query Existing Versions": {
+      "main": [[{"node": "Determine Currency Status", "type": "main", "index": 0}]]
+    },
+    "Determine Currency Status": {
+      "main": [[{"node": "Claude - Intelligent Chunking", "type": "main", "index": 0}]]
+    },
+    "Claude - Intelligent Chunking": {
+      "main": [[{"node": "Apply Chunking Strategy", "type": "main", "index": 0}]]
+    },
+    "Apply Chunking Strategy": {
+      "main": [[{"node": "Claude - Extract Facts", "type": "main", "index": 0}]]
+    },
+    "Claude - Extract Facts": {
+      "main": [[{"node": "Merge Facts with Chunk", "type": "main", "index": 0}]]
+    },
+    "Merge Facts with Chunk": {
+      "main": [[{"node": "Generate Chunk Embedding", "type": "main", "index": 0}]]
+    },
+    "Generate Chunk Embedding": {
+      "main": [[{"node": "Store Chunk in Database", "type": "main", "index": 0}]]
+    },
+    "Store Chunk in Database": {
+      "main": [[{"node": "Index in Vector Store", "type": "main", "index": 0}]]
+    },
+    "Index in Vector Store": {
+      "main": [[{"node": "Store Document Metadata", "type": "main", "index": 0}]]
+    },
+    "Store Document Metadata": {
+      "main": [[{"node": "Create Graph Relationships", "type": "main", "index": 0}]]
+    },
+    "Create Graph Relationships": {
+      "main": [[{"node": "Store in Graph DB", "type": "main", "index": 0}]]
+    },
+    "Store in Graph DB": {
+      "main": [[{"node": "Return Success Response", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

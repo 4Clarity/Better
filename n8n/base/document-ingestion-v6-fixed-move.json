@@ -1,0 +1,226 @@
+{
+  "name": "Document Ingestion v6 - Fixed Move",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "file-upload",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "webhook-v6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Get binary data\n  const binaryData = item.binary;\n  \n  if (!binaryData || Object.keys(binaryData).length === 0) {\n    throw new Error('No binary data received in upload');\n  }\n  \n  // Get the first binary property key (uploaded file)\n  const binaryKey = Object.keys(binaryData)[0];\n  const fileData = binaryData[binaryKey];\n  \n  // Extract metadata\n  const originalFilename = fileData.fileName || binaryKey || 'unknown';\n  const extension = originalFilename.split('.').pop() || 'bin';\n  const timestamp = Date.now();\n  const newFilename = `${timestamp}_${originalFilename}`;\n  \n  // Calculate file size in bytes\n  let fileSizeBytes = 0;\n  if (fileData.data) {\n    fileSizeBytes = Buffer.from(fileData.data, 'base64').length;\n  }\n  \n  // Build result with BOTH json and binary\n  results.push({\n    json: {\n      timestamp: timestamp,\n      binary_key: binaryKey,\n      original_filename: originalFilename,\n      new_filename: newFilename,\n      file_extension: extension,\n      file_path: `/data/uploads/${newFilename}`,\n      file_path_processed: `/data/uploads/processed/${newFilename}`,\n      file_size_bytes: fileSizeBytes,\n      mime_type: fileData.mimeType || 'application/octet-stream',\n      upload_timestamp: new Date().toISOString()\n    },\n    binary: {\n      file: fileData\n    }\n  });\n}\n\nreturn results;"
+      },
+      "name": "Process Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "id": "process-v6"
+    },
+    {
+      "parameters": {
+        "fileName": "={{ $json.file_path }}",
+        "dataPropertyName": "file"
+      },
+      "name": "Write File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ],
+      "id": "write-file-v6"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (filename, original_filename, file_path, file_size, mime_type, file_extension, metadata)\nVALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)\nRETURNING id, filename, original_filename, file_size;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.new_filename,\n  $json.original_filename,\n  $json.file_path_processed,\n  $json.file_size_bytes,\n  $json.mime_type,\n  $json.file_extension,\n  JSON.stringify({ upload_timestamp: $json.upload_timestamp })\n] }}"
+        }
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        900,
+        300
+      ],
+      "id": "postgres-v6",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-tip",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "document_id",
+              "name": "document_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "db_filename",
+              "name": "db_filename",
+              "value": "={{ $json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "db_original_filename",
+              "name": "db_original_filename",
+              "value": "={{ $json.original_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "db_file_size",
+              "name": "db_file_size",
+              "value": "={{ $json.file_size }}",
+              "type": "number"
+            },
+            {
+              "id": "file_path",
+              "name": "file_path",
+              "value": "={{ $('Write File').item.json.file_path }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_processed",
+              "name": "file_path_processed",
+              "value": "={{ $('Write File').item.json.file_path_processed }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "merge-v6"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'mv \"' + $json.file_path + '\" \"' + $json.file_path_processed + '\"' }}"
+      },
+      "name": "Move to Processed",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ],
+      "id": "move-file-v6"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"document_id\": $json.document_id,\n  \"filename\": $json.db_filename,\n  \"original_filename\": $json.db_original_filename,\n  \"file_size\": $json.db_file_size,\n  \"file_path\": $json.file_path_processed,\n  \"message\": \"Document uploaded, saved, and moved to processed folder\"\n} }}"
+      },
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        300
+      ],
+      "id": "response-v6"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Upload": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write File": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Move to Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move to Processed": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-06T20:45:00.Z"
+}

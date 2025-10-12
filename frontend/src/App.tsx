@@ -16,6 +16,7 @@ import { TasksAndMilestonesPage } from './pages/TasksAndMilestonesPage';
 import { KnowledgeManagementPage } from './pages/KnowledgeManagementPage';
 import { RolesMatrixPage } from './pages/RolesMatrixPage';
 import { UserProfilePage } from './pages/UserProfilePage';
+import { ProductsProgramsPage } from './pages/ProductsProgramsPage';
 
 function AppRoutes() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -41,6 +42,11 @@ function AppRoutes() {
   return (
     <Routes>
         <Route path="/" element={
+          <Layout pageTitle="Dashboard">
+            <DashboardPage />
+          </Layout>
+        } />
+        <Route path="/dashboard" element={
           <Layout pageTitle="Dashboard">
             <DashboardPage />
           </Layout>
@@ -105,14 +111,9 @@ function AppRoutes() {
             </div>
           </Layout>
         } />
-        <Route path="/programs" element={
+        <Route path="/business-operations/products-programs/*" element={
           <Layout pageTitle="Products & Programs">
-            <div className="p-8">
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-semibold mb-4">Products & Programs</h2>
-                <p className="text-muted-foreground">This section will contain product and program management features.</p>
-              </div>
-            </div>
+            <ProductsProgramsPage />
           </Layout>
         } />
         <Route path="/knowledge/*" element={

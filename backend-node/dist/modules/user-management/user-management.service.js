@@ -4,6 +4,8 @@ exports.UserManagementService = void 0;
 const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
 const bcryptjs_1 = require("bcryptjs");
+const cuid2_1 = require("@paralleldrive/cuid2");
+const auth_service_1 = require("../auth/auth.service");
 const prisma = new client_1.PrismaClient();
 class UserManagementService {
     constructor() {
@@ -16,10 +18,12 @@ class UserManagementService {
     async createPerson(data) {
         return prisma.persons.create({
             data: {
+                id: (0, cuid2_1.createId)(),
                 ...data,
                 skills: data.skills || [],
                 certifications: data.certifications || [],
                 education: data.education || {},
+                updatedAt: new Date(),
             },
         });
     }
@@ -80,47 +84,50 @@ class UserManagementService {
             // Create person
             const person = await tx.persons.create({
                 data: {
+                    id: (0, cuid2_1.createId)(),
                     ...invitationData.personData,
                     skills: invitationData.personData.skills || [],
                     certifications: invitationData.personData.certifications || [],
                     education: invitationData.personData.education || {},
+                    updatedAt: new Date(),
                 },
             });
+            // Hash the password for initial login
+            const authService = new auth_service_1.AuthenticationService();
+            const hashedPassword = await authService.hashPassword(invitationData.userData.password);
             // Create user
             const user = await tx.user.create({
                 data: {
-                    personId: person.id,
-                    username: invitationData.userData.username,
-                    keycloakId: `pending-${person.id}`, // Will be updated when user completes registration
-                    invitationStatus: 'INVITATION_SENT',
-                    accountStatus: 'PENDING',
-                    emailVerified: false,
-                    roles: invitationData.userData.roles || [],
-                    invitationToken,
-                    invitationExpiresAt,
-                    invitedBy: invitationData.userData.invitedBy,
-                    invitedAt: new Date(),
-                    sessionTimeout: invitationData.userData.sessionTimeout,
-                    allowedIpRanges: invitationData.userData.allowedIpRanges || [],
-                    permissions: invitationData.userData.permissions || {},
+                    email: person.primaryEmail, // Use the person's primary email
+                    firstName: person.firstName,
+                    lastName: person.lastName,
+                    role: invitationData.userData.roles?.[0] || 'Observer', // Use first role as primary role
+                    passwordHash: hashedPassword,
+                    mustChangePassword: true, // Force password change on first login
+                    person: {
+                        connect: { id: person.id }
+                    }
                 },
             });
             // Create organization affiliation if provided
             if (invitationData.organizationAffiliation) {
-                await tx.personOrganizationAffiliation.create({
+                await tx.person_organization_affiliations.create({
                     data: {
+                        id: (0, cuid2_1.createId)(),
                         personId: person.id,
                         organizationId: invitationData.organizationAffiliation.organizationId,
                         jobTitle: invitationData.organizationAffiliation.jobTitle,
                         department: invitationData.organizationAffiliation.department,
                         affiliationType: invitationData.organizationAffiliation.affiliationType,
                         employmentStatus: invitationData.organizationAffiliation.employmentStatus,
-                        securityClearanceRequired: invitationData.organizationAffiliation.securityClearanceRequired,
-                        startDate: new Date(),
-                        isPrimary: true,
                         accessLevel: invitationData.organizationAffiliation.accessLevel,
                         contractNumber: invitationData.organizationAffiliation.contractNumber,
                         createdBy: user.id,
+                        startDate: new Date(),
+                        isActive: true,
+                        isPrimary: true,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
                     },
                 });
             }
@@ -132,7 +139,7 @@ class UserManagementService {
      * Accept user invitation and complete registration
      */
     async acceptInvitation(invitationToken, keycloakId, confirmationData) {
-        const user = await prisma.users.findFirst({
+        const user = await prisma.user.findFirst({
             where: {
                 invitationToken,
                 invitationStatus: 'INVITATION_SENT',
@@ -144,7 +151,7 @@ class UserManagementService {
         if (!user) {
             throw new Error('Invalid or expired invitation token');
         }
-        return prisma.users.update({
+        return prisma.user.update({
             where: { id: user.id },
             data: {
                 keycloakId,
@@ -168,7 +175,7 @@ class UserManagementService {
         const invitationToken = this.generateInvitationToken();
         const invitationExpiresAt = new Date();
         invitationExpiresAt.setHours(invitationExpiresAt.getHours() + this.INVITATION_EXPIRY_HOURS);
-        const user = await prisma.users.update({
+        const user = await prisma.user.update({
             where: { id: userId },
             data: {
                 invitationToken,
@@ -185,25 +192,18 @@ class UserManagementService {
      * Get user by ID with related data
      */
     async getUserById(id, includeRelations = true) {
-        return prisma.users.findUnique({
+        return prisma.user.findUnique({
             where: { id },
             include: includeRelations ? {
-                person: {
-                    include: {
-                        organizationAffiliations: {
-                            include: {
-                                organization: true,
-                            },
-                        },
-                    },
-                },
-                transitionUsers: {
-                    include: {
-                        transition: true,
-                    },
-                },
-                invitedUsers: true,
-                invitedByUser: true,
+                person: true,
+                // Note: organizationAffiliations field doesn't exist in current schema
+                // transitionUsers: {
+                //   include: {
+                //     transition: true,
+                //   },
+                // },
+                // invitedUsers: true,
+                // invitedByUser: true,
             } : undefined,
         });
     }
@@ -211,7 +211,7 @@ class UserManagementService {
      * Get user by username
      */
     async getUserByUsername(username) {
-        return prisma.users.findUnique({
+        return prisma.user.findUnique({
             where: { username },
             include: {
                 person: true,
@@ -222,7 +222,7 @@ class UserManagementService {
      * Get user by Keycloak ID
      */
     async getUserByKeycloakId(keycloakId) {
-        return prisma.users.findUnique({
+        return prisma.user.findUnique({
             where: { keycloakId },
             include: {
                 person: true,
@@ -230,19 +230,113 @@ class UserManagementService {
         });
     }
     /**
-     * Update user account status
+     * Update user account status with enhanced audit trail
      */
     async updateUserStatus(data) {
-        return prisma.users.update({
+        // First get the current user to capture the previous status for audit
+        const currentUser = await prisma.user.findUnique({
             where: { id: data.userId },
-            data: {
-                accountStatus: data.accountStatus,
-                statusReason: data.statusReason,
-                deactivatedAt: data.accountStatus === 'DEACTIVATED' ? new Date() : null,
-                deactivatedBy: data.deactivatedBy,
-                updatedAt: new Date(),
-            },
+            select: { accountStatus: true }
         });
+        if (!currentUser) {
+            throw new Error('User not found');
+        }
+        const previousStatus = currentUser.accountStatus;
+        const updateData = {
+            accountStatus: data.accountStatus,
+            statusReason: data.statusReason,
+            updatedAt: new Date(),
+        };
+        // Handle deactivation specific fields
+        if (data.accountStatus === 'DEACTIVATED') {
+            updateData.deactivatedAt = new Date();
+            updateData.deactivatedBy = data.adminId || data.deactivatedBy;
+        }
+        else if (data.accountStatus === 'ACTIVE') {
+            // Clear deactivation fields when reactivating
+            updateData.deactivatedAt = null;
+            updateData.deactivatedBy = null;
+        }
+        const updatedUser = await prisma.user.update({
+            where: { id: data.userId },
+            data: updateData,
+        });
+        // Log status change for audit trail with correct from/to statuses
+        await this.logStatusChange({
+            userId: data.userId,
+            fromStatus: previousStatus,
+            toStatus: data.accountStatus,
+            reason: data.statusReason,
+            reasonCode: data.reasonCode,
+            changedBy: data.adminId,
+            timestamp: new Date(),
+        });
+        return updatedUser;
+    }
+    /**
+     * Update user status with validation - optimized single-call version
+     */
+    async updateUserStatusWithValidation(data) {
+        // Get current user to validate existence and capture previous status
+        const currentUser = await prisma.user.findUnique({
+            where: { id: data.userId },
+            select: { accountStatus: true }
+        });
+        if (!currentUser) {
+            throw new Error('User not found');
+        }
+        // Validate status transition
+        const validation = this.validateStatusChange(currentUser.accountStatus, data.accountStatus);
+        if (!validation.isValid) {
+            throw new Error(`Invalid status transition: ${validation.reason}`);
+        }
+        // Proceed with update
+        return this.updateUserStatus(data);
+    }
+    /**
+     * Log status change for audit trail
+     */
+    async logStatusChange(logData) {
+        // TODO: Create audit log table and implement logging
+        console.log('User status change:', {
+            userId: logData.userId,
+            statusChange: `${logData.fromStatus} -> ${logData.toStatus}`,
+            reason: logData.reason,
+            reasonCode: logData.reasonCode,
+            changedBy: logData.changedBy,
+            timestamp: logData.timestamp.toISOString(),
+        });
+    }
+    /**
+     * Get user status history for audit trail
+     */
+    async getUserStatusHistory(userId) {
+        // TODO: Implement with actual audit log table
+        // For now return empty array
+        return [];
+    }
+    /**
+     * Validate status change business rules
+     */
+    validateStatusChange(fromStatus, toStatus) {
+        // Define valid status transitions
+        const validTransitions = {
+            PENDING: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'],
+            ACTIVE: ['INACTIVE', 'SUSPENDED', 'DEACTIVATED'],
+            INACTIVE: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'],
+            SUSPENDED: ['ACTIVE', 'DEACTIVATED'],
+            LOCKED: ['ACTIVE', 'DEACTIVATED'],
+            EXPIRED: ['ACTIVE', 'DEACTIVATED'],
+            DEACTIVATED: [], // Generally cannot reactivate deactivated users
+        };
+        const allowedTransitions = validTransitions[fromStatus] || [];
+        if (!allowedTransitions.includes(toStatus)) {
+            return {
+                isValid: false,
+                reason: `Cannot transition from ${fromStatus} to ${toStatus}`,
+            };
+        }
+        return { isValid: true };
     }
     /**
      * Update user security information
@@ -268,7 +362,7 @@ class UserManagementService {
      */
     async updateUserRoles(userId, roles, updatedBy) {
         // TODO: Implement approval workflow for sensitive role changes
-        return prisma.users.update({
+        return prisma.user.update({
             where: { id: userId },
             data: {
                 roles,
@@ -425,7 +519,7 @@ class UserManagementService {
      * Record user login
      */
     async recordUserLogin(userId, ipAddress, userAgent) {
-        await prisma.users.update({
+        await prisma.user.update({
             where: { id: userId },
             data: {
                 lastLoginAt: new Date(),
@@ -439,13 +533,13 @@ class UserManagementService {
      * Record failed login attempt
      */
     async recordFailedLogin(username) {
-        const user = await prisma.users.findUnique({
+        const user = await prisma.user.findUnique({
             where: { username },
         });
         if (user) {
             const failedAttempts = user.failedLoginAttempts + 1;
             const shouldLock = failedAttempts >= 5;
-            await prisma.users.update({
+            await prisma.user.update({
                 where: { id: user.id },
                 data: {
                     failedLoginAttempts: failedAttempts,
@@ -503,7 +597,7 @@ class UserManagementService {
     async resetUserPassword(userId, adminUserId, options = {}) {
         try {
             // Validate admin permissions
-            const adminUser = await prisma.users.findUnique({
+            const adminUser = await prisma.user.findUnique({
                 where: { id: adminUserId },
                 include: {
                 // Note: This would need to be adjusted based on your roles schema
@@ -514,7 +608,7 @@ class UserManagementService {
                 throw new Error('Admin user not found or not active');
             }
             // Find target user
-            const targetUser = await prisma.users.findUnique({
+            const targetUser = await prisma.user.findUnique({
                 where: { id: userId },
                 include: { person: true }
             });
@@ -544,7 +638,7 @@ class UserManagementService {
             const saltRounds = 12;
             const hashedPassword = await (0, bcryptjs_1.hash)(newPassword, saltRounds);
             // Update user's password
-            await prisma.users.update({
+            await prisma.user.update({
                 where: { id: userId },
                 data: {
                     passwordHash: hashedPassword,
@@ -586,7 +680,7 @@ class UserManagementService {
      */
     async validateAdminPermissions(adminUserId) {
         try {
-            const adminUser = await prisma.users.findUnique({
+            const adminUser = await prisma.user.findUnique({
                 where: { id: adminUserId },
                 // This would need to include roles/permissions based on your schema
             });
@@ -613,7 +707,7 @@ class UserManagementService {
             }
             // This would require adding password reset tracking to your schema
             // For now, we'll return basic info from the user record
-            const user = await prisma.users.findUnique({
+            const user = await prisma.user.findUnique({
                 where: { id: userId },
                 select: {
                     passwordResetAt: true,
@@ -649,7 +743,7 @@ class UserManagementService {
             if (!await this.validateAdminPermissions(adminUserId)) {
                 throw new Error('Insufficient permissions');
             }
-            await prisma.users.update({
+            await prisma.user.update({
                 where: { id: userId },
                 data: {
                     mustChangePassword: true,

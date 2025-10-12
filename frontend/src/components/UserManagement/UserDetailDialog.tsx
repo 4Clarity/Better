@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserManagementApi, type User } from '@/services/userManagementApi';
+import { UserProfileRolesCard } from './UserProfileRolesCard';
 import {
   User as UserIcon,
   Shield,
@@ -593,46 +594,32 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
               </TabsContent>
 
               <TabsContent value="roles" className="space-y-4">
-                <h3 className="text-lg font-semibold">Roles & Permissions</h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Assigned Roles</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {user.roles && Array.isArray(user.roles) ? (
-                        user.roles.map((role, index) => (
-                          <Badge key={index} variant="default">
-                            {role}
-                          </Badge>
-                        ))
-                      ) : (user as any).role ? (
-                        <Badge variant="default">
-                          {(user as any).role}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">
-                          No roles assigned
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label>Session Settings</Label>
-                    <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <p className="text-sm">
-                        Session Timeout: {user.sessionTimeout ? `${user.sessionTimeout} minutes` : 'Default (30 minutes)'}
-                      </p>
-                      {user.allowedIpRanges && user.allowedIpRanges.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-sm font-medium">Allowed IP Ranges:</p>
-                          <ul className="text-sm text-gray-600 dark:text-gray-400">
-                            {user.allowedIpRanges.map((ip, index) => (
-                              <li key={index}>• {ip}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                <h3 className="text-lg font-semibold mb-4">Roles & Permissions</h3>
+
+                {/* Interactive Role Assignment Component */}
+                <UserProfileRolesCard
+                  userId={user.id}
+                  canEdit={true}
+                  onRoleChange={loadUser}
+                />
+
+                {/* Session Settings */}
+                <div className="mt-6">
+                  <Label>Session Settings</Label>
+                  <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="text-sm">
+                      Session Timeout: {user.sessionTimeout ? `${user.sessionTimeout} minutes` : 'Default (30 minutes)'}
+                    </p>
+                    {user.allowedIpRanges && user.allowedIpRanges.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-sm font-medium">Allowed IP Ranges:</p>
+                        <ul className="text-sm text-gray-600 dark:text-gray-400">
+                          {user.allowedIpRanges.map((ip, index) => (
+                            <li key={index}>• {ip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>

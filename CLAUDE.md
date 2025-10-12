@@ -10,6 +10,9 @@
 - Never create a file longer than 500 lines of code. If a file approaches this limit, refactor by splitting it into modules or helper files.
 - Organize code into clearly separated modules, grouped by feature or responsibility.
 - Use clear, consistent imports (prefer relative imports within packages).
+- Use snake_case naming convention for all data field definitions, across tables, prisma schema and migration scripts.
+- Use camelCase naming convention for all objects and classes.
+- Use hyphens (dashes-between-words) for file naming convention.
 
 ## Testing and Reliabiity
 - Create tests first following a test driven development cycle

@@ -15,6 +15,7 @@ const task_service_1 = require("./modules/task/task.service");
 const transition_raw_route_1 = __importDefault(require("./modules/transition/transition-raw.route"));
 const milestone_route_1 = __importDefault(require("./modules/milestone/milestone.route"));
 const business_operation_route_1 = __importDefault(require("./modules/business-operation/business-operation.route"));
+const product_program_routes_1 = __importDefault(require("./modules/business-operation/product-program.routes"));
 const contract_route_1 = __importDefault(require("./modules/contract/contract.route"));
 const enhanced_transition_route_1 = __importDefault(require("./modules/transition/enhanced-transition.route"));
 const user_management_routes_1 = require("./modules/user-management/user-management.routes");
@@ -23,6 +24,10 @@ const auth_1 = require("./modules/auth");
 const admin_1 = require("./modules/admin");
 const approval_queue_route_1 = __importDefault(require("./modules/knowledge/approval-queue.route"));
 const documents_route_1 = __importDefault(require("./modules/knowledge/documents.route"));
+const knowledge_source_routes_1 = __importDefault(require("./modules/knowledge/knowledge-source.routes"));
+const n8n_integration_routes_1 = __importDefault(require("./modules/knowledge/n8n-integration.routes"));
+const settings_routes_1 = require("./modules/settings/settings.routes");
+const security_1 = require("./modules/security");
 function buildServer() {
     const server = (0, fastify_1.default)({
         logger: true,
@@ -154,11 +159,17 @@ function buildServer() {
     console.log('Registering business operation routes');
     server.register(transition_raw_route_1.default, { prefix: '/api/transitions' });
     server.register(business_operation_route_1.default, { prefix: '/api/business-operations' });
+    server.register(product_program_routes_1.default, { prefix: '/api/business-operations' });
     server.register(contract_route_1.default, { prefix: '/api/contracts' });
     server.register(enhanced_transition_route_1.default, { prefix: '/api/enhanced-transitions' });
     server.register(user_management_routes_1.userManagementRoutes, { prefix: '/api/user-management' });
     server.register(approval_queue_route_1.default, { prefix: '/api' });
     server.register(documents_route_1.default, { prefix: '/api' });
+    server.register(knowledge_source_routes_1.default, { prefix: '/api/knowledge-sources' });
+    server.register(n8n_integration_routes_1.default, { prefix: '/api/n8n' });
+    server.register(settings_routes_1.settingsRoutes, { prefix: '/api/settings' });
+    server.register(security_1.impersonationRoutes);
+    server.register(security_1.roleManagementRoutes);
     // Register nested milestone routes under transitions
     server.register(async function (server) {
         server.register(milestone_route_1.default, { prefix: '/:transitionId/milestones' });

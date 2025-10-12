@@ -8,6 +8,7 @@ import { ProductProgram, SecurityClassification } from '@/types/productProgram';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
+import { StakeholderManager } from './StakeholderManager';
 
 interface ProductProgramDetailProps {
   id: string;
@@ -156,7 +157,7 @@ export function ProductProgramDetail({ id }: ProductProgramDetailProps) {
               productProgram.securityClassification
             )}`}
           >
-            {productProgram.securityClassification.replace('_', ' ')}
+            {productProgram.securityClassification ? productProgram.securityClassification.replace('_', ' ') : 'Unclassified'}
           </span>
         </div>
         <div className="flex gap-2">
@@ -239,6 +240,9 @@ export function ProductProgramDetail({ id }: ProductProgramDetailProps) {
             </div>
           </div>
         )}
+
+        {/* Stakeholders (Story 4.2 - Phase 1) */}
+        <StakeholderManager productProgramId={productProgram.id} />
 
         {/* Metadata */}
         <div className="border rounded-lg p-6 bg-card">

@@ -1,0 +1,506 @@
+{
+  "name": "Baseline Best Practices Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "schedule-baseline",
+      "name": "Schedule - Weekly Baseline Update",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "path": "trigger-baseline",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger-baseline",
+      "name": "Webhook - Manual Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "operation": "distinct",
+        "collection": "documents",
+        "field": "product",
+        "options": {}
+      },
+      "id": "get-products",
+      "name": "Get All Products",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 500]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "documents",
+        "query": "={ \"product\": \"{{ $json.product }}\", \"currency_status\": \"current\" }",
+        "options": {}
+      },
+      "id": "get-current-docs",
+      "name": "Get Current Documents by Product",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "messages",
+        "query": "={ \"classification.system_changing\": true, \"override_analysis.status\": \"active\", \"classification.related_entities.products\": \"{{ $json.product }}\" }",
+        "options": {}
+      },
+      "id": "get-active-overrides",
+      "name": "Get Active Overrides",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "question_queue",
+        "query": "={ \"answer_status\": \"answered\", \"tags.entities.products\": \"{{ $json.product }}\", \"created_date\": { \"$gte\": \"{{ new Date(Date.now() - 90*24*60*60*1000).toISOString() }}\" } }",
+        "options": {
+          "limit": 50
+        }
+      },
+      "id": "get-recent-qa",
+      "name": "Get Recent Q&A (90 days)",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "temporal_updates",
+        "query": "={ \"classification.related_entities.products\": \"{{ $json.product }}\", \"processed_date\": { \"$gte\": \"{{ new Date(Date.now() - 30*24*60*60*1000).toISOString() }}\" } }",
+        "options": {}
+      },
+      "id": "get-temporal-updates",
+      "name": "Get Temporal Updates (30 days)",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "offboarding_surveys",
+        "query": "={ \"status\": \"completed\", \"knowledge_captured\": { \"$gt\": 0 }, \"completed_date\": { \"$gte\": \"{{ new Date(Date.now() - 90*24*60*60*1000).toISOString() }}\" } }",
+        "options": {}
+      },
+      "id": "get-offboarding-knowledge",
+      "name": "Get Offboarding Knowledge",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all sources for baseline generation\nconst product = $input.item(0).json.product;\nconst currentDocs = $input.item(1).json.documents || [];\nconst activeOverrides = $input.item(2).json.overrides || [];\nconst recentQA = $input.item(3).json.qa_pairs || [];\nconst temporalUpdates = $input.item(4).json.updates || [];\nconst offboardingKnowledge = $input.item(5).json.knowledge || [];\n\nreturn [{\n  json: {\n    product: product,\n    baseline_id: `bp-${product}-${Date.now()}`,\n    sources: {\n      current_documents: currentDocs.map(d => ({\n        doc_id: d.doc_id,\n        type: d.document_type,\n        version: d.version,\n        content_summary: d.summary\n      })),\n      active_overrides: activeOverrides.map(o => ({\n        message_id: o.message_id,\n        content: o.content,\n        affected_docs: o.override_analysis.documents,\n        approved_date: o.approved_date\n      })),\n      recent_qa: recentQA.map(qa => ({\n        question: qa.content,\n        answer: qa.answer,\n        frequency: qa.frequency || 1\n      })),\n      temporal_updates: temporalUpdates.map(u => ({\n        update_id: u.message_id,\n        content: u.content,\n        processed_date: u.processed_date\n      })),\n      offboarding_insights: offboardingKnowledge.map(k => ({\n        source_user: k.user_id,\n        insights: k.undocumented_knowledge,\n        validated: true\n      }))\n    },\n    created_date: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "aggregate-sources",
+      "name": "Aggregate All Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 500]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 16000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a current best practices document for {{ $json.product }}:\\n\\nCurrent documents: {{ JSON.stringify($json.sources.current_documents) }}\\nActive overrides: {{ JSON.stringify($json.sources.active_overrides) }}\\nRecent Q&A: {{ JSON.stringify($json.sources.recent_qa) }}\\nTemporal updates: {{ JSON.stringify($json.sources.temporal_updates) }}\\nOffboarding insights: {{ JSON.stringify($json.sources.offboarding_insights) }}\\n\\nSynthesize into coherent best practices:\\n1. Consolidate overlapping information\\n2. Apply all active overrides (messaging > version > date)\\n3. Resolve any conflicts (flag unresolved for human review)\\n4. Include source attribution\\n5. Mark confidence level for each section (0-1)\\n6. Incorporate Q&A insights as supplementary guidance\\n7. Integrate validated offboarding knowledge\\n\\nReturn structured best practices document with sections, confidence scores, sources, and any unresolved conflicts.\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-baseline",
+      "name": "Claude - Generate Baseline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1850, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse baseline and check for conflicts\nconst response = $input.first().json;\nconst baseline = JSON.parse(response.content[0].text);\nconst sourceData = $input.item(1).json;\n\nconst hasUnresolvedConflicts = baseline.unresolved_conflicts && baseline.unresolved_conflicts.length > 0;\nconst lowConfidenceSections = baseline.sections.filter(s => s.confidence < 0.7);\n\nreturn [{\n  json: {\n    baseline_id: sourceData.baseline_id,\n    product: sourceData.product,\n    baseline_content: baseline,\n    requires_review: hasUnresolvedConflicts || lowConfidenceSections.length > 0,\n    review_items: {\n      unresolved_conflicts: baseline.unresolved_conflicts || [],\n      low_confidence_sections: lowConfidenceSections.map(s => s.section_id)\n    },\n    sources: sourceData.sources,\n    created_date: sourceData.created_date\n  }\n}];"
+      },
+      "id": "parse-baseline",
+      "name": "Parse Baseline & Check Quality",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.requires_review }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-needs-review",
+      "name": "IF Needs Review",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2250, 500]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "review_queue",
+        "fields": "baseline_id,product,review_items,priority,status,created_date",
+        "options": {}
+      },
+      "id": "queue-baseline-review",
+      "name": "Queue for Product Manager Review",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.pm_channel }}",
+        "text": "=📊 *New Baseline Requires Review*\\n\\n*Product:* {{ $json.product }}\\n*Unresolved Conflicts:* {{ $json.review_items.unresolved_conflicts.length }}\\n*Low Confidence Sections:* {{ $json.review_items.low_confidence_sections.length }}\\n\\nPlease review and approve: {{ $json.review_url }}",
+        "otherOptions": {}
+      },
+      "id": "notify-pm-review",
+      "name": "Notify Product Manager",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2650, 400],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "baseline-reviewed",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wait-baseline-review",
+      "name": "Wait for Review",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [2850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.review_decision }}",
+              "operation": "equals",
+              "value2": "approved"
+            }
+          ]
+        }
+      },
+      "id": "if-baseline-approved",
+      "name": "IF Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [3050, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "baselines",
+        "fields": "baseline_id,product,content,sources,confidence_scores,status,created_date,approved_date,approved_by",
+        "options": {}
+      },
+      "id": "store-baseline",
+      "name": "Store Approved Baseline",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2450, 600]
+    },
+    {
+      "parameters": {
+        "operation": "updateMany",
+        "collection": "baselines",
+        "query": "={ \"product\": \"{{ $json.product }}\", \"baseline_id\": { \"$ne\": \"{{ $json.baseline_id }}\" } }",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "superseded"
+            },
+            {
+              "fieldId": "superseded_by",
+              "fieldValue": "={{ $json.baseline_id }}"
+            },
+            {
+              "fieldId": "superseded_date",
+              "fieldValue": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "supersede-old-baselines",
+      "name": "Supersede Old Baselines",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2650, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Update onboarding modules with new baseline\nconst baseline = $input.first().json;\n\nreturn [{\n  json: {\n    product: baseline.product,\n    baseline_id: baseline.baseline_id,\n    action: 'update_modules',\n    update_instructions: {\n      link_baseline_sections: true,\n      update_assessments: true,\n      notify_active_learners: true\n    }\n  }\n}];"
+      },
+      "id": "prepare-module-update",
+      "name": "Prepare Module Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2850, 600]
+    },
+    {
+      "parameters": {
+        "operation": "updateMany",
+        "collection": "onboarding_roadmaps",
+        "query": "={ \"product\": \"{{ $json.product }}\" }",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "learning_modules.$[].content_sources.baseline_sections",
+              "fieldValue": "={{ $json.baseline_id }}"
+            },
+            {
+              "fieldId": "last_updated",
+              "fieldValue": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "update-learning-modules",
+      "name": "Update Learning Modules",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3050, 600]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "users",
+        "query": "={ \"onboarding.assigned_roadmap\": { \"$regex\": \"{{ $json.product }}\" }, \"status\": \"onboarding\" }",
+        "options": {}
+      },
+      "id": "get-active-learners",
+      "name": "Get Active Learners",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3250, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": {{ JSON.stringify($json.learner_emails) }},\n  \"subject\": \"{{ $json.product }} Best Practices Updated\",\n  \"body\": \"Hi there,\\n\\nThe {{ $json.product }} best practices baseline has been updated with the latest information, including:\\n- Recent documentation updates\\n- Approved procedure changes\\n- Insights from recent Q&A\\n- Knowledge from team transitions\\n\\nYour learning modules have been automatically updated. View the new baseline: {{ $json.baseline_url }}\\n\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "notify-learners",
+      "name": "Notify Active Learners",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3450, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=CREATE (b:Baseline {id: '{{ $json.baseline_id }}', product: '{{ $json.product }}', created: '{{ $json.created_date }}'})\nWITH b\nMATCH (d:Document) WHERE d.product = '{{ $json.product }}' AND d.currency_status = 'current'\nCREATE (b)-[r:SYNTHESIZES]->(d)\nRETURN b, r"
+      },
+      "id": "create-baseline-graph",
+      "name": "Create Baseline Graph Relationships",
+      "type": "n8n-nodes-base.neo4j",
+      "typeVersion": 1,
+      "position": [3650, 600],
+      "credentials": {
+        "neo4j": {
+          "id": "4",
+          "name": "Neo4j TIPS KB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.team_channel }}",
+        "text": "=✅ *New Baseline Published*\\n\\n*Product:* {{ $json.product }}\\n*Baseline ID:* {{ $json.baseline_id }}\\n*Sources:* {{ $json.source_count }} documents, {{ $json.override_count }} overrides, {{ $json.qa_count }} Q&A pairs\\n*Status:* Live\\n\\nActive learners have been notified. View baseline: {{ $json.baseline_url }}",
+        "otherOptions": {}
+      },
+      "id": "announce-baseline",
+      "name": "Announce New Baseline",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [3850, 600],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate comprehensive baseline report\nconst baseline = $input.first().json;\n\nconst report = {\n  baseline_id: baseline.baseline_id,\n  product: baseline.product,\n  status: 'published',\n  created_date: baseline.created_date,\n  approved_date: baseline.approved_date || new Date().toISOString(),\n  sources_used: {\n    documents: baseline.sources.current_documents.length,\n    overrides: baseline.sources.active_overrides.length,\n    qa_pairs: baseline.sources.recent_qa.length,\n    temporal_updates: baseline.sources.temporal_updates.length,\n    offboarding_insights: baseline.sources.offboarding_insights.length\n  },\n  quality_metrics: {\n    average_confidence: baseline.baseline_content.sections.reduce((sum, s) => sum + s.confidence, 0) / baseline.baseline_content.sections.length,\n    sections_count: baseline.baseline_content.sections.length,\n    conflicts_resolved: baseline.review_items?.unresolved_conflicts?.length || 0,\n    low_confidence_sections: baseline.review_items?.low_confidence_sections?.length || 0\n  },\n  impact: {\n    learning_modules_updated: baseline.modules_updated || 0,\n    active_learners_notified: baseline.learners_notified || 0,\n    search_index_updated: true\n  },\n  next_update_scheduled: new Date(Date.now() + 7*24*60*60*1000).toISOString()\n};\n\nreturn [{\n  json: {\n    status: 'success',\n    report: report,\n    message: `Baseline for ${baseline.product} successfully generated and published`\n  }\n}];"
+      },
+      "id": "generate-report",
+      "name": "Generate Baseline Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4050, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log rejection and notify\nconst baseline = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'rejected',\n    baseline_id: baseline.baseline_id,\n    product: baseline.product,\n    rejection_reason: baseline.rejection_reason,\n    rejected_by: baseline.reviewer,\n    rejected_date: new Date().toISOString(),\n    message: 'Baseline rejected - requires revision'\n  }\n}];"
+      },
+      "id": "log-rejection",
+      "name": "Log Baseline Rejection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3250, 300]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-final-results",
+      "name": "Merge Final Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [4250, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}"
+      },
+      "id": "respond-baseline",
+      "name": "Respond - Baseline Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [4450, 500]
+    }
+  ],
+  "connections": {
+    "Schedule - Weekly Baseline Update": {
+      "main": [[{"node": "Get All Products", "type": "main", "index": 0}]]
+    },
+    "Webhook - Manual Trigger": {
+      "main": [[{"node": "Get All Products", "type": "main", "index": 0}]]
+    },
+    "Get All Products": {
+      "main": [[{"node": "Get Current Documents by Product", "type": "main", "index": 0}]]
+    },
+    "Get Current Documents by Product": {
+      "main": [[{"node": "Get Active Overrides", "type": "main", "index": 0}]]
+    },
+    "Get Active Overrides": {
+      "main": [[{"node": "Get Recent Q&A (90 days)", "type": "main", "index": 0}]]
+    },
+    "Get Recent Q&A (90 days)": {
+      "main": [[{"node": "Get Temporal Updates (30 days)", "type": "main", "index": 0}]]
+    },
+    "Get Temporal Updates (30 days)": {
+      "main": [[{"node": "Get Offboarding Knowledge", "type": "main", "index": 0}]]
+    },
+    "Get Offboarding Knowledge": {
+      "main": [[{"node": "Aggregate All Sources", "type": "main", "index": 0}]]
+    },
+    "Aggregate All Sources": {
+      "main": [[{"node": "Claude - Generate Baseline", "type": "main", "index": 0}]]
+    },
+    "Claude - Generate Baseline": {
+      "main": [[{"node": "Parse Baseline & Check Quality", "type": "main", "index": 0}]]
+    },
+    "Parse Baseline & Check Quality": {
+      "main": [[{"node": "IF Needs Review", "type": "main", "index": 0}]]
+    },
+    "IF Needs Review": {
+      "main": [
+        [{"node": "Queue for Product Manager Review", "type": "main", "index": 0}],
+        [{"node": "Store Approved Baseline", "type": "main", "index": 0}]
+      ]
+    },
+    "Queue for Product Manager Review": {
+      "main": [[{"node": "Notify Product Manager", "type": "main", "index": 0}]]
+    },
+    "Notify Product Manager": {
+      "main": [[{"node": "Wait for Review", "type": "main", "index": 0}]]
+    },
+    "Wait for Review": {
+      "main": [[{"node": "IF Approved", "type": "main", "index": 0}]]
+    },
+    "IF Approved": {
+      "main": [
+        [{"node": "Store Approved Baseline", "type": "main", "index": 0}],
+        [{"node": "Log Baseline Rejection", "type": "main", "index": 0}]
+      ]
+    },
+    "Store Approved Baseline": {
+      "main": [[{"node": "Supersede Old Baselines", "type": "main", "index": 0}]]
+    },
+    "Supersede Old Baselines": {
+      "main": [[{"node": "Prepare Module Updates", "type": "main", "index": 0}]]
+    },
+    "Prepare Module Updates": {
+      "main": [[{"node": "Update Learning Modules", "type": "main", "index": 0}]]
+    },
+    "Update Learning Modules": {
+      "main": [[{"node": "Get Active Learners", "type": "main", "index": 0}]]
+    },
+    "Get Active Learners": {
+      "main": [[{"node": "Notify Active Learners", "type": "main", "index": 0}]]
+    },
+    "Notify Active Learners": {
+      "main": [[{"node": "Create Baseline Graph Relationships", "type": "main", "index": 0}]]
+    },
+    "Create Baseline Graph Relationships": {
+      "main": [[{"node": "Announce New Baseline", "type": "main", "index": 0}]]
+    },
+    "Announce New Baseline": {
+      "main": [[{"node": "Generate Baseline Report", "type": "main", "index": 0}]]
+    },
+    "Generate Baseline Report": {
+      "main": [[{"node": "Merge Final Results", "type": "main", "index": 0}]]
+    },
+    "Log Baseline Rejection": {
+      "main": [[{"node": "Merge Final Results", "type": "main", "index": 1}]]
+    },
+    "Merge Final Results": {
+      "main": [[{"node": "Respond - Baseline Result", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,430 @@
+{
+  "name": "TIPS Knowledge Base - Master Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "path": "file-upload",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-file-upload",
+      "name": "Webhook - File Upload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [450, 200],
+      "webhookId": "file-upload-trigger"
+    },
+    {
+      "parameters": {
+        "path": "message-received",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-message",
+      "name": "Webhook - Message Received",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [450, 400],
+      "webhookId": "message-trigger"
+    },
+    {
+      "parameters": {
+        "path": "user-event",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-user-event",
+      "name": "Webhook - User Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [450, 600],
+      "webhookId": "user-event-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-batch",
+      "name": "Schedule - Batch Processing",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [450, 800]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.event_type }}",
+              "operation": "equals",
+              "value2": "file_upload"
+            }
+          ]
+        }
+      },
+      "id": "route-event-type",
+      "name": "Route - Event Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Master Event Classifier\nconst eventType = $input.first().json.event_type || 'unknown';\nconst eventData = $input.first().json;\n\n// Determine routing\nlet route = 'unknown';\nlet priority = 'normal';\nlet context = {};\n\nif (eventType === 'file_upload') {\n  route = 'document_ingestion';\n  \n  // Check for transition context\n  if (eventData.transition_id) {\n    priority = eventData.transition_type === 'major' ? 'critical' : 'high';\n    context.transition = true;\n  }\n  \n  // Check for offboarding source\n  if (eventData.source === 'offboarding') {\n    priority = 'high';\n    context.offboarding_sourced = true;\n  }\n  \n} else if (eventType === 'message' || eventType === 'communication') {\n  route = 'message_processing';\n  priority = 'normal';\n  \n  // Check user context\n  if (eventData.user_status === 'onboarding') {\n    context.onboarding_user = true;\n  } else if (eventData.user_status === 'offboarding') {\n    context.offboarding_user = true;\n  }\n  \n} else if (eventType === 'user_created') {\n  route = 'user_onboarding';\n  priority = 'high';\n  \n} else if (eventType === 'user_offboarding') {\n  route = 'user_offboarding';\n  priority = 'high';\n  \n} else if (eventType === 'role_change') {\n  route = 'personnel_transition';\n  priority = 'high';\n  \n} else if (eventType === 'transition_initiated') {\n  route = 'transition_management';\n  priority = eventData.transition_type === 'major' ? 'critical' : 'high';\n  \n} else if (eventType === 'learning_request') {\n  route = 'user_requested_learning';\n  priority = 'normal';\n  \n} else if (eventType === 'search_query') {\n  route = 'search_retrieval';\n  priority = 'normal';\n  \n} else if (eventType === 'batch_processing') {\n  route = 'batch_ingestion';\n  priority = 'low';\n}\n\nreturn [{\n  json: {\n    ...eventData,\n    routing: {\n      route: route,\n      priority: priority,\n      context: context,\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "classify-event",
+      "name": "Classify Event & Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.routing.route }}",
+              "operation": "equals",
+              "value2": "document_ingestion"
+            }
+          ]
+        }
+      },
+      "id": "switch-route",
+      "name": "Switch - Route to Workflow",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1050, 400],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "rules": [
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.routing.route }}",
+                    "value2": "document_ingestion"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "document_ingestion"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.routing.route }}",
+                    "value2": "message_processing"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "message_processing"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.routing.route }}",
+                    "value2": "user_onboarding"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "user_onboarding"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.routing.route }}",
+                    "value2": "user_offboarding"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "user_offboarding"
+            },
+            {
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.routing.route }}",
+                    "value2": "transition_management"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "transition_management"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow_ids.document_ingestion }}"
+      },
+      "id": "execute-doc-ingestion",
+      "name": "Execute - Document Ingestion",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow_ids.message_processing }}"
+      },
+      "id": "execute-message-proc",
+      "name": "Execute - Message Processing",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow_ids.user_onboarding }}"
+      },
+      "id": "execute-onboarding",
+      "name": "Execute - User Onboarding",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1250, 600]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow_ids.user_offboarding }}"
+      },
+      "id": "execute-offboarding",
+      "name": "Execute - User Offboarding",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1250, 800]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow_ids.transition_management }}"
+      },
+      "id": "execute-transition",
+      "name": "Execute - Transition Management",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1250, 1000]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "audit_log",
+        "fields": "event_id,event_type,route,priority,timestamp,user,status",
+        "options": {}
+      },
+      "id": "log-event",
+      "name": "Log Event to Audit Trail",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 400],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB TIPS KB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"event_id\": $json.event_id, \"route\": $json.routing.route } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    }
+  ],
+  "connections": {
+    "Webhook - File Upload": {
+      "main": [
+        [
+          {
+            "node": "Classify Event & Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Message Received": {
+      "main": [
+        [
+          {
+            "node": "Classify Event & Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - User Event": {
+      "main": [
+        [
+          {
+            "node": "Classify Event & Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule - Batch Processing": {
+      "main": [
+        [
+          {
+            "node": "Classify Event & Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Event & Route": {
+      "main": [
+        [
+          {
+            "node": "Switch - Route to Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch - Route to Workflow": {
+      "main": [
+        [
+          {
+            "node": "Execute - Document Ingestion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute - Message Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute - User Onboarding",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute - User Offboarding",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute - Transition Management",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute - Document Ingestion": {
+      "main": [
+        [
+          {
+            "node": "Log Event to Audit Trail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute - Message Processing": {
+      "main": [
+        [
+          {
+            "node": "Log Event to Audit Trail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute - User Onboarding": {
+      "main": [
+        [
+          {
+            "node": "Log Event to Audit Trail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute - User Offboarding": {
+      "main": [
+        [
+          {
+            "node": "Log Event to Audit Trail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute - Transition Management": {
+      "main": [
+        [
+          {
+            "node": "Log Event to Audit Trail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Event to Audit Trail": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

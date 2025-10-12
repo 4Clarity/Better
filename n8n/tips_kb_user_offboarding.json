@@ -1,0 +1,586 @@
+{
+  "name": "User Offboarding Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "offboard-start",
+      "name": "Start - User Offboarding Initiated",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "users",
+        "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "get-user-profile",
+      "name": "Get User Profile & History",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a comprehensive offboarding survey:\\n\\nUser profile: {{ JSON.stringify($json) }}\\nRole: {{ $json.role }}\\nProducts: {{ $json.products }}\\nMastery areas: {{ JSON.stringify($json.onboarding.mastery_levels) }}\\nTime in role: {{ $json.tenure_months }} months\\n\\nCreate survey covering:\\n1. General experience questions\\n2. Role-specific technical questions (adjust depth based on mastery)\\n3. System-specific deep dives (focus on high-mastery areas)\\n4. Process improvement suggestions\\n5. Documentation gaps identification\\n6. Knowledge transfer priorities\\n\\nReturn JSON survey with sections and questions (multiple choice, short answer, rating scale, long form)\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-survey",
+      "name": "Claude - Generate Offboarding Survey",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare survey for user\nconst response = $input.first().json;\nconst survey = JSON.parse(response.content[0].text);\nconst userData = $input.item(1).json;\n\nreturn [{\n  json: {\n    survey_id: `offboard-${userData.user_id}-${Date.now()}`,\n    user_id: userData.user_id,\n    generated_date: new Date().toISOString(),\n    survey: survey,\n    status: 'pending',\n    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()\n  }\n}];"
+      },
+      "id": "prepare-survey",
+      "name": "Prepare Survey",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "offboarding_surveys",
+        "fields": "survey_id,user_id,survey,status,generated_date,deadline",
+        "options": {}
+      },
+      "id": "store-survey",
+      "name": "Store Survey",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Help Us Improve - Offboarding Survey for {{ $json.product }}\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nAs you transition from your role, we'd greatly value your insights and expertise. Your knowledge can help improve our systems and documentation for future team members.\\n\\nPlease complete your personalized offboarding survey:\\n{{ $json.survey_url }}\\n\\nDeadline: {{ $json.deadline }}\\n\\nYour contributions have been invaluable. Thank you!\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "send-survey-email",
+      "name": "Send Survey Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "path": "offboarding-survey-response",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wait-survey-response",
+      "name": "Wait for Survey Response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze offboarding survey responses:\\n\\nUser: {{ $json.user_id }}\\nRole: {{ $json.role }}\\nResponses: {{ JSON.stringify($json.responses) }}\\n\\nIdentify:\\n1. Critical knowledge items requiring documentation\\n2. Undocumented procedures mentioned\\n3. System issues flagged\\n4. Contradictions with existing documentation\\n5. Vague/unclear responses needing clarification\\n6. High-priority knowledge transfer items\\n\\nReturn structured analysis with:\\n- Items needing clarification (with specific questions)\\n- Action items for documentation team\\n- Urgent issues for immediate attention\\n- Knowledge gaps to fill\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "analyze-responses",
+      "name": "Claude - Analyze Responses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse analysis and determine next steps\nconst response = $input.first().json;\nconst analysis = JSON.parse(response.content[0].text);\nconst surveyData = $input.item(1).json;\n\nreturn [{\n  json: {\n    survey_id: surveyData.survey_id,\n    user_id: surveyData.user_id,\n    analysis: analysis,\n    needs_clarification: analysis.items_needing_clarification.length > 0,\n    has_contradictions: analysis.contradictions.length > 0,\n    undocumented_knowledge: analysis.undocumented_procedures,\n    action_items: analysis.action_items\n  }\n}];"
+      },
+      "id": "parse-analysis",
+      "name": "Parse Analysis Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_clarification }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-needs-clarification",
+      "name": "IF Needs Clarification",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate follow-up questions for unclear responses:\\n\\nUnclear items: {{ JSON.stringify($json.analysis.items_needing_clarification) }}\\n\\nFor each item:\\n- Original question\\n- User response\\n- Why unclear\\n\\nGenerate 2-3 specific follow-up questions to clarify each item.\\n\\nReturn JSON with clarification questions.\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-clarification",
+      "name": "Claude - Generate Clarification Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2250, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Quick Follow-up on Offboarding Survey\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nThank you for completing the offboarding survey. We have a few follow-up questions to clarify some of your responses:\\n\\n{{ $json.clarification_questions }}\\n\\nPlease respond at your convenience: {{ $json.clarification_url }}\\n\\nThanks again for your help!\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "send-clarification-request",
+      "name": "Send Clarification Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "path": "clarification-response",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wait-clarification",
+      "name": "Wait for Clarification",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [2650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.undocumented_knowledge.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "if-undocumented-knowledge",
+      "name": "IF Undocumented Knowledge Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate undocumented procedures\nconst data = $input.first().json;\n\nconst validationTasks = data.undocumented_knowledge.map(item => ({\n  validation_id: `val-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,\n  source: 'offboarding_survey',\n  user_id: data.user_id,\n  claim: item.description,\n  documented: false,\n  contradiction: null,\n  priority: item.criticality || 'medium',\n  status: 'pending_review',\n  created_date: new Date().toISOString()\n}));\n\nreturn validationTasks.map(task => ({ json: task }));"
+      },
+      "id": "create-validation-tasks",
+      "name": "Create Validation Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 700]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "validation_queue",
+        "fields": "validation_id,source,user_id,claim,status,priority,created_date",
+        "options": {}
+      },
+      "id": "queue-validation",
+      "name": "Queue for Validation",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2450, 700]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.validation_channel }}",
+        "text": "=🔍 *New Knowledge Validation Required*\\n\\n*Source:* Offboarding Survey - {{ $json.user_name }}\\n*Claim:* {{ $json.claim }}\\n*Priority:* {{ $json.priority }}\\n\\nPlease review and validate: {{ $json.validation_url }}",
+        "otherOptions": {}
+      },
+      "id": "notify-validation",
+      "name": "Notify SME for Validation",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2650, 700],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "knowledge-validated",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wait-validation",
+      "name": "Wait for Validation Response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [2850, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.validation_result }}",
+              "operation": "equals",
+              "value2": "confirmed"
+            }
+          ]
+        }
+      },
+      "id": "if-validated",
+      "name": "IF Validated",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [3050, 700]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create documentation for this validated undocumented procedure:\\n\\nUser expertise: {{ $json.user_role }}, {{ $json.mastery_level }}\\nProcedure description: {{ $json.validated_claim }}\\nValidation notes: {{ $json.validation_notes }}\\nRelated systems: {{ $json.affected_systems }}\\nContext: {{ $json.additional_context }}\\n\\nGenerate:\\n- Formal SOP or procedure document\\n- Appropriate level of technical detail\\n- Prerequisites and dependencies\\n- Step-by-step instructions\\n- Troubleshooting notes\\n- Related documentation links\\n\\nFormat as standard SOP document.\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-documentation",
+      "name": "Claude - Generate Documentation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3250, 800],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare document for approval and ingestion\nconst response = $input.first().json;\nconst documentation = JSON.parse(response.content[0].text);\nconst validationData = $input.item(1).json;\n\nreturn [{\n  json: {\n    document_id: `offboard-doc-${Date.now()}`,\n    content: documentation.document,\n    source: 'offboarding_capture',\n    source_user: validationData.user_id,\n    validated_by: validationData.validator,\n    priority: 'high',\n    tags: ['offboarding_capture', validationData.user_role],\n    status: 'pending_approval',\n    created_date: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "prepare-document",
+      "name": "Prepare Document for Ingestion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3450, 800]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "approval_queue",
+        "fields": "document_id,content,source,priority,status,created_date",
+        "options": {}
+      },
+      "id": "queue-doc-approval",
+      "name": "Queue Document for Approval",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3650, 800]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.approval_channel }}",
+        "text": "=📄 *New Document from Offboarding Knowledge*\\n\\n*Source:* {{ $json.source_user_name }}\\n*Topic:* {{ $json.topic }}\\n*Validated by:* {{ $json.validator }}\\n\\nPlease review and approve for ingestion: {{ $json.approval_url }}",
+        "otherOptions": {}
+      },
+      "id": "notify-doc-approval",
+      "name": "Notify for Document Approval",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [3850, 800],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "document-approved",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wait-doc-approval",
+      "name": "Wait for Document Approval",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [4050, 800]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.approval_decision }}",
+              "operation": "equals",
+              "value2": "approved"
+            }
+          ]
+        }
+      },
+      "id": "if-doc-approved",
+      "name": "IF Document Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [4250, 800]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.document_ingestion_workflow_id }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "name": "event_type",
+              "value": "file_upload"
+            },
+            {
+              "name": "file_content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "source",
+              "value": "offboarding"
+            },
+            {
+              "name": "priority",
+              "value": "high"
+            }
+          ]
+        }
+      },
+      "id": "trigger-ingestion",
+      "name": "Trigger Document Ingestion",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [4450, 900]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.baseline_workflow_id }}"
+      },
+      "id": "update-baseline",
+      "name": "Update Baseline with New Knowledge",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [4650, 900]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "offboarding_surveys",
+        "updateKey": "survey_id",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            },
+            {
+              "fieldId": "completed_date",
+              "fieldValue": "={{ $json.timestamp }}"
+            },
+            {
+              "fieldId": "knowledge_captured",
+              "fieldValue": "={{ $json.captured_count }}"
+            },
+            {
+              "fieldId": "documents_created",
+              "fieldValue": "={{ $json.docs_created }}"
+            }
+          ]
+        }
+      },
+      "id": "update-survey-status",
+      "name": "Update Survey Status - Complete",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [4850, 900]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Thank You - Your Knowledge Has Been Captured\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nThank you for completing the offboarding survey. Your insights have been invaluable!\\n\\n*Impact Summary:*\\n- {{ $json.knowledge_items_captured }} knowledge items captured\\n- {{ $json.documents_created }} new documents created\\n- {{ $json.documentation_gaps_filled }} gaps filled\\n\\nYour contributions will help future team members succeed. We wish you all the best in your next endeavor!\\n\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "send-completion-email",
+      "name": "Send Completion Thank You",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [5050, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate final offboarding report\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'success',\n    survey_id: data.survey_id,\n    user_id: data.user_id,\n    knowledge_captured: data.knowledge_items_captured,\n    documents_created: data.documents_created,\n    validation_tasks: data.validation_tasks,\n    baseline_updated: true,\n    message: 'Offboarding process completed successfully'\n  }\n}];"
+      },
+      "id": "final-offboard-response",
+      "name": "Generate Offboarding Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5250, 900]
+    }
+  ],
+  "connections": {
+    "Start - User Offboarding Initiated": {
+      "main": [[{"node": "Get User Profile & History", "type": "main", "index": 0}]]
+    },
+    "Get User Profile & History": {
+      "main": [[{"node": "Claude - Generate Offboarding Survey", "type": "main", "index": 0}]]
+    },
+    "Claude - Generate Offboarding Survey": {
+      "main": [[{"node": "Prepare Survey", "type": "main", "index": 0}]]
+    },
+    "Prepare Survey": {
+      "main": [[{"node": "Store Survey", "type": "main", "index": 0}]]
+    },
+    "Store Survey": {
+      "main": [[{"node": "Send Survey Email", "type": "main", "index": 0}]]
+    },
+    "Send Survey Email": {
+      "main": [[{"node": "Wait for Survey Response", "type": "main", "index": 0}]]
+    },
+    "Wait for Survey Response": {
+      "main": [[{"node": "Claude - Analyze Responses", "type": "main", "index": 0}]]
+    },
+    "Claude - Analyze Responses": {
+      "main": [[{"node": "Parse Analysis Results", "type": "main", "index": 0}]]
+    },
+    "Parse Analysis Results": {
+      "main": [
+        [
+          {"node": "IF Needs Clarification", "type": "main", "index": 0},
+          {"node": "IF Undocumented Knowledge Found", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "IF Needs Clarification": {
+      "main": [
+        [{"node": "Claude - Generate Clarification Questions", "type": "main", "index": 0}],
+        [{"node": "IF Undocumented Knowledge Found", "type": "main", "index": 0}]
+      ]
+    },
+    "Claude - Generate Clarification Questions": {
+      "main": [[{"node": "Send Clarification Request", "type": "main", "index": 0}]]
+    },
+    "Send Clarification Request": {
+      "main": [[{"node": "Wait for Clarification", "type": "main", "index": 0}]]
+    },
+    "Wait for Clarification": {
+      "main": [[{"node": "IF Undocumented Knowledge Found", "type": "main", "index": 0}]]
+    },
+    "IF Undocumented Knowledge Found": {
+      "main": [
+        [{"node": "Create Validation Tasks", "type": "main", "index": 0}],
+        [{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]
+      ]
+    },
+    "Create Validation Tasks": {
+      "main": [[{"node": "Queue for Validation", "type": "main", "index": 0}]]
+    },
+    "Queue for Validation": {
+      "main": [[{"node": "Notify SME for Validation", "type": "main", "index": 0}]]
+    },
+    "Notify SME for Validation": {
+      "main": [[{"node": "Wait for Validation Response", "type": "main", "index": 0}]]
+    },
+    "Wait for Validation Response": {
+      "main": [[{"node": "IF Validated", "type": "main", "index": 0}]]
+    },
+    "IF Validated": {
+      "main": [
+        [{"node": "Claude - Generate Documentation", "type": "main", "index": 0}],
+        [{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]
+      ]
+    },
+    "Claude - Generate Documentation": {
+      "main": [[{"node": "Prepare Document for Ingestion", "type": "main", "index": 0}]]
+    },
+    "Prepare Document for Ingestion": {
+      "main": [[{"node": "Queue Document for Approval", "type": "main", "index": 0}]]
+    },
+    "Queue Document for Approval": {
+      "main": [[{"node": "Notify for Document Approval", "type": "main", "index": 0}]]
+    },
+    "Notify for Document Approval": {
+      "main": [[{"node": "Wait for Document Approval", "type": "main", "index": 0}]]
+    },
+    "Wait for Document Approval": {
+      "main": [[{"node": "IF Document Approved", "type": "main", "index": 0}]]
+    },
+    "IF Document Approved": {
+      "main": [
+        [{"node": "Trigger Document Ingestion", "type": "main", "index": 0}],
+        [{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]
+      ]
+    },
+    "Trigger Document Ingestion": {
+      "main": [[{"node": "Update Baseline with New Knowledge", "type": "main", "index": 0}]]
+    },
+    "Update Baseline with New Knowledge": {
+      "main": [[{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]]
+    },
+    "Update Survey Status - Complete": {
+      "main": [[{"node": "Send Completion Thank You", "type": "main", "index": 0}]]
+    },
+    "Send Completion Thank You": {
+      "main": [[{"node": "Generate Offboarding Report", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

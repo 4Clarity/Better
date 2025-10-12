@@ -1,0 +1,3913 @@
+{
+    "name": "TIPS Knowledge Base - Master Orchestrator",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "start-node",
+        "name": "Start",
+        "type": "n8n-nodes-base.start",
+        "typeVersion": 1,
+        "position": [250, 300]
+      },
+      {
+        "parameters": {
+          "path": "file-upload",
+          "method": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-file-upload",
+        "name": "Webhook - File Upload",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [450, 200],
+        "webhookId": "file-upload-trigger"
+      },
+      {
+        "parameters": {
+          "path": "message-received",
+          "method": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-message",
+        "name": "Webhook - Message Received",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [450, 400],
+        "webhookId": "message-trigger"
+      },
+      {
+        "parameters": {
+          "path": "user-event",
+          "method": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-user-event",
+        "name": "Webhook - User Event",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [450, 600],
+        "webhookId": "user-event-trigger"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "hours",
+                "hoursInterval": 6
+              }
+            ]
+          }
+        },
+        "id": "schedule-batch",
+        "name": "Schedule - Batch Processing",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1,
+        "position": [450, 800]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.event_type }}",
+                "operation": "equals",
+                "value2": "file_upload"
+              }
+            ]
+          }
+        },
+        "id": "route-event-type",
+        "name": "Route - Event Type",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [650, 400]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Master Event Classifier\nconst eventType = $input.first().json.event_type || 'unknown';\nconst eventData = $input.first().json;\n\n// Determine routing\nlet route = 'unknown';\nlet priority = 'normal';\nlet context = {};\n\nif (eventType === 'file_upload') {\n  route = 'document_ingestion';\n  \n  // Check for transition context\n  if (eventData.transition_id) {\n    priority = eventData.transition_type === 'major' ? 'critical' : 'high';\n    context.transition = true;\n  }\n  \n  // Check for offboarding source\n  if (eventData.source === 'offboarding') {\n    priority = 'high';\n    context.offboarding_sourced = true;\n  }\n  \n} else if (eventType === 'message' || eventType === 'communication') {\n  route = 'message_processing';\n  priority = 'normal';\n  \n  // Check user context\n  if (eventData.user_status === 'onboarding') {\n    context.onboarding_user = true;\n  } else if (eventData.user_status === 'offboarding') {\n    context.offboarding_user = true;\n  }\n  \n} else if (eventType === 'user_created') {\n  route = 'user_onboarding';\n  priority = 'high';\n  \n} else if (eventType === 'user_offboarding') {\n  route = 'user_offboarding';\n  priority = 'high';\n  \n} else if (eventType === 'role_change') {\n  route = 'personnel_transition';\n  priority = 'high';\n  \n} else if (eventType === 'transition_initiated') {\n  route = 'transition_management';\n  priority = eventData.transition_type === 'major' ? 'critical' : 'high';\n  \n} else if (eventType === 'learning_request') {\n  route = 'user_requested_learning';\n  priority = 'normal';\n  \n} else if (eventType === 'search_query') {\n  route = 'search_retrieval';\n  priority = 'normal';\n  \n} else if (eventType === 'batch_processing') {\n  route = 'batch_ingestion';\n  priority = 'low';\n}\n\nreturn [{\n  json: {\n    ...eventData,\n    routing: {\n      route: route,\n      priority: priority,\n      context: context,\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+        },
+        "id": "classify-event",
+        "name": "Classify Event & Route",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [850, 400]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.routing.route }}",
+                "operation": "equals",
+                "value2": "document_ingestion"
+              }
+            ]
+          }
+        },
+        "id": "switch-route",
+        "name": "Switch - Route to Workflow",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 1,
+        "position": [1050, 400],
+        "parameters": {
+          "mode": "rules",
+          "rules": {
+            "rules": [
+              {
+                "conditions": {
+                  "string": [
+                    {
+                      "value1": "={{ $json.routing.route }}",
+                      "value2": "document_ingestion"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "document_ingestion"
+              },
+              {
+                "conditions": {
+                  "string": [
+                    {
+                      "value1": "={{ $json.routing.route }}",
+                      "value2": "message_processing"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "message_processing"
+              },
+              {
+                "conditions": {
+                  "string": [
+                    {
+                      "value1": "={{ $json.routing.route }}",
+                      "value2": "user_onboarding"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "user_onboarding"
+              },
+              {
+                "conditions": {
+                  "string": [
+                    {
+                      "value1": "={{ $json.routing.route }}",
+                      "value2": "user_offboarding"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "user_offboarding"
+              },
+              {
+                "conditions": {
+                  "string": [
+                    {
+                      "value1": "={{ $json.routing.route }}",
+                      "value2": "transition_management"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "transition_management"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "parameters": {
+          "workflowId": "={{ $json.workflow_ids.document_ingestion }}"
+        },
+        "id": "execute-doc-ingestion",
+        "name": "Execute - Document Ingestion",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [1250, 200]
+      },
+      {
+        "parameters": {
+          "workflowId": "={{ $json.workflow_ids.message_processing }}"
+        },
+        "id": "execute-message-proc",
+        "name": "Execute - Message Processing",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [1250, 400]
+      },
+      {
+        "parameters": {
+          "workflowId": "={{ $json.workflow_ids.user_onboarding }}"
+        },
+        "id": "execute-onboarding",
+        "name": "Execute - User Onboarding",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [1250, 600]
+      },
+      {
+        "parameters": {
+          "workflowId": "={{ $json.workflow_ids.user_offboarding }}"
+        },
+        "id": "execute-offboarding",
+        "name": "Execute - User Offboarding",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [1250, 800]
+      },
+      {
+        "parameters": {
+          "workflowId": "={{ $json.workflow_ids.transition_management }}"
+        },
+        "id": "execute-transition",
+        "name": "Execute - Transition Management",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [1250, 1000]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "audit_log",
+          "fields": "event_id,event_type,route,priority,timestamp,user,status",
+          "options": {}
+        },
+        "id": "log-event",
+        "name": "Log Event to Audit Trail",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1450, 400],
+        "credentials": {
+          "mongoDb": {
+            "id": "1",
+            "name": "MongoDB TIPS KB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"status\": \"success\", \"event_id\": $json.event_id, \"route\": $json.routing.route } }}"
+        },
+        "id": "respond-success",
+        "name": "Respond - Success",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1650, 400]
+      }
+    ],
+    "connections": {
+      "Webhook - File Upload": {
+        "main": [
+          [
+            {
+              "node": "Classify Event & Route",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook - Message Received": {
+        "main": [
+          [
+            {
+              "node": "Classify Event & Route",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook - User Event": {
+        "main": [
+          [
+            {
+              "node": "Classify Event & Route",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule - Batch Processing": {
+        "main": [
+          [
+            {
+              "node": "Classify Event & Route",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Classify Event & Route": {
+        "main": [
+          [
+            {
+              "node": "Switch - Route to Workflow",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch - Route to Workflow": {
+        "main": [
+          [
+            {
+              "node": "Execute - Document Ingestion",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Execute - Message Processing",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Execute - User Onboarding",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Execute - User Offboarding",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Execute - Transition Management",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute - Document Ingestion": {
+        "main": [
+          [
+            {
+              "node": "Log Event to Audit Trail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute - Message Processing": {
+        "main": [
+          [
+            {
+              "node": "Log Event to Audit Trail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute - User Onboarding": {
+        "main": [
+          [
+            {
+              "node": "Log Event to Audit Trail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute - User Offboarding": {
+        "main": [
+          [
+            {
+              "node": "Log Event to Audit Trail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Execute - Transition Management": {
+        "main": [
+          [
+            {
+              "node": "Log Event to Audit Trail",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Log Event to Audit Trail": {
+        "main": [
+          [
+            {
+              "node": "Respond - Success",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+  {
+    "name": "Document Ingestion Pipeline",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "doc-start",
+        "name": "Start - Document Received",
+        "type": "n8n-nodes-base.start",
+        "typeVersion": 1,
+        "position": [250, 400]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract file metadata and calculate hash\nconst crypto = require('crypto');\nconst fileData = $input.first().json;\n\n// Read file content\nconst fileContent = await window.fs.readFile(fileData.file_path);\nconst fileHash = crypto.createHash('sha256').update(fileContent).digest('hex');\n\nreturn [{\n  json: {\n    file_id: `file-${Date.now()}`,\n    file_path: fileData.file_path,\n    file_name: fileData.file_name,\n    file_size: fileContent.length,\n    file_hash: fileHash,\n    modified_date: fileData.modified_date || new Date().toISOString(),\n    content: fileContent.toString('utf8'),\n    ingestion_date: new Date().toISOString(),\n    priority: fileData.priority || 'normal',\n    transition_context: fileData.transition_id || null,\n    source: fileData.source || 'standard'\n  }\n}];"
+        },
+        "id": "extract-metadata",
+        "name": "Extract File Metadata & Hash",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [450, 400]
+      },
+      {
+        "parameters": {
+          "operation": "findOne",
+          "collection": "duplicate_registry",
+          "query": "={ \"file_hash\": \"{{ $json.file_hash }}\" }",
+          "options": {}
+        },
+        "id": "check-duplicate-hash",
+        "name": "Check Duplicate Registry",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [650, 400]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json._id !== undefined }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-duplicate-found",
+        "name": "IF Duplicate Found",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [850, 400]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "duplicate_catalog",
+          "fields": "file_id,file_hash,primary_doc_id,reason,similarity_score,cataloged_date,source_path",
+          "options": {}
+        },
+        "id": "catalog-duplicate",
+        "name": "Catalog as Duplicate - STOP",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1050, 300]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this content as Document (Class 1: SOP, policy, architecture, config, log) or Message (Class 2: Communication, Q&A, issue) or Update (Class 3: Temporal update).\\n\\nContent preview: {{ $json.content.substring(0, 2000) }}\\n\\nReturn JSON: {\\\"class\\\": 1|2|3, \\\"type\\\": \\\"specific_type\\\", \\\"confidence\\\": 0.0-1.0, \\\"rationale\\\": \\\"explanation\\\"}\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "classify-document",
+        "name": "Claude - Classify Document",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1050, 500],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Claude response and check confidence\nconst response = $input.first().json;\nconst claudeContent = JSON.parse(response.content[0].text);\n\nconst item = $input.first().json;\n\nreturn [{\n  json: {\n    ...item,\n    classification: {\n      class: claudeContent.class,\n      type: claudeContent.type,\n      confidence: claudeContent.confidence,\n      rationale: claudeContent.rationale\n    },\n    requires_review: claudeContent.confidence < 0.7\n  }\n}];"
+        },
+        "id": "parse-classification",
+        "name": "Parse Classification Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1250, 500]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.requires_review }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-low-confidence",
+        "name": "IF Low Confidence",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [1450, 500]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "review_queue",
+          "fields": "file_id,classification,confidence,status,queued_date",
+          "options": {}
+        },
+        "id": "queue-review",
+        "name": "Queue for Human Review",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1650, 400]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract from this document:\\n1. Version number (v1.0, Version 2.3, Rev 4, etc.)\\n2. Publication/effective date\\n3. Author/owner\\n4. Expiration date if any\\n\\nDocument: {{ $json.content.substring(0, 3000) }}\\n\\nReturn JSON with fields: version, publish_date, author, expiration_date (null if not found)\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "extract-version",
+        "name": "Claude - Extract Version Info",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1650, 600],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse version info and merge with document data\nconst response = $input.first().json;\nconst versionInfo = JSON.parse(response.content[0].text);\n\nconst previousData = $input.item(1).json; // Get data from previous node\n\nreturn [{\n  json: {\n    ...previousData,\n    version_info: versionInfo,\n    version: versionInfo.version || null,\n    publish_date: versionInfo.publish_date || previousData.modified_date,\n    author: versionInfo.author || 'unknown'\n  }\n}];"
+        },
+        "id": "merge-version-info",
+        "name": "Merge Version Information",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1850, 600]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "documents",
+          "query": "={ \"product\": \"{{ $json.product }}\", \"topic\": \"{{ $json.topic }}\" }",
+          "options": {
+            "sort": "={ \"version\": -1, \"publish_date\": -1 }"
+          }
+        },
+        "id": "query-existing-docs",
+        "name": "Query Existing Versions",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [2050, 600]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Determine currency status\nconst currentDoc = $input.first().json;\nconst existingDocs = $input.item(1).json.documents || [];\n\nlet status = 'current';\nlet superseded_by = null;\nlet supersedes = null;\n\nif (existingDocs.length > 0) {\n  const latest = existingDocs[0];\n  \n  // Compare versions if both have version numbers\n  if (currentDoc.version && latest.version) {\n    const currentVer = parseFloat(currentDoc.version.replace(/[^0-9.]/g, ''));\n    const latestVer = parseFloat(latest.version.replace(/[^0-9.]/g, ''));\n    \n    if (currentVer < latestVer) {\n      status = 'superseded';\n      superseded_by = latest.doc_id;\n    } else if (currentVer > latestVer) {\n      status = 'current';\n      supersedes = latest.doc_id;\n      // Mark old doc as superseded\n    }\n  } else {\n    // Compare by date\n    const currentDate = new Date(currentDoc.publish_date);\n    const latestDate = new Date(latest.publish_date);\n    \n    if (currentDate < latestDate) {\n      status = 'superseded';\n      superseded_by = latest.doc_id;\n    } else {\n      status = 'current';\n      supersedes = latest.doc_id;\n    }\n  }\n}\n\n// Check for messaging overrides\nconst overrideCheck = await $input.first().getNode('check-overrides').execute();\n\nif (overrideCheck && overrideCheck.length > 0) {\n  status = 'overridden';\n  currentDoc.overridden_by = overrideCheck.map(o => o.message_id);\n}\n\nreturn [{\n  json: {\n    ...currentDoc,\n    currency_status: status,\n    superseded_by: superseded_by,\n    supersedes: supersedes\n  }\n}];"
+        },
+        "id": "determine-currency",
+        "name": "Determine Currency Status",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2250, 600]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this document to determine optimal chunking strategy.\\n\\nDocument Type: {{ $json.classification.type }}\\nContent: {{ $json.content }}\\n\\nReturn a chunking schema that:\\n1. Preserves complete ideas and context\\n2. Maintains procedural steps together\\n3. Ensures each chunk can be understood with minimal additional context\\n4. Identifies interdependencies between chunks\\n\\nProvide: chunk boundaries (char positions), chunk type, semantic completeness score (0-1), required context from other chunks, recommended overlap.\\n\\nReturn JSON array of chunks with structure: {chunk_id, start_char, end_char, chunk_type, standalone_score, context_dependencies: [], overlap_next: 0}\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "claude-chunking",
+        "name": "Claude - Intelligent Chunking",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [2450, 600],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Apply Claude's chunking recommendations\nconst response = $input.first().json;\nconst chunkingSchema = JSON.parse(response.content[0].text);\nconst docData = $input.item(1).json;\n\nconst chunks = [];\n\nfor (let i = 0; i < chunkingSchema.chunks.length; i++) {\n  const schema = chunkingSchema.chunks[i];\n  \n  const chunkContent = docData.content.substring(\n    schema.start_char,\n    schema.end_char\n  );\n  \n  chunks.push({\n    chunk_id: `${docData.file_id}-chunk-${i + 1}`,\n    document_id: docData.file_id,\n    chunk_index: i + 1,\n    chunk_type: schema.chunk_type,\n    content: chunkContent,\n    standalone_score: schema.standalone_score,\n    requires_context_from: schema.context_dependencies.map(\n      dep => `${docData.file_id}-chunk-${dep}`\n    ),\n    provides_context_to: i < chunkingSchema.chunks.length - 1 \n      ? [`${docData.file_id}-chunk-${i + 2}`] \n      : [],\n        char_range: [schema.start_char, schema.end_char],
+      semantic_summary: schema.summary || '',
+      created_date: new Date().toISOString()
+    });\n}\n\nreturn chunks.map(chunk => ({ json: chunk }));"
+        },
+        "id": "apply-chunking",
+        "name": "Apply Chunking Strategy",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2650, 600]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract structured facts from this content:\\n\\nChunk: {{ $json.content }}\\n\\nExtract:\\n1. Key facts (what, who, when, where, how)\\n2. Procedures/steps\\n3. Requirements/prerequisites\\n4. Entities (systems, products, people, versions)\\n5. Temporal markers (valid from/until, current as of)\\n6. Dependencies\\n\\nReturn JSON array of facts with confidence scores.\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "extract-facts",
+        "name": "Claude - Extract Facts",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [2850, 600],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Merge facts with chunk data\nconst response = $input.first().json;\nconst facts = JSON.parse(response.content[0].text);\nconst chunkData = $input.item(1).json;\n\nreturn [{\n  json: {\n    ...chunkData,\n    extracted_facts: facts.facts || [],\n    entities: facts.entities || [],\n    temporal_markers: facts.temporal_markers || []\n  }\n}];"
+        },
+        "id": "merge-facts",
+        "name": "Merge Facts with Chunk",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [3050, 600]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.openai.com/v1/embeddings",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.content }}\"\n}",
+          "headerParametersJson": "={\n  \"content-type\": \"application/json\",\n  \"authorization\": \"Bearer {{$credentials.openAiApi.apiKey}}\"\n}"
+        },
+        "id": "generate-embedding",
+        "name": "Generate Chunk Embedding",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [3250, 600],
+        "credentials": {
+          "openAiApi": {
+            "id": "3",
+            "name": "OpenAI API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "chunks",
+          "fields": "chunk_id,document_id,chunk_index,content,standalone_score,extracted_facts,entities,embedding",
+          "options": {}
+        },
+        "id": "store-chunk",
+        "name": "Store Chunk in Database",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3450, 600]
+      },
+      {
+        "parameters": {
+          "requestMethod": "POST",
+          "url": "={{ $json.vector_store_url }}/upsert",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"id\": \"{{ $json.chunk_id }}\",\n  \"vector\": {{ JSON.stringify($json.embedding) }},\n  \"metadata\": {\n    \"document_id\": \"{{ $json.document_id }}\",\n    \"chunk_index\": {{ $json.chunk_index }},\n    \"standalone_score\": {{ $json.standalone_score }},\n    \"chunk_type\": \"{{ $json.chunk_type }}\",\n    \"currency_status\": \"{{ $json.currency_status }}\"\n  }\n}"
+        },
+        "id": "index-vector",
+        "name": "Index in Vector Store",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [3650, 600]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "documents",
+          "fields": "file_id,file_name,file_hash,classification,version_info,currency_status,chunks,ingestion_complete",
+          "options": {}
+        },
+        "id": "store-document",
+        "name": "Store Document Metadata",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3850, 600]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Create graph relationships\nconst doc = $input.first().json;\nconst relationships = [];\n\n// Version relationships\nif (doc.supersedes) {\n  relationships.push({\n    type: 'SUPERSEDES',\n    from: doc.file_id,\n    to: doc.supersedes,\n    created: new Date().toISOString()\n  });\n}\n\nif (doc.superseded_by) {\n  relationships.push({\n    type: 'SUPERSEDED_BY',\n    from: doc.file_id,\n    to: doc.superseded_by,\n    created: new Date().toISOString()\n  });\n}\n\n// Chunk context relationships\nif (doc.chunks) {\n  doc.chunks.forEach(chunk => {\n    if (chunk.requires_context_from) {\n      chunk.requires_context_from.forEach(dep => {\n        relationships.push({\n          type: 'REQUIRES_CONTEXT',\n          from: chunk.chunk_id,\n          to: dep,\n          created: new Date().toISOString()\n        });\n      });\n    }\n  });\n}\n\nreturn relationships.map(rel => ({ json: rel }));"
+        },
+        "id": "create-relationships",
+        "name": "Create Graph Relationships",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [4050, 600]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=CREATE (a)-[r:{{ $json.type }}]->(b)\nWHERE a.id = '{{ $json.from }}' AND b.id = '{{ $json.to }}'\nRETURN r"
+        },
+        "id": "store-graph",
+        "name": "Store in Graph DB",
+        "type": "n8n-nodes-base.neo4j",
+        "typeVersion": 1,
+        "position": [4250, 600],
+        "credentials": {
+          "neo4j": {
+            "id": "4",
+            "name": "Neo4j TIPS KB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Final response\nconst doc = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'success',\n    document_id: doc.file_id,\n    chunks_created: doc.chunks ? doc.chunks.length : 0,\n    currency_status: doc.currency_status,\n    classification: doc.classification,\n    message: 'Document successfully ingested and indexed'\n  }\n}];"
+        },
+        "id": "final-response",
+        "name": "Return Success Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [4450, 600]
+      }
+    ],
+    "connections": {
+      "Start - Document Received": {
+        "main": [[{"node": "Extract File Metadata & Hash", "type": "main", "index": 0}]]
+      },
+      "Extract File Metadata & Hash": {
+        "main": [[{"node": "Check Duplicate Registry", "type": "main", "index": 0}]]
+      },
+      "Check Duplicate Registry": {
+        "main": [[{"node": "IF Duplicate Found", "type": "main", "index": 0}]]
+      },
+      "IF Duplicate Found": {
+        "main": [
+          [{"node": "Catalog as Duplicate - STOP", "type": "main", "index": 0}],
+          [{"node": "Claude - Classify Document", "type": "main", "index": 0}]
+        ]
+      },
+      "Claude - Classify Document": {
+        "main": [[{"node": "Parse Classification Result", "type": "main", "index": 0}]]
+      },
+      "Parse Classification Result": {
+        "main": [[{"node": "IF Low Confidence", "type": "main", "index": 0}]]
+      },
+      "IF Low Confidence": {
+        "main": [
+          [{"node": "Queue for Human Review", "type": "main", "index": 0}],
+          [{"node": "Claude - Extract Version Info", "type": "main", "index": 0}]
+        ]
+      },
+      "Claude - Extract Version Info": {
+        "main": [[{"node": "Merge Version Information", "type": "main", "index": 0}]]
+      },
+      "Merge Version Information": {
+        "main": [[{"node": "Query Existing Versions", "type": "main", "index": 0}]]
+      },
+      "Query Existing Versions": {
+        "main": [[{"node": "Determine Currency Status", "type": "main", "index": 0}]]
+      },
+      "Determine Currency Status": {
+        "main": [[{"node": "Claude - Intelligent Chunking", "type": "main", "index": 0}]]
+      },
+      "Claude - Intelligent Chunking": {
+        "main": [[{"node": "Apply Chunking Strategy", "type": "main", "index": 0}]]
+      },
+      "Apply Chunking Strategy": {
+        "main": [[{"node": "Claude - Extract Facts", "type": "main", "index": 0}]]
+      },
+      "Claude - Extract Facts": {
+        "main": [[{"node": "Merge Facts with Chunk", "type": "main", "index": 0}]]
+      },
+      "Merge Facts with Chunk": {
+        "main": [[{"node": "Generate Chunk Embedding", "type": "main", "index": 0}]]
+      },
+      "Generate Chunk Embedding": {
+        "main": [[{"node": "Store Chunk in Database", "type": "main", "index": 0}]]
+      },
+      "Store Chunk in Database": {
+        "main": [[{"node": "Index in Vector Store", "type": "main", "index": 0}]]
+      },
+      "Index in Vector Store": {
+        "main": [[{"node": "Store Document Metadata", "type": "main", "index": 0}]]
+      },
+      "Store Document Metadata": {
+        "main": [[{"node": "Create Graph Relationships", "type": "main", "index": 0}]]
+      },
+      "Create Graph Relationships": {
+        "main": [[{"node": "Store in Graph DB", "type": "main", "index": 0}]]
+      },
+      "Store in Graph DB": {
+        "main": [[{"node": "Return Success Response", "type": "main", "index": 0}]]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }\n
+  {
+    "name": "Message Processing Pipeline",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "msg-start",
+        "name": "Start - Message Received",
+        "type": "n8n-nodes-base.start",
+        "typeVersion": 1,
+        "position": [250, 400]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this message:\\n\\nMessage: {{ $json.content }}\\nAuthor: {{ $json.author }}\\nDate: {{ $json.date }}\\n\\nDetermine:\\n1. Message type: question | directive | update | discussion | issue\\n2. System impact: system_changing | info_only | clarification\\n3. If question: What information is being sought?\\n4. If directive/command: What system changes are required?\\n5. Urgency: critical | high | medium | low\\n6. Related entities: products, systems, procedures, people\\n7. Action required: yes/no and description\\n8. Confidence: 0.0-1.0\\n\\nReturn structured JSON\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "classify-message",
+        "name": "Claude - Classify Message",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [450, 400],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Claude classification\nconst response = $input.first().json;\nconst classification = JSON.parse(response.content[0].text);\nconst messageData = $input.item(1).json;\n\nreturn [{\n  json: {\n    message_id: `msg-${Date.now()}`,\n    ...messageData,\n    classification: classification,\n    requires_review: classification.confidence < 0.7\n  }\n}];"
+        },
+        "id": "parse-msg-classification",
+        "name": "Parse Message Classification",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [650, 400]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.requires_review }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-msg-low-confidence",
+        "name": "IF Low Confidence",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [850, 400]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "review_queue",
+          "fields": "message_id,classification,confidence,status,type",
+          "options": {}
+        },
+        "id": "queue-msg-review",
+        "name": "Queue for Human Review",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1050, 300]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.classification.message_type }}",
+                "operation": "equals",
+                "value2": "question"
+              }
+            ]
+          }
+        },
+        "id": "route-msg-type",
+        "name": "Route by Message Type",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 1,
+        "position": [1050, 500],
+        "parameters": {
+          "mode": "rules",
+          "rules": {
+            "rules": [
+              {
+                "conditions": {
+                  "string": [{"value1": "={{ $json.classification.message_type }}", "value2": "question"}]
+                },
+                "renameOutput": true,
+                "outputKey": "question"
+              },
+              {
+                "conditions": {
+                  "string": [{"value1": "={{ $json.classification.message_type }}", "value2": "directive"}]
+                },
+                "renameOutput": true,
+                "outputKey": "directive"
+              },
+              {
+                "conditions": {
+                  "string": [{"value1": "={{ $json.classification.message_type }}", "value2": "update"}]
+                },
+                "renameOutput": true,
+                "outputKey": "update"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Process Question\nconst msg = $input.first().json;\n\nreturn [{\n  json: {\n    ...msg,\n    tags: {\n      primary: ['question', 'query'],\n      status: ['awaiting_human_answer'],\n      urgency: [msg.classification.urgency],\n      entities: msg.classification.related_entities\n    },\n    answer_status: 'unanswered',\n    queued_for_answer: new Date().toISOString()\n  }\n}];"
+        },
+        "id": "process-question",
+        "name": "Process Question",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1250, 400]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "question_queue",
+          "fields": "message_id,content,tags,classification,status",
+          "options": {}
+        },
+        "id": "store-question",
+        "name": "Store in Question Queue",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1450, 400]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.openai.com/v1/embeddings",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.content }}\"\n}",
+          "headerParametersJson": "={\n  \"content-type\": \"application/json\",\n  \"authorization\": \"Bearer {{$credentials.openAiApi.apiKey}}\"\n}"
+        },
+        "id": "embed-question",
+        "name": "Generate Question Embedding",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1650, 400],
+        "credentials": {
+          "openAiApi": {
+            "id": "3",
+            "name": "OpenAI API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "channel": "={{ $json.notification_channel }}",
+          "text": "=New question needs answering:\n\n*Question:* {{ $json.content }}\n*From:* {{ $json.author }}\n*Urgency:* {{ $json.classification.urgency }}\n*Related to:* {{ $json.classification.related_entities.products.join(', ') }}\n\nPlease respond in the TIPS portal.",
+          "otherOptions": {}
+        },
+        "id": "notify-question",
+        "name": "Notify Team - New Question",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.1,
+        "position": [1850, 400],
+        "credentials": {
+          "slackApi": {
+            "id": "5",
+            "name": "Slack TIPS Team"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.classification.system_changing }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-system-changing",
+        "name": "IF System Changing",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [1250, 600]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "documents",
+          "query": "={ \"$or\": [{{ $json.classification.related_entities.procedures.map(p => `{\"procedure_id\": \"${p}\"}`).join(',') }}] }",
+          "options": {}
+        },
+        "id": "find-affected-docs",
+        "name": "Find Affected Documents",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1450, 700]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Compare this directive with existing documents:\\n\\nDirective: {{ $json.content }}\\nExisting Documents: {{ JSON.stringify($json.affected_docs) }}\\n\\nFor each document:\\n1. Does directive override (replace), supplement (add to), or contradict?\\n2. Which specific sections/chunks are affected?\\n3. Full or partial override?\\n4. Confidence: 0.0-1.0\\n\\nReturn structured comparison JSON\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "analyze-override",
+        "name": "Claude - Analyze Override",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1650, 700],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse override analysis\nconst response = $input.first().json;\nconst analysis = JSON.parse(response.content[0].text);\nconst directiveData = $input.item(1).json;\n\n// Check for contradictions or low confidence\nconst hasContradiction = analysis.documents.some(d => d.relationship === 'contradict');\nconst lowConfidence = analysis.documents.some(d => d.confidence < 0.7);\n\nreturn [{\n  json: {\n    ...directiveData,\n    override_analysis: analysis,\n    requires_human_review: hasContradiction || lowConfidence,\n    contradiction_detected: hasContradiction\n  }\n}];"
+        },
+        "id": "parse-override",
+        "name": "Parse Override Analysis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1850, 700]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.requires_human_review }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-needs-review",
+        "name": "IF Needs Review",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [2050, 700]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "review_queue",
+          "fields": "message_id,type,override_analysis,contradiction_detected,priority",
+          "options": {}
+        },
+        "id": "flag-contradiction",
+        "name": "Flag for Human Review",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [2250, 600]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "approval_queue",
+          "fields": "directive_id,message_content,affected_documents,override_type,urgency,status",
+          "options": {}
+        },
+        "id": "queue-approval",
+        "name": "Queue for Approval",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [2250, 800]
+      },
+      {
+        "parameters": {
+          "channel": "={{ $json.approval_channel }}",
+          "text": "=🔔 *Directive Requires Approval*\\n\\n*Message:* {{ $json.content }}\\n*Type:* {{ $json.classification.change_type }}\\n*Urgency:* {{ $json.classification.urgency }}\\n*Affects:* {{ $json.override_analysis.documents.map(d => d.doc_id).join(', ') }}\\n{{ $json.contradiction_detected ? '⚠️ *CONTRADICTION DETECTED*' : '' }}\\n\\nPlease review and approve in TIPS portal.",
+          "otherOptions": {}
+        },
+        "id": "notify-approval",
+        "name": "Notify Approvers",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.1,
+        "position": [2450, 800],
+        "credentials": {
+          "slackApi": {
+            "id": "5",
+            "name": "Slack TIPS Team"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "path": "directive-approval",
+          "method": "POST",
+          "responseMode": "lastNode",
+          "options": {
+            "noResponseBody": false
+          }
+        },
+        "id": "wait-approval",
+        "name": "Wait for Approval Response",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [2650, 800]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.approval_decision }}",
+                "operation": "equals",
+                "value2": "approved"
+              }
+            ]
+          }
+        },
+        "id": "if-approved",
+        "name": "IF Approved",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [2850, 800]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Apply approved override\nconst approval = $input.first().json;\nconst directive = $input.item(1).json;\n\n// Update affected document chunks\nconst updates = directive.override_analysis.documents.map(doc => ({\n  filter: { chunk_id: { $in: doc.affected_chunks } },\n  update: {\n    $set: {\n      override_status: 'active',\n      override_message_id: directive.message_id,\n      overridden_date: new Date().toISOString(),\n      approved_by: approval.approver\n    }\n  }\n}));\n\nreturn updates.map(u => ({ json: u }));"
+        },
+        "id": "apply-override",
+        "name": "Apply Override to Documents",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [3050, 900]
+      },
+      {
+        "parameters": {
+          "operation": "updateMany",
+          "collection": "chunks",
+          "updateKey": "={{ $json.filter }}",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "override_status",
+                "fieldValue": "active"
+              },
+              {
+                "fieldId": "override_message_id",
+                "fieldValue": "={{ $json.update.$set.override_message_id }}"
+              }
+            ]
+          }
+        },
+        "id": "update-chunks",
+        "name": "Update Chunk Override Status",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3250, 900]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=CREATE (m:Message {id: '{{ $json.message_id }}'})-[r:OVERRIDES {approved_by: '{{ $json.approved_by }}', date: '{{ $json.overridden_date }}'}]->(c:Chunk {id: '{{ $json.chunk_id }}'})\nRETURN r"
+        },
+        "id": "create-override-relationship",
+        "name": "Create Override Relationship",
+        "type": "n8n-nodes-base.neo4j",
+        "typeVersion": 1,
+        "position": [3450, 900],
+        "credentials": {
+          "neo4j": {
+            "id": "4",
+            "name": "Neo4j TIPS KB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "collection": "approval_queue",
+          "updateKey": "directive_id",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "status",
+                "fieldValue": "approved"
+              },
+              {
+                "fieldId": "approved_by",
+                "fieldValue": "={{ $json.approver }}"
+              },
+              {
+                "fieldId": "approved_date",
+                "fieldValue": "={{ $json.timestamp }}"
+              }
+            ]
+          }
+        },
+        "id": "update-approval-status",
+        "name": "Update Approval Status",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3650, 900]
+      },
+      {
+        "parameters": {
+          "channel": "={{ $json.notification_channel }}",
+          "text": "=✅ *Directive Approved & Applied*\n\n*Message:* {{ $json.content }}\n*Approved by:* {{ $json.approved_by }}\n*Documents updated:* {{ $json.affected_docs.length }}\n\nChanges are now active in the knowledge base.",
+          "otherOptions": {}
+        },
+        "id": "notify-applied",
+        "name": "Notify Override Applied",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.1,
+        "position": [3850, 900],
+        "credentials": {
+          "slackApi": {
+            "id": "5",
+            "name": "Slack TIPS Team"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "collection": "approval_queue",
+          "updateKey": "directive_id",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "status",
+                "fieldValue": "rejected"
+              },
+              {
+                "fieldId": "rejected_by",
+                "fieldValue": "={{ $json.approver }}"
+              },
+              {
+                "fieldId": "rejection_reason",
+                "fieldValue": "={{ $json.reason }}"
+              }
+            ]
+          }
+        },
+        "id": "log-rejection",
+        "name": "Log Rejection",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3050, 700]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Process update message (Class 3)\nconst msg = $input.first().json;\n\nreturn [{\n  json: {\n    ...msg,\n    tags: {\n      primary: ['update', 'temporal'],\n      status: ['active'],\n      urgency: [msg.classification.urgency],\n      entities: msg.classification.related_entities\n    },\n    processed_date: new Date().toISOString()\n  }\n}];"
+        },
+        "id": "process-update",
+        "name": "Process Update Message",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1250, 800]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "temporal_updates",
+          "fields": "message_id,content,tags,classification,processed_date",
+          "options": {}
+        },
+        "id": "store-update",
+        "name": "Store Temporal Update",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1450, 800]
+      },
+      {
+        "parameters": {
+          "workflowId": "={{ $json.baseline_workflow_id }}"
+        },
+        "id": "trigger-baseline-update",
+        "name": "Trigger Baseline Update",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [1650, 800]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Generate final response\nconst msg = $input.first().json;\n\nlet responseMsg = '';\nif (msg.classification.message_type === 'question') {\n  responseMsg = 'Question queued for team response';\n} else if (msg.classification.message_type === 'directive') {\n  responseMsg = msg.override_analysis ? 'Directive queued for approval' : 'Directive processed';\n} else if (msg.classification.message_type === 'update') {\n  responseMsg = 'Update processed and baseline triggered';\n}\n\nreturn [{\n  json: {\n    status: 'success',\n    message_id: msg.message_id,\n    message_type: msg.classification.message_type,\n    system_changing: msg.classification.system_changing || false,\n    requires_approval: msg.override_analysis ? true : false,\n    message: responseMsg\n  }\n}];"
+        },
+        "id": "final-msg-response",
+        "name": "Generate Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [4050, 700]
+      }
+    ],
+    "connections": {
+      "Start - Message Received": {
+        "main": [[{"node": "Claude - Classify Message", "type": "main", "index": 0}]]
+      },
+      "Claude - Classify Message": {
+        "main": [[{"node": "Parse Message Classification", "type": "main", "index": 0}]]
+      },
+      "Parse Message Classification": {
+        "main": [[{"node": "IF Low Confidence", "type": "main", "index": 0}]]
+      },
+      "IF Low Confidence": {
+        "main": [
+          [{"node": "Queue for Human Review", "type": "main", "index": 0}],
+          [{"node": "Route by Message Type", "type": "main", "index": 0}]
+        ]
+      },
+      "Route by Message Type": {
+        "main": [
+          [{"node": "Process Question", "type": "main", "index": 0}],
+          [{"node": "IF System Changing", "type": "main", "index": 0}],
+          [{"node": "Process Update Message", "type": "main", "index": 0}]
+        ]
+      },
+      "Process Question": {
+        "main": [[{"node": "Store in Question Queue", "type": "main", "index": 0}]]
+      },
+      "Store in Question Queue": {
+        "main": [[{"node": "Generate Question Embedding", "type": "main", "index": 0}]]
+      },
+      "Generate Question Embedding": {
+        "main": [[{"node": "Notify Team - New Question", "type": "main", "index": 0}]]
+      },
+      "Notify Team - New Question": {
+        "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+      },
+      "IF System Changing": {
+        "main": [
+          [{"node": "Queue for Approval", "type": "main", "index": 0}],
+          [{"node": "Find Affected Documents", "type": "main", "index": 0}]
+        ]
+      },
+      "Find Affected Documents": {
+        "main": [[{"node": "Claude - Analyze Override", "type": "main", "index": 0}]]
+      },
+      "Claude - Analyze Override": {
+        "main": [[{"node": "Parse Override Analysis", "type": "main", "index": 0}]]
+      },
+      "Parse Override Analysis": {
+        "main": [[{"node": "IF Needs Review", "type": "main", "index": 0}]]
+      },
+      "IF Needs Review": {
+        "main": [
+          [{"node": "Flag for Human Review", "type": "main", "index": 0}],
+          [{"node": "Queue for Approval", "type": "main", "index": 0}]
+        ]
+      },
+      "Queue for Approval": {
+        "main": [[{"node": "Notify Approvers", "type": "main", "index": 0}]]
+      },
+      "Notify Approvers": {
+        "main": [[{"node": "Wait for Approval Response", "type": "main", "index": 0}]]
+      },
+      "Wait for Approval Response": {
+        "main": [[{"node": "IF Approved", "type": "main", "index": 0}]]
+      },
+      "IF Approved": {
+        "main": [
+          [{"node": "Apply Override to Documents", "type": "main", "index": 0}],
+          [{"node": "Log Rejection", "type": "main", "index": 0}]
+        ]
+      },
+      "Apply Override to Documents": {
+        "main": [[{"node": "Update Chunk Override Status", "type": "main", "index": 0}]]
+      },
+      "Update Chunk Override Status": {
+        "main": [[{"node": "Create Override Relationship", "type": "main", "index": 0}]]
+      },
+      "Create Override Relationship": {
+        "main": [[{"node": "Update Approval Status", "type": "main", "index": 0}]]
+      },
+      "Update Approval Status": {
+        "main": [[{"node": "Notify Override Applied", "type": "main", "index": 0}]]
+      },
+      "Notify Override Applied": {
+        "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+      },
+      "Log Rejection": {
+        "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+      },
+      "Process Update Message": {
+        "main": [[{"node": "Store Temporal Update", "type": "main", "index": 0}]]
+      },
+      "Store Temporal Update": {
+        "main": [[{"node": "Trigger Baseline Update", "type": "main", "index": 0}]]
+      },
+      "Trigger Baseline Update": {
+        "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+  {
+    "name": "User Onboarding Pipeline",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "onboard-start",
+        "name": "Start - New User Created",
+        "type": "n8n-nodes-base.start",
+        "typeVersion": 1,
+        "position": [250, 400]
+      },
+      {
+        "parameters": {
+          "operation": "findOne",
+          "collection": "onboarding_roadmaps",
+          "query": "={ \"product\": \"{{ $json.product }}\" }",
+          "options": {}
+        },
+        "id": "get-roadmap",
+        "name": "Get Product Roadmap",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [450, 400]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a user-friendly progress scorecard:\\n\\nUser data: {{ JSON.stringify($json) }}\\n\\nCreate:\\n1. Executive summary (overall progress)\\n2. Mastery breakdown by functional area\\n3. Strengths & growth areas\\n4. Personalized recommendations\\n5. Comparison to typical progression\\n6. Motivational insights\\n\\nReturn JSON scorecard with visualization metadata\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "generate-scorecard",
+        "name": "Claude - Generate Progress Scorecard",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [850, 900],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "collection": "users",
+          "updateKey": "user_id",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "onboarding.personalized_path",
+                "fieldValue": "={{ JSON.stringify($json.updated_path) }}"
+              },
+              {
+                "fieldId": "onboarding.progress",
+                "fieldValue": "={{ JSON.stringify($json.overall_progress) }}"
+              },
+              {
+                "fieldId": "onboarding.mastery_levels",
+                "fieldValue": "={{ JSON.stringify($json.mastery_by_area) }}"
+              },
+              {
+                "fieldId": "onboarding.last_scorecard",
+                "fieldValue": "={{ JSON.stringify($json.scorecard) }}"
+              }
+            ]
+          }
+        },
+        "id": "update-user-progress",
+        "name": "Update User Progress",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1050, 900]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.email_service_url }}",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"🎉 Module Completed! Your Progress Update\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nCongrats on completing {{ $json.module_name }}!\\n\\nYour Progress:\\n- {{ $json.overall_progress.completion_percentage }}% complete\\n- {{ $json.overall_progress.modules_completed }}/{{ $json.overall_progress.modules_total }} modules done\\n\\nView your full scorecard: {{ $json.scorecard_url }}\\n\\nKeep up the great work!\\nTIPS Knowledge Team\"\n}"
+        },
+        "id": "send-progress-email",
+        "name": "Send Progress Email",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1250, 900]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"status\": \"success\", \"progress\": $json.overall_progress, \"scorecard\": $json.scorecard } }}"
+        },
+        "id": "respond-progress-update",
+        "name": "Respond - Progress Updated",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1450, 900]
+      }
+    ],
+    "connections": {
+      "Start - New User Created": {
+        "main": [[{"node": "Get Product Roadmap", "type": "main", "index": 0}]]
+      },
+      "Get Product Roadmap": {
+        "main": [[{"node": "Claude - Generate Initial Assessment", "type": "main", "index": 0}]]
+      },
+      "Claude - Generate Initial Assessment": {
+        "main": [[{"node": "Prepare Assessment", "type": "main", "index": 0}]]
+      },
+      "Prepare Assessment": {
+        "main": [[{"node": "Store Assessment", "type": "main", "index": 0}]]
+      },
+      "Store Assessment": {
+        "main": [[{"node": "Send Assessment Email", "type": "main", "index": 0}]]
+      },
+      "Send Assessment Email": {
+        "main": [[{"node": "Wait for Assessment Response", "type": "main", "index": 0}]]
+      },
+      "Wait for Assessment Response": {
+        "main": [[{"node": "Generate Personalized Path", "type": "main", "index": 0}]]
+      },
+      "Generate Personalized Path": {
+        "main": [[{"node": "Update User Profile", "type": "main", "index": 0}]]
+      },
+      "Update User Profile": {
+        "main": [[{"node": "Send Roadmap Email", "type": "main", "index": 0}]]
+      },
+      "Webhook - Learning Request": {
+        "main": [[{"node": "Claude - Analyze Learning Request", "type": "main", "index": 0}]]
+      },
+      "Claude - Analyze Learning Request": {
+        "main": [[{"node": "Get User Progress", "type": "main", "index": 0}]]
+      },
+      "Get User Progress": {
+        "main": [[{"node": "Check Prerequisites", "type": "main", "index": 0}]]
+      },
+      "Check Prerequisites": {
+        "main": [[{"node": "IF Prerequisites Met", "type": "main", "index": 0}]]
+      },
+      "IF Prerequisites Met": {
+        "main": [
+          [{"node": "Search Relevant Content", "type": "main", "index": 0}],
+          [{"node": "Respond - Prerequisites Needed", "type": "main", "index": 0}]
+        ]
+      },
+      "Search Relevant Content": {
+        "main": [[{"node": "Get Related Q&A", "type": "main", "index": 0}]]
+      },
+      "Get Related Q&A": {
+        "main": [[{"node": "Claude - Generate Learning Package", "type": "main", "index": 0}]]
+      },
+      "Claude - Generate Learning Package": {
+        "main": [[{"node": "Add to User Roadmap", "type": "main", "index": 0}]]
+      },
+      "Add to User Roadmap": {
+        "main": [[{"node": "Respond - Learning Request", "type": "main", "index": 0}]]
+      },
+      "Webhook - Module Complete": {
+        "main": [[{"node": "Get User for Progress Update", "type": "main", "index": 0}]]
+      },
+      "Get User for Progress Update": {
+        "main": [[{"node": "Calculate Progress", "type": "main", "index": 0}]]
+      },
+      "Calculate Progress": {
+        "main": [[{"node": "Claude - Generate Progress Scorecard", "type": "main", "index": 0}]]
+      },
+      "Claude - Generate Progress Scorecard": {
+        "main": [[{"node": "Update User Progress", "type": "main", "index": 0}]]
+      },
+      "Update User Progress": {
+        "main": [[{"node": "Send Progress Email", "type": "main", "index": 0}]]
+      },
+      "Send Progress Email": {
+        "main": [[{"node": "Respond - Progress Updated", "type": "main", "index": 0}]]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  } "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create an initial assessment for new user:\\n\\nUser: {{ $json.name }}\\nRole: {{ $json.role }}\\nProduct: {{ $json.product }}\\nBackground: {{ $json.background || 'Not provided' }}\\n\\nGenerate 5-10 questions to assess:\\n1. Current knowledge level\\n2. Relevant experience\\n3. Learning style preferences\\n4. Specific areas of interest\\n5. Time availability\\n\\nReturn JSON array of questions with: {question_id, question, type: 'multiple_choice'|'short_answer'|'rating', options: []}\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "generate-assessment",
+        "name": "Claude - Generate Initial Assessment",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [650, 400],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse assessment questions\nconst response = $input.first().json;\nconst assessment = JSON.parse(response.content[0].text);\nconst userData = $input.item(1).json;\n\nreturn [{\n  json: {\n    user_id: userData.user_id,\n    assessment_id: `assess-${Date.now()}`,\n    questions: assessment.questions,\n    status: 'pending',\n    created_date: new Date().toISOString()\n  }\n}];"
+        },
+        "id": "prepare-assessment",
+        "name": "Prepare Assessment",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [850, 400]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "assessments",
+          "fields": "assessment_id,user_id,questions,status,created_date",
+          "options": {}
+        },
+        "id": "store-assessment",
+        "name": "Store Assessment",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1050, 400]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.email_service_url }}",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Welcome to {{ $json.product }} - Start Your Learning Journey\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nWelcome to the {{ $json.product }} team! We've prepared a personalized onboarding roadmap for you.\\n\\nPlease complete your initial assessment to help us tailor your learning path:\\n{{ $json.assessment_url }}\\n\\nBest regards,\\nTIPS Knowledge Team\"\n}"
+        },
+        "id": "send-assessment-email",
+        "name": "Send Assessment Email",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1250, 400]
+      },
+      {
+        "parameters": {
+          "path": "assessment-response",
+          "method": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "wait-assessment-response",
+        "name": "Wait for Assessment Response",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [1450, 400]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Analyze assessment responses and generate personalized path\nconst responses = $input.first().json.responses;\nconst userData = $input.item(1).json;\nconst roadmap = $input.item(2).json;\n\n// Get role-based path from roadmap\nconst roleModules = roadmap.role_based_paths[userData.role] || [];\n\n// Filter/adjust based on assessment\nlet personalizedModules = roleModules.map(moduleId => {\n  const module = roadmap.learning_modules.find(m => m.module_id === moduleId);\n  \n  return {\n    module_id: module.module_id,\n    module_name: module.module_name,\n    status: 'not_started',\n    due_date: new Date(Date.now() + module.estimated_time_hours * 24 * 60 * 60 * 1000).toISOString(),\n    priority: module.required ? 'high' : 'medium'\n  };\n});\n\nreturn [{\n  json: {\n    user_id: userData.user_id,\n    assigned_roadmap: roadmap.roadmap_id,\n    personalized_path: personalizedModules,\n    assessment_results: responses,\n    start_date: new Date().toISOString(),\n    estimated_completion: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()\n  }\n}];"
+        },
+        "id": "generate-personalized-path",
+        "name": "Generate Personalized Path",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1650, 400]
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "collection": "users",
+          "updateKey": "user_id",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "onboarding",
+                "fieldValue": "={{ JSON.stringify($json) }}"
+              },
+              {
+                "fieldId": "status",
+                "fieldValue": "onboarding"
+              }
+            ]
+          }
+        },
+        "id": "update-user-profile",
+        "name": "Update User Profile",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1850, 400]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.email_service_url }}",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Your Personalized {{ $json.product }} Learning Path\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nYour personalized learning path is ready! Here's what you'll be learning:\\n\\n{{ $json.personalized_path.map(m => `- ${m.module_name}`).join('\\n') }}\\n\\nEstimated completion: {{ $json.estimated_completion }}\\n\\nStart your first module here: {{ $json.portal_url }}\\n\\nGood luck!\\nTIPS Knowledge Team\"\n}"
+        },
+        "id": "send-roadmap-email",
+        "name": "Send Roadmap Email",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [2050, 400]
+      },
+      {
+        "parameters": {
+          "path": "learning-request",
+          "method": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-learning-request",
+        "name": "Webhook - Learning Request",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [250, 600]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"User wants to learn about: {{ $json.topic }}\\nUser role: {{ $json.user_role }}\\nCurrent mastery: {{ $json.mastery_level }}\\n\\nIdentify:\\n1. Relevant modules from roadmap\\n2. Additional knowledge base resources\\n3. Prerequisite knowledge needed\\n4. Estimated learning path\\n\\nReturn learning recommendation JSON\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "analyze-learning-request",
+        "name": "Claude - Analyze Learning Request",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [450, 600],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "users",
+          "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+          "options": {}
+        },
+        "id": "get-user-progress",
+        "name": "Get User Progress",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [650, 600]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Check prerequisites\nconst recommendation = JSON.parse($input.first().json.content[0].text);\nconst user = $input.item(1).json;\n\nconst completedModules = user.onboarding.personalized_path\n  .filter(m => m.status === 'completed')\n  .map(m => m.module_id);\n\nconst missingPrereqs = recommendation.prerequisites\n  .filter(p => !completedModules.includes(p));\n\nreturn [{\n  json: {\n    ...recommendation,\n    user_id: user.user_id,\n    missing_prerequisites: missingPrereqs,\n    can_proceed: missingPrereqs.length === 0\n  }\n}];"
+        },
+        "id": "check-prerequisites",
+        "name": "Check Prerequisites",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [850, 600]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.can_proceed }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-prereqs-met",
+        "name": "IF Prerequisites Met",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [1050, 600]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "documents",
+          "query": "={ \"$text\": { \"$search\": \"{{ $json.topic }}\" }, \"currency_status\": \"current\" }",
+          "options": {
+            "limit": 10
+          }
+        },
+        "id": "search-content",
+        "name": "Search Relevant Content",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1250, 700]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "question_queue",
+          "query": "={ \"tags.entities.topics\": \"{{ $json.topic }}\", \"answer_status\": \"answered\" }",
+          "options": {
+            "limit": 5
+          }
+        },
+        "id": "get-related-qa",
+        "name": "Get Related Q&A",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1450, 700]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a custom learning package on: {{ $json.topic }}\\n\\nAvailable resources:\\nDocuments: {{ JSON.stringify($json.documents) }}\\nQ&A pairs: {{ JSON.stringify($json.qa_pairs) }}\\n\\nGenerate:\\n1. Learning objectives\\n2. Structured content outline\\n3. Practical examples\\n4. Assessment questions\\n5. Estimated time\\n\\nReturn JSON learning package\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "generate-learning-package",
+        "name": "Claude - Generate Learning Package",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1650, 700],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "collection": "users",
+          "updateKey": "user_id",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "onboarding.personalized_path",
+                "fieldValue": "={{ JSON.stringify([...$json.existing_path, $json.custom_module]) }}"
+              }
+            ]
+          }
+        },
+        "id": "add-to-roadmap",
+        "name": "Add to User Roadmap",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1850, 700]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"status\": \"success\", \"message\": \"Custom learning package created\", \"module\": $json.custom_module } }}"
+        },
+        "id": "respond-learning-request",
+        "name": "Respond - Learning Request",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [2050, 700]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"status\": \"prerequisites_required\", \"missing\": $json.missing_prerequisites, \"message\": \"Please complete prerequisites first\" } }}"
+        },
+        "id": "respond-prereqs-needed",
+        "name": "Respond - Prerequisites Needed",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1250, 500]
+      },
+      {
+        "parameters": {
+          "path": "module-complete",
+          "method": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-module-complete",
+        "name": "Webhook - Module Complete",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [250, 900]
+      },
+      {
+        "parameters": {
+          "operation": "findOne",
+          "collection": "users",
+          "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+          "options": {}
+        },
+        "id": "get-user-for-progress",
+        "name": "Get User for Progress Update",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [450, 900]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Update progress and calculate metrics\nconst completion = $input.first().json;\nconst user = $input.item(1).json;\n\n// Update module status\nconst updatedPath = user.onboarding.personalized_path.map(m => {\n  if (m.module_id === completion.module_id) {\n    return {\n      ...m,\n      status: 'completed',\n      completed_date: new Date().toISOString(),\n      score: completion.score,\n      passed: completion.score >= completion.passing_score\n    };\n  }\n  return m;\n});\n\n// Calculate overall progress\nconst totalModules = updatedPath.length;\nconst completedModules = updatedPath.filter(m => m.status === 'completed').length;\nconst progressPercentage = (completedModules / totalModules) * 100;\n\n// Calculate mastery by area\nconst masteryByArea = {};\n// ... (mastery calculation logic)\n\nreturn [{\n  json: {\n    user_id: user.user_id,\n    updated_path: updatedPath,\n    overall_progress: {\n      modules_completed: completedModules,\n      modules_total: totalModules,\n      completion_percentage: progressPercentage\n    },\n    mastery_by_area: masteryByArea\n  }\n}];"
+        },
+        "id": "calculate-progress",
+        "name": "Calculate Progress",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [650, 900]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod":
+          {
+            "name": "User Offboarding Pipeline",
+            "nodes": [
+              {
+                "parameters": {},
+                "id": "offboard-start",
+                "name": "Start - User Offboarding Initiated",
+                "type": "n8n-nodes-base.start",
+                "typeVersion": 1,
+                "position": [250, 400]
+              },
+              {
+                "parameters": {
+                  "operation": "findOne",
+                  "collection": "users",
+                  "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+                  "options": {}
+                },
+                "id": "get-user-profile",
+                "name": "Get User Profile & History",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [450, 400]
+              },
+              {
+                "parameters": {
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "requestMethod": "POST",
+                  "url": "https://api.anthropic.com/v1/messages",
+                  "jsonParameters": true,
+                  "options": {},
+                  "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a comprehensive offboarding survey:\\n\\nUser profile: {{ JSON.stringify($json) }}\\nRole: {{ $json.role }}\\nProducts: {{ $json.products }}\\nMastery areas: {{ JSON.stringify($json.onboarding.mastery_levels) }}\\nTime in role: {{ $json.tenure_months }} months\\n\\nCreate survey covering:\\n1. General experience questions\\n2. Role-specific technical questions (adjust depth based on mastery)\\n3. System-specific deep dives (focus on high-mastery areas)\\n4. Process improvement suggestions\\n5. Documentation gaps identification\\n6. Knowledge transfer priorities\\n\\nReturn JSON survey with sections and questions (multiple choice, short answer, rating scale, long form)\"\n    }\n  ]\n}",
+                  "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+                },
+                "id": "generate-survey",
+                "name": "Claude - Generate Offboarding Survey",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [650, 400],
+                "credentials": {
+                  "httpHeaderAuth": {
+                    "id": "2",
+                    "name": "Claude API Key"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Prepare survey for user\nconst response = $input.first().json;\nconst survey = JSON.parse(response.content[0].text);\nconst userData = $input.item(1).json;\n\nreturn [{\n  json: {\n    survey_id: `offboard-${userData.user_id}-${Date.now()}`,\n    user_id: userData.user_id,\n    generated_date: new Date().toISOString(),\n    survey: survey,\n    status: 'pending',\n    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()\n  }\n}];"
+                },
+                "id": "prepare-survey",
+                "name": "Prepare Survey",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [850, 400]
+              },
+              {
+                "parameters": {
+                  "operation": "insert",
+                  "collection": "offboarding_surveys",
+                  "fields": "survey_id,user_id,survey,status,generated_date,deadline",
+                  "options": {}
+                },
+                "id": "store-survey",
+                "name": "Store Survey",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [1050, 400]
+              },
+              {
+                "parameters": {
+                  "method": "POST",
+                  "url": "={{ $json.email_service_url }}",
+                  "jsonParameters": true,
+                  "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Help Us Improve - Offboarding Survey for {{ $json.product }}\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nAs you transition from your role, we'd greatly value your insights and expertise. Your knowledge can help improve our systems and documentation for future team members.\\n\\nPlease complete your personalized offboarding survey:\\n{{ $json.survey_url }}\\n\\nDeadline: {{ $json.deadline }}\\n\\nYour contributions have been invaluable. Thank you!\\nTIPS Knowledge Team\"\n}"
+                },
+                "id": "send-survey-email",
+                "name": "Send Survey Email",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [1250, 400]
+              },
+              {
+                "parameters": {
+                  "path": "offboarding-survey-response",
+                  "method": "POST",
+                  "responseMode": "lastNode",
+                  "options": {}
+                },
+                "id": "wait-survey-response",
+                "name": "Wait for Survey Response",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [1450, 400]
+              },
+              {
+                "parameters": {
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "requestMethod": "POST",
+                  "url": "https://api.anthropic.com/v1/messages",
+                  "jsonParameters": true,
+                  "options": {},
+                  "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze offboarding survey responses:\\n\\nUser: {{ $json.user_id }}\\nRole: {{ $json.role }}\\nResponses: {{ JSON.stringify($json.responses) }}\\n\\nIdentify:\\n1. Critical knowledge items requiring documentation\\n2. Undocumented procedures mentioned\\n3. System issues flagged\\n4. Contradictions with existing documentation\\n5. Vague/unclear responses needing clarification\\n6. High-priority knowledge transfer items\\n\\nReturn structured analysis with:\\n- Items needing clarification (with specific questions)\\n- Action items for documentation team\\n- Urgent issues for immediate attention\\n- Knowledge gaps to fill\"\n    }\n  ]\n}",
+                  "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+                },
+                "id": "analyze-responses",
+                "name": "Claude - Analyze Responses",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [1650, 400],
+                "credentials": {
+                  "httpHeaderAuth": {
+                    "id": "2",
+                    "name": "Claude API Key"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Parse analysis and determine next steps\nconst response = $input.first().json;\nconst analysis = JSON.parse(response.content[0].text);\nconst surveyData = $input.item(1).json;\n\nreturn [{\n  json: {\n    survey_id: surveyData.survey_id,\n    user_id: surveyData.user_id,\n    analysis: analysis,\n    needs_clarification: analysis.items_needing_clarification.length > 0,\n    has_contradictions: analysis.contradictions.length > 0,\n    undocumented_knowledge: analysis.undocumented_procedures,\n    action_items: analysis.action_items\n  }\n}];"
+                },
+                "id": "parse-analysis",
+                "name": "Parse Analysis Results",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [1850, 400]
+              },
+              {
+                "parameters": {
+                  "conditions": {
+                    "boolean": [
+                      {
+                        "value1": "={{ $json.needs_clarification }}",
+                        "value2": true
+                      }
+                    ]
+                  }
+                },
+                "id": "if-needs-clarification",
+                "name": "IF Needs Clarification",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 1,
+                "position": [2050, 400]
+              },
+              {
+                "parameters": {
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "requestMethod": "POST",
+                  "url": "https://api.anthropic.com/v1/messages",
+                  "jsonParameters": true,
+                  "options": {},
+                  "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate follow-up questions for unclear responses:\\n\\nUnclear items: {{ JSON.stringify($json.analysis.items_needing_clarification) }}\\n\\nFor each item:\\n- Original question\\n- User response\\n- Why unclear\\n\\nGenerate 2-3 specific follow-up questions to clarify each item.\\n\\nReturn JSON with clarification questions.\"\n    }\n  ]\n}",
+                  "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+                },
+                "id": "generate-clarification",
+                "name": "Claude - Generate Clarification Questions",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [2250, 300],
+                "credentials": {
+                  "httpHeaderAuth": {
+                    "id": "2",
+                    "name": "Claude API Key"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "method": "POST",
+                  "url": "={{ $json.email_service_url }}",
+                  "jsonParameters": true,
+                  "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Quick Follow-up on Offboarding Survey\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nThank you for completing the offboarding survey. We have a few follow-up questions to clarify some of your responses:\\n\\n{{ $json.clarification_questions }}\\n\\nPlease respond at your convenience: {{ $json.clarification_url }}\\n\\nThanks again for your help!\\nTIPS Knowledge Team\"\n}"
+                },
+                "id": "send-clarification-request",
+                "name": "Send Clarification Request",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [2450, 300]
+              },
+              {
+                "parameters": {
+                  "path": "clarification-response",
+                  "method": "POST",
+                  "responseMode": "lastNode",
+                  "options": {}
+                },
+                "id": "wait-clarification",
+                "name": "Wait for Clarification",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [2650, 300]
+              },
+              {
+                "parameters": {
+                  "conditions": {
+                    "number": [
+                      {
+                        "value1": "={{ $json.undocumented_knowledge.length }}",
+                        "operation": "larger",
+                        "value2": 0
+                      }
+                    ]
+                  }
+                },
+                "id": "if-undocumented-knowledge",
+                "name": "IF Undocumented Knowledge Found",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 1,
+                "position": [2050, 600]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Extract and validate undocumented procedures\nconst data = $input.first().json;\n\nconst validationTasks = data.undocumented_knowledge.map(item => ({\n  validation_id: `val-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,\n  source: 'offboarding_survey',\n  user_id: data.user_id,\n  claim: item.description,\n  documented: false,\n  contradiction: null,\n  priority: item.criticality || 'medium',\n  status: 'pending_review',\n  created_date: new Date().toISOString()\n}));\n\nreturn validationTasks.map(task => ({ json: task }));"
+                },
+                "id": "create-validation-tasks",
+                "name": "Create Validation Tasks",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [2250, 700]
+              },
+              {
+                "parameters": {
+                  "operation": "insert",
+                  "collection": "validation_queue",
+                  "fields": "validation_id,source,user_id,claim,status,priority,created_date",
+                  "options": {}
+                },
+                "id": "queue-validation",
+                "name": "Queue for Validation",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [2450, 700]
+              },
+              {
+                "parameters": {
+                  "channel": "={{ $json.validation_channel }}",
+                  "text": "=🔍 *New Knowledge Validation Required*\\n\\n*Source:* Offboarding Survey - {{ $json.user_name }}\\n*Claim:* {{ $json.claim }}\\n*Priority:* {{ $json.priority }}\\n\\nPlease review and validate: {{ $json.validation_url }}",
+                  "otherOptions": {}
+                },
+                "id": "notify-validation",
+                "name": "Notify SME for Validation",
+                "type": "n8n-nodes-base.slack",
+                "typeVersion": 2.1,
+                "position": [2650, 700],
+                "credentials": {
+                  "slackApi": {
+                    "id": "5",
+                    "name": "Slack TIPS Team"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "path": "knowledge-validated",
+                  "method": "POST",
+                  "responseMode": "lastNode",
+                  "options": {}
+                },
+                "id": "wait-validation",
+                "name": "Wait for Validation Response",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [2850, 700]
+              },
+              {
+                "parameters": {
+                  "conditions": {
+                    "string": [
+                      {
+                        "value1": "={{ $json.validation_result }}",
+                        "operation": "equals",
+                        "value2": "confirmed"
+                      }
+                    ]
+                  }
+                },
+                "id": "if-validated",
+                "name": "IF Validated",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 1,
+                "position": [3050, 700]
+              },
+              {
+                "parameters": {
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "requestMethod": "POST",
+                  "url": "https://api.anthropic.com/v1/messages",
+                  "jsonParameters": true,
+                  "options": {},
+                  "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create documentation for this validated undocumented procedure:\\n\\nUser expertise: {{ $json.user_role }}, {{ $json.mastery_level }}\\nProcedure description: {{ $json.validated_claim }}\\nValidation notes: {{ $json.validation_notes }}\\nRelated systems: {{ $json.affected_systems }}\\nContext: {{ $json.additional_context }}\\n\\nGenerate:\\n- Formal SOP or procedure document\\n- Appropriate level of technical detail\\n- Prerequisites and dependencies\\n- Step-by-step instructions\\n- Troubleshooting notes\\n- Related documentation links\\n\\nFormat as standard SOP document.\"\n    }\n  ]\n}",
+                  "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+                },
+                "id": "generate-documentation",
+                "name": "Claude - Generate Documentation",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [3250, 800],
+                "credentials": {
+                  "httpHeaderAuth": {
+                    "id": "2",
+                    "name": "Claude API Key"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Prepare document for approval and ingestion\nconst response = $input.first().json;\nconst documentation = JSON.parse(response.content[0].text);\nconst validationData = $input.item(1).json;\n\nreturn [{\n  json: {\n    document_id: `offboard-doc-${Date.now()}`,\n    content: documentation.document,\n    source: 'offboarding_capture',\n    source_user: validationData.user_id,\n    validated_by: validationData.validator,\n    priority: 'high',\n    tags: ['offboarding_capture', validationData.user_role],\n    status: 'pending_approval',\n    created_date: new Date().toISOString()\n  }\n}];"
+                },
+                "id": "prepare-document",
+                "name": "Prepare Document for Ingestion",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [3450, 800]
+              },
+              {
+                "parameters": {
+                  "operation": "insert",
+                  "collection": "approval_queue",
+                  "fields": "document_id,content,source,priority,status,created_date",
+                  "options": {}
+                },
+                "id": "queue-doc-approval",
+                "name": "Queue Document for Approval",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [3650, 800]
+              },
+              {
+                "parameters": {
+                  "channel": "={{ $json.approval_channel }}",
+                  "text": "=📄 *New Document from Offboarding Knowledge*\\n\\n*Source:* {{ $json.source_user_name }}\\n*Topic:* {{ $json.topic }}\\n*Validated by:* {{ $json.validator }}\\n\\nPlease review and approve for ingestion: {{ $json.approval_url }}",
+                  "otherOptions": {}
+                },
+                "id": "notify-doc-approval",
+                "name": "Notify for Document Approval",
+                "type": "n8n-nodes-base.slack",
+                "typeVersion": 2.1,
+                "position": [3850, 800],
+                "credentials": {
+                  "slackApi": {
+                    "id": "5",
+                    "name": "Slack TIPS Team"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "path": "document-approved",
+                  "method": "POST",
+                  "responseMode": "lastNode",
+                  "options": {}
+                },
+                "id": "wait-doc-approval",
+                "name": "Wait for Document Approval",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [4050, 800]
+              },
+              {
+                "parameters": {
+                  "conditions": {
+                    "string": [
+                      {
+                        "value1": "={{ $json.approval_decision }}",
+                        "operation": "equals",
+                        "value2": "approved"
+                      }
+                    ]
+                  }
+                },
+                "id": "if-doc-approved",
+                "name": "IF Document Approved",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 1,
+                "position": [4250, 800]
+              },
+              {
+                "parameters": {
+                  "workflowId": "={{ $json.document_ingestion_workflow_id }}",
+                  "fieldsUi": {
+                    "fieldValues": [
+                      {
+                        "name": "event_type",
+                        "value": "file_upload"
+                      },
+                      {
+                        "name": "file_content",
+                        "value": "={{ $json.content }}"
+                      },
+                      {
+                        "name": "source",
+                        "value": "offboarding"
+                      },
+                      {
+                        "name": "priority",
+                        "value": "high"
+                      }
+                    ]
+                  }
+                },
+                "id": "trigger-ingestion",
+                "name": "Trigger Document Ingestion",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "typeVersion": 1,
+                "position": [4450, 900]
+              },
+              {
+                "parameters": {
+                  "workflowId": "={{ $json.baseline_workflow_id }}"
+                },
+                "id": "update-baseline",
+                "name": "Update Baseline with New Knowledge",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "typeVersion": 1,
+                "position": [4650, 900]
+              },
+              {
+                "parameters": {
+                  "operation": "update",
+                  "collection": "offboarding_surveys",
+                  "updateKey": "survey_id",
+                  "fieldsUi": {
+                    "fieldValues": [
+                      {
+                        "fieldId": "status",
+                        "fieldValue": "completed"
+                      },
+                      {
+                        "fieldId": "completed_date",
+                        "fieldValue": "={{ $json.timestamp }}"
+                      },
+                      {
+                        "fieldId": "knowledge_captured",
+                        "fieldValue": "={{ $json.captured_count }}"
+                      },
+                      {
+                        "fieldId": "documents_created",
+                        "fieldValue": "={{ $json.docs_created }}"
+                      }
+                    ]
+                  }
+                },
+                "id": "update-survey-status",
+                "name": "Update Survey Status - Complete",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [4850, 900]
+              },
+              {
+                "parameters": {
+                  "method": "POST",
+                  "url": "={{ $json.email_service_url }}",
+                  "jsonParameters": true,
+                  "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Thank You - Your Knowledge Has Been Captured\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nThank you for completing the offboarding survey. Your insights have been invaluable!\\n\\n*Impact Summary:*\\n- {{ $json.knowledge_items_captured }} knowledge items captured\\n- {{ $json.documents_created }} new documents created\\n- {{ $json.documentation_gaps_filled }} gaps filled\\n\\nYour contributions will help future team members succeed. We wish you all the best in your next endeavor!\\n\\nTIPS Knowledge Team\"\n}"
+                },
+                "id": "send-completion-email",
+                "name": "Send Completion Thank You",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [5050, 900]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Generate final offboarding report\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'success',\n    survey_id: data.survey_id,\n    user_id: data.user_id,\n    knowledge_captured: data.knowledge_items_captured,\n    documents_created: data.documents_created,\n    validation_tasks: data.validation_tasks,\n    baseline_updated: true,\n    message: 'Offboarding process completed successfully'\n  }\n}];"
+                },
+                "id": "final-offboard-response",
+                "name": "Generate Offboarding Report",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [5250, 900]
+              }
+            ],
+            "connections": {
+              "Start - User Offboarding Initiated": {
+                "main": [[{"node": "Get User Profile & History", "type": "main", "index": 0}]]
+              },
+              "Get User Profile & History": {
+                "main": [[{"node": "Claude - Generate Offboarding Survey", "type": "main", "index": 0}]]
+              },
+              "Claude - Generate Offboarding Survey": {
+                "main": [[{"node": "Prepare Survey", "type": "main", "index": 0}]]
+              },
+              "Prepare Survey": {
+                "main": [[{"node": "Store Survey", "type": "main", "index": 0}]]
+              },
+              "Store Survey": {
+                "main": [[{"node": "Send Survey Email", "type": "main", "index": 0}]]
+              },
+              "Send Survey Email": {
+                "main": [[{"node": "Wait for Survey Response", "type": "main", "index": 0}]]
+              },
+              "Wait for Survey Response": {
+                "main": [[{"node": "Claude - Analyze Responses", "type": "main", "index": 0}]]
+              },
+              "Claude - Analyze Responses": {
+                "main": [[{"node": "Parse Analysis Results", "type": "main", "index": 0}]]
+              },
+              "Parse Analysis Results": {
+                "main": [
+                  [
+                    {"node": "IF Needs Clarification", "type": "main", "index": 0},
+                    {"node": "IF Undocumented Knowledge Found", "type": "main", "index": 0}
+                  ]
+                ]
+              },
+              "IF Needs Clarification": {
+                "main": [
+                  [{"node": "Claude - Generate Clarification Questions", "type": "main", "index": 0}],
+                  [{"node": "IF Undocumented Knowledge Found", "type": "main", "index": 0}]
+                ]
+              },
+              "Claude - Generate Clarification Questions": {
+                "main": [[{"node": "Send Clarification Request", "type": "main", "index": 0}]]
+              },
+              "Send Clarification Request": {
+                "main": [[{"node": "Wait for Clarification", "type": "main", "index": 0}]]
+              },
+              "Wait for Clarification": {
+                "main": [[{"node": "IF Undocumented Knowledge Found", "type": "main", "index": 0}]]
+              },
+              "IF Undocumented Knowledge Found": {
+                "main": [
+                  [{"node": "Create Validation Tasks", "type": "main", "index": 0}],
+                  [{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]
+                ]
+              },
+              "Create Validation Tasks": {
+                "main": [[{"node": "Queue for Validation", "type": "main", "index": 0}]]
+              },
+              "Queue for Validation": {
+                "main": [[{"node": "Notify SME for Validation", "type": "main", "index": 0}]]
+              },
+              "Notify SME for Validation": {
+                "main": [[{"node": "Wait for Validation Response", "type": "main", "index": 0}]]
+              },
+              "Wait for Validation Response": {
+                "main": [[{"node": "IF Validated", "type": "main", "index": 0}]]
+              },
+              "IF Validated": {
+                "main": [
+                  [{"node": "Claude - Generate Documentation", "type": "main", "index": 0}],
+                  [{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]
+                ]
+              },
+              "Claude - Generate Documentation": {
+                "main": [[{"node": "Prepare Document for Ingestion", "type": "main", "index": 0}]]
+              },
+              "Prepare Document for Ingestion": {
+                "main": [[{"node": "Queue Document for Approval", "type": "main", "index": 0}]]
+              },
+              "Queue Document for Approval": {
+                "main": [[{"node": "Notify for Document Approval", "type": "main", "index": 0}]]
+              },
+              "Notify for Document Approval": {
+                "main": [[{"node": "Wait for Document Approval", "type": "main", "index": 0}]]
+              },
+              "Wait for Document Approval": {
+                "main": [[{"node": "IF Document Approved", "type": "main", "index": 0}]]
+              },
+              "IF Document Approved": {
+                "main": [
+                  [{"node": "Trigger Document Ingestion", "type": "main", "index": 0}],
+                  [{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]
+                ]
+              },
+              "Trigger Document Ingestion": {
+                "main": [[{"node": "Update Baseline with New Knowledge", "type": "main", "index": 0}]]
+              },
+              "Update Baseline with New Knowledge": {
+                "main": [[{"node": "Update Survey Status - Complete", "type": "main", "index": 0}]]
+              },
+              "Update Survey Status - Complete": {
+                "main": [[{"node": "Send Completion Thank You", "type": "main", "index": 0}]]
+              },
+              "Send Completion Thank You": {
+                "main": [[{"node": "Generate Offboarding Report", "type": "main", "index": 0}]]
+              }
+            },
+            "settings": {
+              "executionOrder": "v1"
+            }
+          }
+
+          {
+            "name": "Transition Management Pipeline",
+            "nodes": [
+              {
+                "parameters": {},
+                "id": "trans-start",
+                "name": "Start - Transition Event",
+                "type": "n8n-nodes-base.start",
+                "typeVersion": 1,
+                "position": [250, 400]
+              },
+              {
+                "parameters": {
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "requestMethod": "POST",
+                  "url": "https://api.anthropic.com/v1/messages",
+                  "jsonParameters": true,
+                  "options": {},
+                  "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this transition:\\n\\nEvent: {{ $json.event_description }}\\nImpact: {{ $json.systems_affected }}\\nUsers affected: {{ $json.user_count }} ({{ $json.user_roles }})\\n\\nDetermine:\\n- Transition type: major | minor | personnel\\n- Severity: critical | high | medium | low\\n- Automation workflows to trigger\\n\\nReturn classification JSON\"\n    }\n  ]\n}",
+                  "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+                },
+                "id": "classify-transition",
+                "name": "Claude - Classify Transition",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [450, 400],
+                "credentials": {
+                  "httpHeaderAuth": {
+                    "id": "2",
+                    "name": "Claude API Key"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Parse classification and load config\nconst response = $input.first().json;\nconst classification = JSON.parse(response.content[0].text);\nconst eventData = $input.item(1).json;\n\nreturn [{\n  json: {\n    transition_id: `trans-${Date.now()}`,\n    ...eventData,\n    classification: classification,\n    transition_type: classification.transition_type,\n    severity: classification.severity,\n    initiated_date: new Date().toISOString()\n  }\n}];"
+                },
+                "id": "parse-transition",
+                "name": "Parse Transition Classification",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [650, 400]
+              },
+              {
+                "parameters": {
+                  "operation": "findOne",
+                  "collection": "transition_configs",
+                  "query": "={ \"transition_type\": \"{{ $json.transition_type }}\" }",
+                  "options": {}
+                },
+                "id": "load-config",
+                "name": "Load Transition Configuration",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [850, 400]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Prepare parallel workflows based on config\nconst transData = $input.first().json;\nconst config = $input.item(1).json;\n\nconst workflows = [];\n\n// Determine which workflows to trigger\nif (config.offboarding_requirements.survey_depth !== 'none') {\n  workflows.push({\n    workflow_name: 'offboarding',\n    workflow_id: 'user_offboarding_workflow_id',\n    params: {\n      user_ids: transData.affected_users,\n      survey_type: config.offboarding_requirements.survey_depth\n    }\n  });\n}\n\nif (config.onboarding_requirements.roadmap_update === 'required') {\n  workflows.push({\n    workflow_name: 'roadmap_update',\n    workflow_id: 'roadmap_update_workflow_id',\n    params: {\n      products: transData.affected_products\n    }\n  });\n}\n\nworkflows.push({\n  workflow_name: 'documentation_review',\n  workflow_id: 'doc_review_workflow_id',\n  params: {\n    document_ids: transData.affected_documents,\n    priority: config.offboarding_requirements.documentation_priority\n  }\n});\n\nworkflows.push({\n  workflow_name: 'communication',\n  workflow_id: 'communication_workflow_id',\n  params: {\n    stakeholders: transData.stakeholders,\n    urgency: transData.severity\n  }\n});\n\nreturn workflows.map(w => ({ json: { ...transData, config: config, workflow: w } }));"
+                },
+                "id": "prepare-workflows",
+                "name": "Prepare Parallel Workflows",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [1050, 400]
+              },
+              {
+                "parameters": {
+                  "mode": "multiplex"
+                },
+                "id": "split-workflows",
+                "name": "Split to Parallel Execution",
+                "type": "n8n-nodes-base.splitInBatches",
+                "typeVersion": 3,
+                "position": [1250, 400]
+              },
+              {
+                "parameters": {
+                  "conditions": {
+                    "string": [
+                      {
+                        "value1": "={{ $json.workflow.workflow_name }}",
+                        "operation": "equals",
+                        "value2": "offboarding"
+                      }
+                    ]
+                  }
+                },
+                "id": "route-workflow-type",
+                "name": "Route Workflow Type",
+                "type": "n8n-nodes-base.switch",
+                "typeVersion": 1,
+                "position": [1450, 400],
+                "parameters": {
+                  "mode": "rules",
+                  "rules": {
+                    "rules": [
+                      {
+                        "conditions": {
+                          "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "offboarding"}]
+                        },
+                        "renameOutput": true,
+                        "outputKey": "offboarding"
+                      },
+                      {
+                        "conditions": {
+                          "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "roadmap_update"}]
+                        },
+                        "renameOutput": true,
+                        "outputKey": "roadmap_update"
+                      },
+                      {
+                        "conditions": {
+                          "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "documentation_review"}]
+                        },
+                        "renameOutput": true,
+                        "outputKey": "documentation"
+                      },
+                      {
+                        "conditions": {
+                          "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "communication"}]
+                        },
+                        "renameOutput": true,
+                        "outputKey": "communication"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "workflowId": "={{ $json.workflow.workflow_id }}",
+                  "fieldsUi": {
+                    "fieldValues": [
+                      {
+                        "name": "user_ids",
+                        "value": "={{ JSON.stringify($json.workflow.params.user_ids) }}"
+                      },
+                      {
+                        "name": "survey_type",
+                        "value": "={{ $json.workflow.params.survey_type }}"
+                      },
+                      {
+                        "name": "transition_context",
+                        "value": "={{ $json.transition_id }}"
+                      }
+                    ]
+                  }
+                },
+                "id": "exec-offboarding",
+                "name": "Execute Offboarding Workflow",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "typeVersion": 1,
+                "position": [1650, 200]
+              },
+              {
+                "parameters": {
+                  "operation": "find",
+                  "collection": "documents",
+                  "query": "={ \"_id\": { \"$in\": {{ JSON.stringify($json.workflow.params.document_ids) }} } }",
+                  "options": {}
+                },
+                "id": "get-docs-for-review",
+                "name": "Get Documents for Review",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [1650, 400]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Flag all documents for review\nconst docs = $input.first().json.documents || [];\nconst transData = $input.item(1).json;\n\nconst reviewTasks = docs.map(doc => ({\n  task_id: `review-${Date.now()}-${doc._id}`,\n  document_id: doc._id,\n  transition_id: transData.transition_id,\n  priority: transData.config.offboarding_requirements.documentation_priority,\n  status: 'pending',\n  created_date: new Date().toISOString()\n}));\n\nreturn reviewTasks.map(task => ({ json: task }));"
+                },
+                "id": "create-review-tasks",
+                "name": "Create Review Tasks",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [1850, 400]
+              },
+              {
+                "parameters": {
+                  "operation": "insertMany",
+                  "collection": "review_tasks",
+                  "fields": "task_id,document_id,transition_id,priority,status,created_date",
+                  "options": {}
+                },
+                "id": "store-review-tasks",
+                "name": "Store Review Tasks",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [2050, 400]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Generate communication messages\nconst transData = $input.first().json;\n\nlet message = '';\nlet urgencyEmoji = '';\n\nif (transData.severity === 'critical') {\n  urgencyEmoji = '🚨';\n  message = `CRITICAL TRANSITION: ${transData.event_description}`;\n} else if (transData.severity === 'high') {\n  urgencyEmoji = '⚠️';\n  message = `Important Transition: ${transData.event_description}`;\n} else {\n  urgencyEmoji = 'ℹ️';\n  message = `Transition Notice: ${transData.event_description}`;\n}\n\nreturn [{\n  json: {\n    ...transData,\n    notification_message: `${urgencyEmoji} *${transData.transition_type.toUpperCase()} TRANSITION*\\n\\n${message}\\n\\n*Affected Systems:* ${transData.affected_products.join(', ')}\\n*Affected Users:* ${transData.affected_users.length}\\n*Timeline:* ${transData.config.offboarding_requirements.transition_time_days} days\\n\\nActions required: Check your task queue for specific items.`\n  }\n}];"
+                },
+                "id": "prepare-notification",
+                "name": "Prepare Notification",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [1650, 600]
+              },
+              {
+                "parameters": {
+                  "channel": "={{ $json.notification_channel }}",
+                  "text": "={{ $json.notification_message }}",
+                  "otherOptions": {}
+                },
+                "id": "send-slack-notification",
+                "name": "Send Slack Notification",
+                "type": "n8n-nodes-base.slack",
+                "typeVersion": 2.1,
+                "position": [1850, 600],
+                "credentials": {
+                  "slackApi": {
+                    "id": "5",
+                    "name": "Slack TIPS Team"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "method": "POST",
+                  "url": "={{ $json.email_service_url }}",
+                  "jsonParameters": true,
+                  "bodyParametersJson": "={\n  \"to\": {{ JSON.stringify($json.stakeholder_emails) }},\n  \"subject\": \"{{ $json.transition_type.toUpperCase() }} Transition Initiated - {{ $json.event_description }}\",\n  \"body\": \"{{ $json.notification_message }}\\n\\nFor more details and to track progress, visit: {{ $json.transition_portal_url }}\"\n}"
+                },
+                "id": "send-email-notification",
+                "name": "Send Email Notifications",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4.2,
+                "position": [2050, 600]
+              },
+              {
+                "parameters": {
+                  "mode": "once"
+                },
+                "id": "merge-workflow-results",
+                "name": "Merge Workflow Results",
+                "type": "n8n-nodes-base.merge",
+                "typeVersion": 2.1,
+                "position": [2250, 400]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Aggregate results from all workflows\nconst results = $input.all();\n\nconst summary = {\n  offboarding_initiated: results.some(r => r.json.workflow_name === 'offboarding'),\n  documentation_flagged: results.filter(r => r.json.workflow_name === 'documentation_review').length,\n  notifications_sent: results.some(r => r.json.workflow_name === 'communication'),\n  roadmap_updated: results.some(r => r.json.workflow_name === 'roadmap_update')\n};\n\nconst transData = results[0].json;\n\nreturn [{\n  json: {\n    transition_id: transData.transition_id,\n    status: 'workflows_initiated',\n    summary: summary,\n    next_steps: [\n      'Monitor offboarding survey completion',\n      'Track document review progress',\n      'Update baseline when ready'\n    ]\n  }\n}];"
+                },
+                "id": "aggregate-results",
+                "name": "Aggregate Workflow Results",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [2450, 400]
+              },
+              {
+                "parameters": {
+                  "operation": "insert",
+                  "collection": "transitions",
+                  "fields": "transition_id,transition_type,severity,status,summary,initiated_date",
+                  "options": {}
+                },
+                "id": "store-transition",
+                "name": "Store Transition Record",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [2650, 400]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Monitor transition completion\nconst trans = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'success',\n    transition_id: trans.transition_id,\n    message: `${trans.transition_type} transition initiated successfully`,\n    workflows_started: Object.keys(trans.summary).filter(k => trans.summary[k]).length,\n    monitoring_url: `${trans.portal_url}/transitions/${trans.transition_id}`\n  }\n}];"
+                },
+                "id": "final-trans-response",
+                "name": "Generate Response",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [2850, 400]
+              }
+            ],
+            "connections": {
+              "Start - Transition Event": {
+                "main": [[{"node": "Claude - Classify Transition", "type": "main", "index": 0}]]
+              },
+              "Claude - Classify Transition": {
+                "main": [[{"node": "Parse Transition Classification", "type": "main", "index": 0}]]
+              },
+              "Parse Transition Classification": {
+                "main": [[{"node": "Load Transition Configuration", "type": "main", "index": 0}]]
+              },
+              "Load Transition Configuration": {
+                "main": [[{"node": "Prepare Parallel Workflows", "type": "main", "index": 0}]]
+              },
+              "Prepare Parallel Workflows": {
+                "main": [[{"node": "Split to Parallel Execution", "type": "main", "index": 0}]]
+              },
+              "Split to Parallel Execution": {
+                "main": [[{"node": "Route Workflow Type", "type": "main", "index": 0}]]
+              },
+              "Route Workflow Type": {
+                "main": [
+                  [{"node": "Execute Offboarding Workflow", "type": "main", "index": 0}],
+                  [{"node": "Merge Workflow Results", "type": "main", "index": 0}],
+                  [{"node": "Get Documents for Review", "type": "main", "index": 0}],
+                  [{"node": "Prepare Notification", "type": "main", "index": 0}]
+                ]
+              },
+              "Execute Offboarding Workflow": {
+                "main": [[{"node": "Merge Workflow Results", "type": "main", "index": 0}]]
+              },
+              "Get Documents for Review": {
+                "main": [[{"node": "Create Review Tasks", "type": "main", "index": 0}]]
+              },
+              "Create Review Tasks": {
+                "main": [[{"node": "Store Review Tasks", "type": "main", "index": 0}]]
+              },
+              "Store Review Tasks": {
+                "main": [[{"node": "Merge Workflow Results", "type": "main", "index": 0}]]
+              },
+              "Prepare Notification": {
+                "main": [[{"node": "Send Slack Notification", "type": "main", "index": 0}]]
+              },
+              "Send Slack Notification": {
+                "main": [[{"node": "Send Email Notifications", "type": "main", "index": 0}]]
+              },
+              "Send Email Notifications": {
+                "main": [[{"node": "Merge Workflow Results", "type": "main", "index": 0}]]
+              },
+              "Merge Workflow Results": {
+                "main": [[{"node": "Aggregate Workflow Results", "type": "main", "index": 0}]]
+              },
+              "Aggregate Workflow Results": {
+                "main": [[{"node": "Store Transition Record", "type": "main", "index": 0}]]
+              },
+              "Store Transition Record": {
+                "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+              }
+            },
+            "settings": {
+              "executionOrder": "v1"
+            }
+          }
+          {
+            "name": "Search & Retrieval Pipeline",
+            "nodes": [
+              {
+                "parameters": {
+                  "path": "search",
+                  "method": "POST",
+                  "responseMode": "responseNode",
+                  "options": {}
+                },
+                "id": "webhook-search",
+                "name": "Webhook - Search Query",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [250, 400]
+              },
+              {
+                "parameters": {
+                  "operation": "findOne",
+                  "collection": "users",
+                  "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+                  "options": {}
+                },
+                "id": "get-user-context",
+                "name": "Get User Context",
+                "type": "n8n-nodes-base.mongoDb",
+                "typeVersion": 1,
+                "position": [450, 400]
+              },
+              {
+                "parameters": {
+                  "jsCode": "// Prepare search with user context\nconst query = $input.first().json.query;\nconst user = $input.item(1).json;\n\nreturn [{\n  json: {\n    query: query,\n    user_id: user.user_id,\n    user_role: user.role,\n    mastery_level: user.onboarding?.mastery_levels || {},\n    onboarding_status: user.status,\n    preferences: {\n      show_superseded: $input.first().json.show_superseded || false,\n      show_overridden: $input.first().json.show_overridden || false\n    }\n  }\n}];"
+                },
+                "id": "prepare-search-context",
+                "name": "Prepare Search Context",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [650, 400]
+              },
+              {
+                "parameters": {
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "requestMethod": "POST",
+                  "url": "https://api.openai.com/v1/embeddings",
+                  "jsonParameters": true,
+                  "options": {},
+                  "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.query }}\"\n}",
+                  "headerParametersJson": "={\n  \"content-type\": \"application/
+                  {
+  "name": "Search & Retrieval Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "search",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-search",
+      "name": "Webhook - Search Query",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "users",
+        "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "get-user-context",
+      "name": "Get User Context",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare search with user context\nconst query = $input.first().json.query;\nconst user = $input.item(1).json;\n\nreturn [{\n  json: {\n    query: query,\n    user_id: user.user_id,\n    user_role: user.role,\n    mastery_level: user.onboarding?.mastery_levels || {},\n    onboarding_status: user.status,\n    preferences: {\n      show_superseded: $input.first().json.show_superseded || false,\n      show_overridden: $input.first().json.show_overridden || false\n    }\n  }\n}];"
+      },
+      "id": "prepare-search-context",
+      "name": "Prepare Search Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.query }}\"\n}",
+        "headerParametersJson": "={\n  \"content-type\": \"application/json\",\n  \"authorization\": \"Bearer {{$credentials.openAiApi.apiKey}}\"\n}"
+      },
+      "id": "generate-query-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $json.vector_store_url }}/query",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"vector\": {{ JSON.stringify($json.embedding) }},\n  \"top_k\": 10,\n  \"filter\": {\n    \"currency_status\": {{ $json.preferences.show_superseded ? '[\"current\", \"superseded\"]' : '[\"current\"]' }}\n  }\n}"
+      },
+      "id": "vector-search",
+      "name": "Vector Similarity Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "aggregate",
+        "collection": "chunks",
+        "query": "=[\n  { \"$match\": { \"$text\": { \"$search\": \"{{ $json.query }}\" } } },\n  { \"$limit\": 10 }\n]",
+        "options": {}
+      },
+      "id": "keyword-search",
+      "name": "Keyword/BM25 Search",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=MATCH (n)-[r*1..2]-(related)\nWHERE n.content CONTAINS '{{ $json.query }}'\nRETURN n, related\nLIMIT 10"
+      },
+      "id": "graph-search",
+      "name": "Graph Relationship Search",
+      "type": "n8n-nodes-base.neo4j",
+      "typeVersion": 1,
+      "position": [1050, 700],
+      "credentials": {
+        "neo4j": {
+          "id": "4",
+          "name": "Neo4j TIPS KB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "combinationMode": "multiplex"
+      },
+      "id": "merge-search-results",
+      "name": "Merge Search Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine and rank results from multiple search methods\nconst vectorResults = $input.item(0).json.matches || [];\nconst keywordResults = $input.item(1).json.documents || [];\nconst graphResults = $input.item(2).json.results || [];\nconst userData = $input.item(3).json;\n\n// Combine and deduplicate by chunk_id\nconst resultsMap = new Map();\n\nvectorResults.forEach(r => {\n  resultsMap.set(r.id, {\n    chunk_id: r.id,\n    score: r.score * 0.5, // Weight vector search\n    source: 'vector',\n    metadata: r.metadata\n  });\n});\n\nkeywordResults.forEach(r => {\n  const existing = resultsMap.get(r.chunk_id);\n  if (existing) {\n    existing.score += 0.3; // Boost if also found in keyword\n    existing.source += '+keyword';\n  } else {\n    resultsMap.set(r.chunk_id, {\n      chunk_id: r.chunk_id,\n      score: 0.3,\n      source: 'keyword',\n      metadata: r\n    });\n  }\n});\n\ngraphResults.forEach(r => {\n  const existing = resultsMap.get(r.chunk_id);\n  if (existing) {\n    existing.score += 0.2; // Boost if connected in graph\n    existing.source += '+graph';\n  }\n});\n\n// Sort by score\nconst rankedResults = Array.from(resultsMap.values())\n  .sort((a, b) => b.score - a.score)\n  .slice(0, 5); // Top 5\n\nreturn [{\n  json: {\n    query: userData.query,\n    user_context: userData,\n    ranked_chunks: rankedResults\n  }\n}];"
+      },
+      "id": "rank-results",
+      "name": "Rank & Combine Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "chunks",
+        "query": "={ \"chunk_id\": { \"$in\": {{ JSON.stringify($json.ranked_chunks.map(r => r.chunk_id)) }} } }",
+        "options": {}
+      },
+      "id": "fetch-chunk-details",
+      "name": "Fetch Chunk Details",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process chunks and determine context needs\nconst chunks = $input.first().json.chunks || [];\nconst searchData = $input.item(1).json;\n\nconst processedChunks = chunks.map(chunk => {\n  const needsContext = chunk.standalone_score < 0.7;\n  \n  return {\n    ...chunk,\n    needs_context: needsContext,\n    context_window_size: needsContext ? (chunk.ideal_context_window || 3) : 0,\n    user_can_expand: true\n  };\n});\n\nreturn [{\n  json: {\n    ...searchData,\n    processed_chunks: processedChunks\n  }\n}];"
+      },
+      "id": "process-chunks",
+      "name": "Process Chunks for Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.user_context.onboarding_status === 'onboarding' }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-onboarding-user",
+      "name": "IF Onboarding User",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "onboarding_roadmaps",
+        "query": "={ \"learning_modules.content_sources.chunks\": { \"$in\": {{ JSON.stringify($json.processed_chunks.map(c => c.chunk_id)) }} } }",
+        "options": {}
+      },
+      "id": "find-related-modules",
+      "name": "Find Related Learning Modules",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Add learning context to results\nconst results = $input.first().json;\nconst modules = $input.item(1).json.modules || [];\n\nreturn [{\n  json: {\n    ...results,\n    learning_context: {\n      related_modules: modules.map(m => ({\n        module_id: m.module_id,\n        module_name: m.module_name,\n        relevance_note: 'This content is part of your learning path'\n      })),\n      progress_note: 'Reviewing this content counts toward module progress'\n    }\n  }\n}];"
+      },
+      "id": "add-learning-context",
+      "name": "Add Learning Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.user_context.onboarding_status === 'offboarding' }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-offboarding-user",
+      "name": "IF Offboarding User",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 600]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "question_queue",
+        "query": "={ \"user_id\": \"{{ $json.user_context.user_id }}\", \"related_chunks\": { \"$in\": {{ JSON.stringify($json.processed_chunks.map(c => c.chunk_id)) }} } }",
+        "options": {}
+      },
+      "id": "find-user-questions",
+      "name": "Find User's Previous Questions",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flag as potential documentation gap\nconst results = $input.first().json;\nconst userQuestions = $input.item(1).json.questions || [];\n\nreturn [{\n  json: {\n    ...results,\n    offboarding_context: {\n      user_questions_on_topic: userQuestions,\n      note: 'Your expertise on this topic would be valuable in the offboarding survey',\n      prompt: 'Would you like to document additional details about this?'\n    }\n  }\n}];"
+      },
+      "id": "flag-knowledge-gap",
+      "name": "Flag as Knowledge Gap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 700]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-contexts",
+      "name": "Merge All Contexts",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for override status\nconst results = $input.first().json;\n\nconst chunksWithOverrides = results.processed_chunks.map(chunk => {\n  if (chunk.override_status === 'active') {\n    // Fetch override message\n    return {\n      ...chunk,\n      has_override: true,\n      override_note: 'This content has been updated by a recent directive'\n    };\n  }\n  return chunk;\n});\n\nreturn [{\n  json: {\n    ...results,\n    processed_chunks: chunksWithOverrides\n  }\n}];"
+      },
+      "id": "check-overrides",
+      "name": "Check for Overrides",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "question_queue",
+        "query": "={ \"answer_status\": \"answered\", \"embedding\": { \"$near\": { \"$geometry\": { \"type\": \"Point\", \"coordinates\": {{ JSON.stringify($json.query_embedding) }} }, \"$maxDistance\": 0.8 } } }",
+        "options": {
+          "limit": 3
+        }
+      },
+      "id": "find-similar-qa",
+      "name": "Find Similar Q&A",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3050, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format final search response\nconst results = $input.first().json;\nconst similarQA = $input.item(1).json.qa_pairs || [];\n\nconst formattedResults = results.processed_chunks.map(chunk => ({\n  chunk_id: chunk.chunk_id,\n  content: chunk.content,\n  standalone_score: chunk.standalone_score,\n  needs_context: chunk.needs_context,\n  context_available: chunk.needs_context ? {\n    requires_from: chunk.requires_context_from,\n    provides_to: chunk.provides_context_to,\n    action: 'Click to expand context'\n  } : null,\n  override_info: chunk.has_override ? {\n    status: 'overridden',\n    message: chunk.override_note,\n    view_directive: true\n  } : null,\n  document_info: {\n    document_id: chunk.document_id,\n    currency_status: chunk.currency_status,\n    version: chunk.version\n  }\n}));\n\nreturn [{\n  json: {\n    query: results.query,\n    results: formattedResults,\n    similar_qa: similarQA.map(qa => ({\n      question: qa.content,\n      answer: qa.answer,\n      similarity: qa.similarity_score\n    })),\n    learning_context: results.learning_context || null,\n    offboarding_context: results.offboarding_context || null,\n    result_count: formattedResults.length\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "Format Search Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3250, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}"
+      },
+      "id": "respond-search",
+      "name": "Respond - Search Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [3450, 400]
+    },
+    {
+      "parameters": {
+        "path": "expand-context",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-expand-context",
+      "name": "Webhook - Expand Context",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 900]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "chunks",
+        "query": "={ \"chunk_id\": \"{{ $json.chunk_id }}\" }",
+        "options": {}
+      },
+      "id": "get-primary-chunk",
+      "name": "Get Primary Chunk",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 900]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "chunks",
+        "query": "={ \"chunk_id\": { \"$in\": {{ JSON.stringify($json.requires_context_from) }} } }",
+        "options": {}
+      },
+      "id": "fetch-context-chunks",
+      "name": "Fetch Context Chunks",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [650, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble context window\nconst primaryChunk = $input.first().json;\nconst contextChunks = $input.item(1).json.chunks || [];\n\n// Order chunks logically\nconst orderedChunks = [\n  ...contextChunks.filter(c => c.chunk_index < primaryChunk.chunk_index).sort((a, b) => a.chunk_index - b.chunk_index),\n  primaryChunk,\n  ...contextChunks.filter(c => c.chunk_index > primaryChunk.chunk_index).sort((a, b) => a.chunk_index - b.chunk_index)\n];\n\nreturn [{\n  json: {\n    primary_chunk_id: primaryChunk.chunk_id,\n    context_window: orderedChunks.map(c => ({\n      chunk_id: c.chunk_id,\n      content: c.content,\n      is_primary: c.chunk_id === primaryChunk.chunk_id,\n      chunk_type: c.chunk_type,\n      chunk_index: c.chunk_index\n    })),\n    assembly_note: 'Context assembled from related chunks for complete understanding'\n  }\n}];"
+      },
+      "id": "assemble-context",
+      "name": "Assemble Context Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 900]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}"
+      },
+      "id": "respond-context",
+      "name": "Respond - Context Window",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 900]
+    }
+  ],
+  "connections": {
+    "Webhook - Search Query": {
+      "main": [[{"node": "Get User Context", "type": "main", "index": 0}]]
+    },
+    "Get User Context": {
+      "main": [[{"node": "Prepare Search Context", "type": "main", "index": 0}]]
+    },
+    "Prepare Search Context": {
+      "main": [
+        [
+          {"node": "Generate Query Embedding", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {"node": "Vector Similarity Search", "type": "main", "index": 0},
+          {"node": "Keyword/BM25 Search", "type": "main", "index": 0},
+          {"node": "Graph Relationship Search", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Vector Similarity Search": {
+      "main": [[{"node": "Merge Search Results", "type": "main", "index": 0}]]
+    },
+    "Keyword/BM25 Search": {
+      "main": [[{"node": "Merge Search Results", "type": "main", "index": 1}]]
+    },
+    "Graph Relationship Search": {
+      "main": [[{"node": "Merge Search Results", "type": "main", "index": 2}]]
+    },
+    "Merge Search Results": {
+      "main": [[{"node": "Rank & Combine Results", "type": "main", "index": 0}]]
+    },
+    "Rank & Combine Results": {
+      "main": [[{"node": "Fetch Chunk Details", "type": "main", "index": 0}]]
+    },
+    "Fetch Chunk Details": {
+      "main": [[{"node": "Process Chunks for Context", "type": "main", "index": 0}]]
+    },
+    "Process Chunks for Context": {
+      "main": [
+        [
+          {"node": "IF Onboarding User", "type": "main", "index": 0},
+          {"node": "IF Offboarding User", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "IF Onboarding User": {
+      "main": [
+        [{"node": "Find Related Learning Modules", "type": "main", "index": 0}],
+        [{"node": "Merge All Contexts", "type": "main", "index": 0}]
+      ]
+    },
+    "Find Related Learning Modules": {
+      "main": [[{"node": "Add Learning Context", "type": "main", "index": 0}]]
+    },
+    "Add Learning Context": {
+      "main": [[{"node": "Merge All Contexts", "type": "main", "index": 0}]]
+    },
+    "IF Offboarding User": {
+      "main": [
+        [{"node": "Find User's Previous Questions", "type": "main", "index": 0}],
+        [{"node": "Merge All Contexts", "type": "main", "index": 1}]
+      ]
+    },
+    "Find User's Previous Questions": {
+      "main": [[{"node": "Flag as Knowledge Gap", "type": "main", "index": 0}]]
+    },
+    "Flag as Knowledge Gap": {
+      "main": [[{"node": "Merge All Contexts", "type": "main", "index": 1}]]
+    },
+    "Merge All Contexts": {
+      "main": [[{"node": "Check for Overrides", "type": "main", "index": 0}]]
+    },
+    "Check for Overrides": {
+      "main": [[{"node": "Find Similar Q&A", "type": "main", "index": 0}]]
+    },
+    "Find Similar Q&A": {
+      "main": [[{"node": "Format Search Response", "type": "main", "index": 0}]]
+    },
+    "Format Search Response": {
+      "main": [[{"node": "Respond - Search Results", "type": "main", "index": 0}]]
+    },
+    "Webhook - Expand Context": {
+      "main": [[{"node": "Get Primary Chunk", "type": "main", "index": 0}]]
+    },
+    "Get Primary Chunk": {
+      "main": [[{"node": "Fetch Context Chunks", "type": "main", "index": 0}]]
+    },
+    "Fetch Context Chunks": {
+      "main": [[{"node": "Assemble Context Window", "type": "main", "index": 0}]]
+    },
+    "Assemble Context Window": {
+      "main": [[{"node": "Respond - Context Window", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
+{
+    "name": "Baseline Best Practices Generation",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 0 * * 0"
+              }
+            ]
+          }
+        },
+        "id": "schedule-baseline",
+        "name": "Schedule - Weekly Baseline Update",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1,
+        "position": [250, 400]
+      },
+      {
+        "parameters": {
+          "path": "trigger-baseline",
+          "method": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook-trigger-baseline",
+        "name": "Webhook - Manual Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [250, 600]
+      },
+      {
+        "parameters": {
+          "operation": "distinct",
+          "collection": "documents",
+          "field": "product",
+          "options": {}
+        },
+        "id": "get-products",
+        "name": "Get All Products",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [450, 500]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "documents",
+          "query": "={ \"product\": \"{{ $json.product }}\", \"currency_status\": \"current\" }",
+          "options": {}
+        },
+        "id": "get-current-docs",
+        "name": "Get Current Documents by Product",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [650, 500]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "messages",
+          "query": "={ \"classification.system_changing\": true, \"override_analysis.status\": \"active\", \"classification.related_entities.products\": \"{{ $json.product }}\" }",
+          "options": {}
+        },
+        "id": "get-active-overrides",
+        "name": "Get Active Overrides",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [850, 500]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "question_queue",
+          "query": "={ \"answer_status\": \"answered\", \"tags.entities.products\": \"{{ $json.product }}\", \"created_date\": { \"$gte\": \"{{ new Date(Date.now() - 90*24*60*60*1000).toISOString() }}\" } }",
+          "options": {
+            "limit": 50
+          }
+        },
+        "id": "get-recent-qa",
+        "name": "Get Recent Q&A (90 days)",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1050, 500]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "temporal_updates",
+          "query": "={ \"classification.related_entities.products\": \"{{ $json.product }}\", \"processed_date\": { \"$gte\": \"{{ new Date(Date.now() - 30*24*60*60*1000).toISOString() }}\" } }",
+          "options": {}
+        },
+        "id": "get-temporal-updates",
+        "name": "Get Temporal Updates (30 days)",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1250, 500]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "offboarding_surveys",
+          "query": "={ \"status\": \"completed\", \"knowledge_captured\": { \"$gt\": 0 }, \"completed_date\": { \"$gte\": \"{{ new Date(Date.now() - 90*24*60*60*1000).toISOString() }}\" } }",
+          "options": {}
+        },
+        "id": "get-offboarding-knowledge",
+        "name": "Get Offboarding Knowledge",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [1450, 500]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Aggregate all sources for baseline generation\nconst product = $input.item(0).json.product;\nconst currentDocs = $input.item(1).json.documents || [];\nconst activeOverrides = $input.item(2).json.overrides || [];\nconst recentQA = $input.item(3).json.qa_pairs || [];\nconst temporalUpdates = $input.item(4).json.updates || [];\nconst offboardingKnowledge = $input.item(5).json.knowledge || [];\n\nreturn [{\n  json: {\n    product: product,\n    baseline_id: `bp-${product}-${Date.now()}`,\n    sources: {\n      current_documents: currentDocs.map(d => ({\n        doc_id: d.doc_id,\n        type: d.document_type,\n        version: d.version,\n        content_summary: d.summary\n      })),\n      active_overrides: activeOverrides.map(o => ({\n        message_id: o.message_id,\n        content: o.content,\n        affected_docs: o.override_analysis.documents,\n        approved_date: o.approved_date\n      })),\n      recent_qa: recentQA.map(qa => ({\n        question: qa.content,\n        answer: qa.answer,\n        frequency: qa.frequency || 1\n      })),\n      temporal_updates: temporalUpdates.map(u => ({\n        update_id: u.message_id,\n        content: u.content,\n        processed_date: u.processed_date\n      })),\n      offboarding_insights: offboardingKnowledge.map(k => ({\n        source_user: k.user_id,\n        insights: k.undocumented_knowledge,\n        validated: true\n      }))\n    },\n    created_date: new Date().toISOString()\n  }\n}];"
+        },
+        "id": "aggregate-sources",
+        "name": "Aggregate All Sources",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1650, 500]
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "requestMethod": "POST",
+          "url": "https://api.anthropic.com/v1/messages",
+          "jsonParameters": true,
+          "options": {},
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 16000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a current best practices document for {{ $json.product }}:\\n\\nCurrent documents: {{ JSON.stringify($json.sources.current_documents) }}\\nActive overrides: {{ JSON.stringify($json.sources.active_overrides) }}\\nRecent Q&A: {{ JSON.stringify($json.sources.recent_qa) }}\\nTemporal updates: {{ JSON.stringify($json.sources.temporal_updates) }}\\nOffboarding insights: {{ JSON.stringify($json.sources.offboarding_insights) }}\\n\\nSynthesize into coherent best practices:\\n1. Consolidate overlapping information\\n2. Apply all active overrides (messaging > version > date)\\n3. Resolve any conflicts (flag unresolved for human review)\\n4. Include source attribution\\n5. Mark confidence level for each section (0-1)\\n6. Incorporate Q&A insights as supplementary guidance\\n7. Integrate validated offboarding knowledge\\n\\nReturn structured best practices document with sections, confidence scores, sources, and any unresolved conflicts.\"\n    }\n  ]\n}",
+          "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+        },
+        "id": "generate-baseline",
+        "name": "Claude - Generate Baseline",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [1850, 500],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "2",
+            "name": "Claude API Key"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse baseline and check for conflicts\nconst response = $input.first().json;\nconst baseline = JSON.parse(response.content[0].text);\nconst sourceData = $input.item(1).json;\n\nconst hasUnresolvedConflicts = baseline.unresolved_conflicts && baseline.unresolved_conflicts.length > 0;\nconst lowConfidenceSections = baseline.sections.filter(s => s.confidence < 0.7);\n\nreturn [{\n  json: {\n    baseline_id: sourceData.baseline_id,\n    product: sourceData.product,\n    baseline_content: baseline,\n    requires_review: hasUnresolvedConflicts || lowConfidenceSections.length > 0,\n    review_items: {\n      unresolved_conflicts: baseline.unresolved_conflicts || [],\n      low_confidence_sections: lowConfidenceSections.map(s => s.section_id)\n    },\n    sources: sourceData.sources,\n    created_date: sourceData.created_date\n  }\n}];"
+        },
+        "id": "parse-baseline",
+        "name": "Parse Baseline & Check Quality",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2050, 500]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.requires_review }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "if-needs-review",
+        "name": "IF Needs Review",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [2250, 500]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "review_queue",
+          "fields": "baseline_id,product,review_items,priority,status,created_date",
+          "options": {}
+        },
+        "id": "queue-baseline-review",
+        "name": "Queue for Product Manager Review",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [2450, 400]
+      },
+      {
+        "parameters": {
+          "channel": "={{ $json.pm_channel }}",
+          "text": "=📊 *New Baseline Requires Review*\\n\\n*Product:* {{ $json.product }}\\n*Unresolved Conflicts:* {{ $json.review_items.unresolved_conflicts.length }}\\n*Low Confidence Sections:* {{ $json.review_items.low_confidence_sections.length }}\\n\\nPlease review and approve: {{ $json.review_url }}",
+          "otherOptions": {}
+        },
+        "id": "notify-pm-review",
+        "name": "Notify Product Manager",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.1,
+        "position": [2650, 400],
+        "credentials": {
+          "slackApi": {
+            "id": "5",
+            "name": "Slack TIPS Team"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "path": "baseline-reviewed",
+          "method": "POST",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "wait-baseline-review",
+        "name": "Wait for Review",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [2850, 400]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.review_decision }}",
+                "operation": "equals",
+                "value2": "approved"
+              }
+            ]
+          }
+        },
+        "id": "if-baseline-approved",
+        "name": "IF Approved",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [3050, 400]
+      },
+      {
+        "parameters": {
+          "operation": "insert",
+          "collection": "baselines",
+          "fields": "baseline_id,product,content,sources,confidence_scores,status,created_date,approved_date,approved_by",
+          "options": {}
+        },
+        "id": "store-baseline",
+        "name": "Store Approved Baseline",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [2450, 600]
+      },
+      {
+        "parameters": {
+          "operation": "updateMany",
+          "collection": "baselines",
+          "query": "={ \"product\": \"{{ $json.product }}\", \"baseline_id\": { \"$ne\": \"{{ $json.baseline_id }}\" } }",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "status",
+                "fieldValue": "superseded"
+              },
+              {
+                "fieldId": "superseded_by",
+                "fieldValue": "={{ $json.baseline_id }}"
+              },
+              {
+                "fieldId": "superseded_date",
+                "fieldValue": "={{ $json.timestamp }}"
+              }
+            ]
+          }
+        },
+        "id": "supersede-old-baselines",
+        "name": "Supersede Old Baselines",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [2650, 600]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Update onboarding modules with new baseline\nconst baseline = $input.first().json;\n\nreturn [{\n  json: {\n    product: baseline.product,\n    baseline_id: baseline.baseline_id,\n    action: 'update_modules',\n    update_instructions: {\n      link_baseline_sections: true,\n      update_assessments: true,\n      notify_active_learners: true\n    }\n  }\n}];"
+        },
+        "id": "prepare-module-update",
+        "name": "Prepare Module Updates",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2850, 600]
+      },
+      {
+        "parameters": {
+          "operation": "updateMany",
+          "collection": "onboarding_roadmaps",
+          "query": "={ \"product\": \"{{ $json.product }}\" }",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "learning_modules.$[].content_sources.baseline_sections",
+                "fieldValue": "={{ $json.baseline_id }}"
+              },
+              {
+                "fieldId": "last_updated",
+                "fieldValue": "={{ $json.timestamp }}"
+              }
+            ]
+          }
+        },
+        "id": "update-learning-modules",
+        "name": "Update Learning Modules",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3050, 600]
+      },
+      {
+        "parameters": {
+          "operation": "find",
+          "collection": "users",
+          "query": "={ \"onboarding.assigned_roadmap\": { \"$regex\": \"{{ $json.product }}\" }, \"status\": \"onboarding\" }",
+          "options": {}
+        },
+        "id": "get-active-learners",
+        "name": "Get Active Learners",
+        "type": "n8n-nodes-base.mongoDb",
+        "typeVersion": 1,
+        "position": [3250, 600]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.email_service_url }}",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"to\": {{ JSON.stringify($json.learner_emails) }},\n  \"subject\": \"{{ $json.product }} Best Practices Updated\",\n  \"body\": \"Hi there,\\n\\nThe {{ $json.product }} best practices baseline has been updated with the latest information, including:\\n- Recent documentation updates\\n- Approved procedure changes\\n- Insights from recent Q&A\\n- Knowledge from team transitions\\n\\nYour learning modules have been automatically updated. View the new baseline: {{ $json.baseline_url }}\\n\\nTIPS Knowledge Team\"\n}"
+        },
+        "id": "notify-learners",
+        "name": "Notify Active Learners",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [3450, 600]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=CREATE (b:Baseline {id: '{{ $json.baseline_id }}', product: '{{ $json.product }}', created: '{{ $json.created_date }}'})\nWITH b\nMATCH (d:Document) WHERE d.product = '{{ $json.product }}' AND d.currency_status = 'current'\nCREATE (b)-[r:SYNTHESIZES]->(d)\nRETURN b, r"
+        },
+        "id": "create-baseline-graph",
+        "name": "Create Baseline Graph Relationships",
+        "type": "n8n-nodes-base.neo4j",
+        "typeVersion": 1,
+        "position": [3650, 600],
+        "credentials": {
+          "neo4j": {
+            "id": "4",
+            "name": "Neo4j TIPS KB"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "channel": "={{ $json.team_channel }}",
+          "text": "=✅ *New Baseline Published*\\n\\n*Product:* {{ $json.product }}\\n*Baseline ID:* {{ $json.baseline_id }}\\n*Sources:* {{ $json.source_count }} documents, {{ $json.override_count }} overrides, {{ $json.qa_count }} Q&A pairs\\n*Status:* Live\\n\\nActive learners have been notified. View baseline: {{ $json.baseline_url }}",
+          "otherOptions": {}
+        },
+        "id": "announce-baseline",
+        "name": "Announce New Baseline",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.1,
+        "position": [3850, 600],
+        "credentials": {
+          "slackApi": {
+            "id": "5",
+            "name": "Slack TIPS Team"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Generate comprehensive baseline report\nconst baseline = $input.first().json;\n\nconst report = {\n  baseline_id: baseline.baseline_id,\n  product: baseline.product,\n  status: 'published',\n  created_date: baseline.created_date,\n  approved_date: baseline.approved_date || new Date().toISOString(),\n  sources_used: {\n    documents: baseline.sources.current_documents.length,\n    overrides: baseline.sources.active_overrides.length,\n    qa_pairs: baseline.sources.recent_qa.length,\n    temporal_updates: baseline.sources.temporal_updates.length,\n    offboarding_insights: baseline.sources.offboarding_insights.length\n  },\n  quality_metrics: {\n    average_confidence: baseline.baseline_content.sections.reduce((sum, s) => sum + s.confidence, 0) / baseline.baseline_content.sections.length,\n    sections_count: baseline.baseline_content.sections.length,\n    conflicts_resolved: baseline.review_items?.unresolved_conflicts?.length || 0,\n    low_confidence_sections: baseline.review_items?.low_confidence_sections?.length || 0\n  },\n  impact: {\n    learning_modules_updated: baseline.modules_updated || 0,\n    active_learners_notified: baseline.learners_notified || 0,\n    search_index_updated: true\n  },\n  next_update_scheduled: new Date(Date.now() + 7*24*60*60*1000).toISOString()\n};\n\nreturn [{\n  json: {\n    status: 'success',\n    report: report,\n    message: `Baseline for ${baseline.product} successfully generated and published`\n  }\n}];"
+        },
+        "id": "generate-report",
+        "name": "Generate Baseline Report",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [4050, 600]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Log rejection and notify\nconst baseline = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'rejected',\n    baseline_id: baseline.baseline_id,\n    product: baseline.product,\n    rejection_reason: baseline.rejection_reason,\n    rejected_by: baseline.reviewer,\n    rejected_date: new Date().toISOString(),\n    message: 'Baseline rejected - requires revision'\n  }\n}];"
+        },
+        "id": "log-rejection",
+        "name": "Log Baseline Rejection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [3250, 300]
+      },
+      {
+        "parameters": {
+          "mode": "append"
+        },
+        "id": "merge-final-results",
+        "name": "Merge Final Results",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 2.1,
+        "position": [4250, 500]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify($json, null, 2) }}"
+        },
+        "id": "respond-baseline",
+        "name": "Respond - Baseline Result",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [4450, 500]
+      }
+    ],
+    "connections": {
+      "Schedule - Weekly Baseline Update": {
+        "main": [[{"node": "Get All Products", "type": "main", "index": 0}]]
+      },
+      "Webhook - Manual Trigger": {
+        "main": [[{"node": "Get All Products", "type": "main", "index": 0}]]
+      },
+      "Get All Products": {
+        "main": [[{"node": "Get Current Documents by Product", "type": "main", "index": 0}]]
+      },
+      "Get Current Documents by Product": {
+        "main": [[{"node": "Get Active Overrides", "type": "main", "index": 0}]]
+      },
+      "Get Active Overrides": {
+        "main": [[{"node": "Get Recent Q&A (90 days)", "type": "main", "index": 0}]]
+      },
+      "Get Recent Q&A (90 days)": {
+        "main": [[{"node": "Get Temporal Updates (30 days)", "type": "main", "index": 0}]]
+      },
+      "Get Temporal Updates (30 days)": {
+        "main": [[{"node": "Get Offboarding Knowledge", "type": "main", "index": 0}]]
+      },
+      "Get Offboarding Knowledge": {
+        "main": [[{"node": "Aggregate All Sources", "type": "main", "index": 0}]]
+      },
+      "Aggregate All Sources": {
+        "main": [[{"node": "Claude - Generate Baseline", "type": "main", "index": 0}]]
+      },
+      "Claude - Generate Baseline": {
+        "main": [[{"node": "Parse Baseline & Check Quality", "type": "main", "index": 0}]]
+      },
+      "Parse Baseline & Check Quality": {
+        "main": [[{"node": "IF Needs Review", "type": "main", "index": 0}]]
+      },
+      "IF Needs Review": {
+        "main": [
+          [{"node": "Queue for Product Manager Review", "type": "main", "index": 0}],
+          [{"node": "Store Approved Baseline", "type": "main", "index": 0}]
+        ]
+      },
+      "Queue for Product Manager Review": {
+        "main": [[{"node": "Notify Product Manager", "type": "main", "index": 0}]]
+      },
+      "Notify Product Manager": {
+        "main": [[{"node": "Wait for Review", "type": "main", "index": 0}]]
+      },
+      "Wait for Review": {
+        "main": [[{"node": "IF Approved", "type": "main", "index": 0}]]
+      },
+      "IF Approved": {
+        "main": [
+          [{"node": "Store Approved Baseline", "type": "main", "index": 0}],
+          [{"node": "Log Baseline Rejection", "type": "main", "index": 0}]
+        ]
+      },
+      "Store Approved Baseline": {
+        "main": [[{"node": "Supersede Old Baselines", "type": "main", "index": 0}]]
+      },
+      "Supersede Old Baselines": {
+        "main": [[{"node": "Prepare Module Updates", "type": "main", "index": 0}]]
+      },
+      "Prepare Module Updates": {
+        "main": [[{"node": "Update Learning Modules", "type": "main", "index": 0}]]
+      },
+      "Update Learning Modules": {
+        "main": [[{"node": "Get Active Learners", "type": "main", "index": 0}]]
+      },
+      "Get Active Learners": {
+        "main": [[{"node": "Notify Active Learners", "type": "main", "index": 0}]]
+      },
+      "Notify Active Learners": {
+        "main": [[{"node": "Create Baseline Graph Relationships", "type": "main", "index": 0}]]
+      },
+      "Create Baseline Graph Relationships": {
+        "main": [[{"node": "Announce New Baseline", "type": "main", "index": 0}]]
+      },
+      "Announce New Baseline": {
+        "main": [[{"node": "Generate Baseline Report", "type": "main", "index": 0}]]
+      },
+      "Generate Baseline Report": {
+        "main": [[{"node": "Merge Final Results", "type": "main", "index": 0}]]
+      },
+      "Log Baseline Rejection": {
+        "main": [[{"node": "Merge Final Results", "type": "main", "index": 1}]]
+      },
+      "Merge Final Results": {
+        "main": [[{"node": "Respond - Baseline Result", "type": "main", "index": 0}]]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }

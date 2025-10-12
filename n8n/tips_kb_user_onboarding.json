@@ -1,0 +1,511 @@
+{
+  "name": "User Onboarding Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "onboard-start",
+      "name": "Start - New User Created",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "onboarding_roadmaps",
+        "query": "={ \"product\": \"{{ $json.product }}\" }",
+        "options": {}
+      },
+      "id": "get-roadmap",
+      "name": "Get Product Roadmap",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create an initial assessment for new user:\\n\\nUser: {{ $json.name }}\\nRole: {{ $json.role }}\\nProduct: {{ $json.product }}\\nBackground: {{ $json.background || 'Not provided' }}\\n\\nGenerate 5-10 questions to assess:\\n1. Current knowledge level\\n2. Relevant experience\\n3. Learning style preferences\\n4. Specific areas of interest\\n5. Time availability\\n\\nReturn JSON array of questions with: {question_id, question, type: 'multiple_choice'|'short_answer'|'rating', options: []}\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-assessment",
+      "name": "Claude - Generate Initial Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse assessment questions\nconst response = $input.first().json;\nconst assessment = JSON.parse(response.content[0].text);\nconst userData = $input.item(1).json;\n\nreturn [{\n  json: {\n    user_id: userData.user_id,\n    assessment_id: `assess-${Date.now()}`,\n    questions: assessment.questions,\n    status: 'pending',\n    created_date: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "prepare-assessment",
+      "name": "Prepare Assessment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "assessments",
+        "fields": "assessment_id,user_id,questions,status,created_date",
+        "options": {}
+      },
+      "id": "store-assessment",
+      "name": "Store Assessment",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Welcome to {{ $json.product }} - Start Your Learning Journey\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nWelcome to the {{ $json.product }} team! We've prepared a personalized onboarding roadmap for you.\\n\\nPlease complete your initial assessment to help us tailor your learning path:\\n{{ $json.assessment_url }}\\n\\nBest regards,\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "send-assessment-email",
+      "name": "Send Assessment Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "path": "assessment-response",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wait-assessment-response",
+      "name": "Wait for Assessment Response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze assessment responses and generate personalized path\nconst responses = $input.first().json.responses;\nconst userData = $input.item(1).json;\nconst roadmap = $input.item(2).json;\n\n// Get role-based path from roadmap\nconst roleModules = roadmap.role_based_paths[userData.role] || [];\n\n// Filter/adjust based on assessment\nlet personalizedModules = roleModules.map(moduleId => {\n  const module = roadmap.learning_modules.find(m => m.module_id === moduleId);\n  \n  return {\n    module_id: module.module_id,\n    module_name: module.module_name,\n    status: 'not_started',\n    due_date: new Date(Date.now() + module.estimated_time_hours * 24 * 60 * 60 * 1000).toISOString(),\n    priority: module.required ? 'high' : 'medium'\n  };\n});\n\nreturn [{\n  json: {\n    user_id: userData.user_id,\n    assigned_roadmap: roadmap.roadmap_id,\n    personalized_path: personalizedModules,\n    assessment_results: responses,\n    start_date: new Date().toISOString(),\n    estimated_completion: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()\n  }\n}];"
+      },
+      "id": "generate-personalized-path",
+      "name": "Generate Personalized Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "users",
+        "updateKey": "user_id",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "onboarding",
+              "fieldValue": "={{ JSON.stringify($json) }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "onboarding"
+            }
+          ]
+        }
+      },
+      "id": "update-user-profile",
+      "name": "Update User Profile",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"Your Personalized {{ $json.product }} Learning Path\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nYour personalized learning path is ready! Here's what you'll be learning:\\n\\n{{ $json.personalized_path.map(m => `- ${m.module_name}`).join('\\n') }}\\n\\nEstimated completion: {{ $json.estimated_completion }}\\n\\nStart your first module here: {{ $json.portal_url }}\\n\\nGood luck!\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "send-roadmap-email",
+      "name": "Send Roadmap Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "path": "learning-request",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-learning-request",
+      "name": "Webhook - Learning Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"User wants to learn about: {{ $json.topic }}\\nUser role: {{ $json.user_role }}\\nCurrent mastery: {{ $json.mastery_level }}\\n\\nIdentify:\\n1. Relevant modules from roadmap\\n2. Additional knowledge base resources\\n3. Prerequisite knowledge needed\\n4. Estimated learning path\\n\\nReturn learning recommendation JSON\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "analyze-learning-request",
+      "name": "Claude - Analyze Learning Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "users",
+        "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "get-user-progress",
+      "name": "Get User Progress",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [650, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check prerequisites\nconst recommendation = JSON.parse($input.first().json.content[0].text);\nconst user = $input.item(1).json;\n\nconst completedModules = user.onboarding.personalized_path\n  .filter(m => m.status === 'completed')\n  .map(m => m.module_id);\n\nconst missingPrereqs = recommendation.prerequisites\n  .filter(p => !completedModules.includes(p));\n\nreturn [{\n  json: {\n    ...recommendation,\n    user_id: user.user_id,\n    missing_prerequisites: missingPrereqs,\n    can_proceed: missingPrereqs.length === 0\n  }\n}];"
+      },
+      "id": "check-prerequisites",
+      "name": "Check Prerequisites",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.can_proceed }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-prereqs-met",
+      "name": "IF Prerequisites Met",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 600]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "documents",
+        "query": "={ \"$text\": { \"$search\": \"{{ $json.topic }}\" }, \"currency_status\": \"current\" }",
+        "options": {
+          "limit": 10
+        }
+      },
+      "id": "search-content",
+      "name": "Search Relevant Content",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1250, 700]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "question_queue",
+        "query": "={ \"tags.entities.topics\": \"{{ $json.topic }}\", \"answer_status\": \"answered\" }",
+        "options": {
+          "limit": 5
+        }
+      },
+      "id": "get-related-qa",
+      "name": "Get Related Q&A",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 700]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a custom learning package on: {{ $json.topic }}\\n\\nAvailable resources:\\nDocuments: {{ JSON.stringify($json.documents) }}\\nQ&A pairs: {{ JSON.stringify($json.qa_pairs) }}\\n\\nGenerate:\\n1. Learning objectives\\n2. Structured content outline\\n3. Practical examples\\n4. Assessment questions\\n5. Estimated time\\n\\nReturn JSON learning package\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-learning-package",
+      "name": "Claude - Generate Learning Package",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "users",
+        "updateKey": "user_id",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "onboarding.personalized_path",
+              "fieldValue": "={{ JSON.stringify([...$json.existing_path, $json.custom_module]) }}"
+            }
+          ]
+        }
+      },
+      "id": "add-to-roadmap",
+      "name": "Add to User Roadmap",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1850, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Custom learning package created\", \"module\": $json.custom_module } }}"
+      },
+      "id": "respond-learning-request",
+      "name": "Respond - Learning Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2050, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"prerequisites_required\", \"missing\": $json.missing_prerequisites, \"message\": \"Please complete prerequisites first\" } }}"
+      },
+      "id": "respond-prereqs-needed",
+      "name": "Respond - Prerequisites Needed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "path": "module-complete",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-module-complete",
+      "name": "Webhook - Module Complete",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 900]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "users",
+        "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "get-user-for-progress",
+      "name": "Get User for Progress Update",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Update progress and calculate metrics\nconst completion = $input.first().json;\nconst user = $input.item(1).json;\n\n// Update module status\nconst updatedPath = user.onboarding.personalized_path.map(m => {\n  if (m.module_id === completion.module_id) {\n    return {\n      ...m,\n      status: 'completed',\n      completed_date: new Date().toISOString(),\n      score: completion.score,\n      passed: completion.score >= completion.passing_score\n    };\n  }\n  return m;\n});\n\n// Calculate overall progress\nconst totalModules = updatedPath.length;\nconst completedModules = updatedPath.filter(m => m.status === 'completed').length;\nconst progressPercentage = (completedModules / totalModules) * 100;\n\n// Calculate mastery by area\nconst masteryByArea = {};\n// ... (mastery calculation logic)\n\nreturn [{\n  json: {\n    user_id: user.user_id,\n    updated_path: updatedPath,\n    overall_progress: {\n      modules_completed: completedModules,\n      modules_total: totalModules,\n      completion_percentage: progressPercentage\n    },\n    mastery_by_area: masteryByArea\n  }\n}];"
+      },
+      "id": "calculate-progress",
+      "name": "Calculate Progress",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 900]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a user-friendly progress scorecard:\\n\\nUser data: {{ JSON.stringify($json) }}\\n\\nCreate:\\n1. Executive summary (overall progress)\\n2. Mastery breakdown by functional area\\n3. Strengths & growth areas\\n4. Personalized recommendations\\n5. Comparison to typical progression\\n6. Motivational insights\\n\\nReturn JSON scorecard with visualization metadata\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "generate-scorecard",
+      "name": "Claude - Generate Progress Scorecard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 900],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "users",
+        "updateKey": "user_id",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "onboarding.personalized_path",
+              "fieldValue": "={{ JSON.stringify($json.updated_path) }}"
+            },
+            {
+              "fieldId": "onboarding.progress",
+              "fieldValue": "={{ JSON.stringify($json.overall_progress) }}"
+            },
+            {
+              "fieldId": "onboarding.mastery_levels",
+              "fieldValue": "={{ JSON.stringify($json.mastery_by_area) }}"
+            },
+            {
+              "fieldId": "onboarding.last_scorecard",
+              "fieldValue": "={{ JSON.stringify($json.scorecard) }}"
+            }
+          ]
+        }
+      },
+      "id": "update-user-progress",
+      "name": "Update User Progress",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 900]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": \"{{ $json.user_email }}\",\n  \"subject\": \"🎉 Module Completed! Your Progress Update\",\n  \"body\": \"Hi {{ $json.name }},\\n\\nCongrats on completing {{ $json.module_name }}!\\n\\nYour Progress:\\n- {{ $json.overall_progress.completion_percentage }}% complete\\n- {{ $json.overall_progress.modules_completed }}/{{ $json.overall_progress.modules_total }} modules done\\n\\nView your full scorecard: {{ $json.scorecard_url }}\\n\\nKeep up the great work!\\nTIPS Knowledge Team\"\n}"
+      },
+      "id": "send-progress-email",
+      "name": "Send Progress Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 900]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"progress\": $json.overall_progress, \"scorecard\": $json.scorecard } }}"
+      },
+      "id": "respond-progress-update",
+      "name": "Respond - Progress Updated",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 900]
+    }
+  ],
+  "connections": {
+    "Start - New User Created": {
+      "main": [[{"node": "Get Product Roadmap", "type": "main", "index": 0}]]
+    },
+    "Get Product Roadmap": {
+      "main": [[{"node": "Claude - Generate Initial Assessment", "type": "main", "index": 0}]]
+    },
+    "Claude - Generate Initial Assessment": {
+      "main": [[{"node": "Prepare Assessment", "type": "main", "index": 0}]]
+    },
+    "Prepare Assessment": {
+      "main": [[{"node": "Store Assessment", "type": "main", "index": 0}]]
+    },
+    "Store Assessment": {
+      "main": [[{"node": "Send Assessment Email", "type": "main", "index": 0}]]
+    },
+    "Send Assessment Email": {
+      "main": [[{"node": "Wait for Assessment Response", "type": "main", "index": 0}]]
+    },
+    "Wait for Assessment Response": {
+      "main": [[{"node": "Generate Personalized Path", "type": "main", "index": 0}]]
+    },
+    "Generate Personalized Path": {
+      "main": [[{"node": "Update User Profile", "type": "main", "index": 0}]]
+    },
+    "Update User Profile": {
+      "main": [[{"node": "Send Roadmap Email", "type": "main", "index": 0}]]
+    },
+    "Webhook - Learning Request": {
+      "main": [[{"node": "Claude - Analyze Learning Request", "type": "main", "index": 0}]]
+    },
+    "Claude - Analyze Learning Request": {
+      "main": [[{"node": "Get User Progress", "type": "main", "index": 0}]]
+    },
+    "Get User Progress": {
+      "main": [[{"node": "Check Prerequisites", "type": "main", "index": 0}]]
+    },
+    "Check Prerequisites": {
+      "main": [[{"node": "IF Prerequisites Met", "type": "main", "index": 0}]]
+    },
+    "IF Prerequisites Met": {
+      "main": [
+        [{"node": "Search Relevant Content", "type": "main", "index": 0}],
+        [{"node": "Respond - Prerequisites Needed", "type": "main", "index": 0}]
+      ]
+    },
+    "Search Relevant Content": {
+      "main": [[{"node": "Get Related Q&A", "type": "main", "index": 0}]]
+    },
+    "Get Related Q&A": {
+      "main": [[{"node": "Claude - Generate Learning Package", "type": "main", "index": 0}]]
+    },
+    "Claude - Generate Learning Package": {
+      "main": [[{"node": "Add to User Roadmap", "type": "main", "index": 0}]]
+    },
+    "Add to User Roadmap": {
+      "main": [[{"node": "Respond - Learning Request", "type": "main", "index": 0}]]
+    },
+    "Webhook - Module Complete": {
+      "main": [[{"node": "Get User for Progress Update", "type": "main", "index": 0}]]
+    },
+    "Get User for Progress Update": {
+      "main": [[{"node": "Calculate Progress", "type": "main", "index": 0}]]
+    },
+    "Calculate Progress": {
+      "main": [[{"node": "Claude - Generate Progress Scorecard", "type": "main", "index": 0}]]
+    },
+    "Claude - Generate Progress Scorecard": {
+      "main": [[{"node": "Update User Progress", "type": "main", "index": 0}]]
+    },
+    "Update User Progress": {
+      "main": [[{"node": "Send Progress Email", "type": "main", "index": 0}]]
+    },
+    "Send Progress Email": {
+      "main": [[{"node": "Respond - Progress Updated", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

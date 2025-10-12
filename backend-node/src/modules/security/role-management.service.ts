@@ -56,9 +56,7 @@ export async function getUserRoles(userId: string): Promise<UserRole[]> {
       users_user_roles_assignedByTousers: {
         select: {
           id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
+          username: true,
         },
       },
     },
@@ -72,7 +70,7 @@ export async function getUserRoles(userId: string): Promise<UserRole[]> {
     roleId: ur.roleId,
     roleName: ur.roles.name,
     assignedAt: ur.assignedAt,
-    assignedBy: ur.assignedBy || undefined,
+    assignedBy: ur.users_user_roles_assignedByTousers?.username || ur.assignedBy || undefined,
     isActive: ur.isActive,
   }));
 }
@@ -101,51 +99,72 @@ export async function assignRoleToUser(
     throw new Error('Role not found');
   }
 
-  // Check if the user already has this role
+  // Check if the user already has this role (active or inactive)
   const existingRole = await prisma.user_roles.findFirst({
     where: {
       userId: request.userId,
       roleId: request.roleId,
-      isActive: true,
-    },
-  });
-
-  if (existingRole) {
-    throw new Error('User already has this role');
-  }
-
-  // Create the role assignment
-  const userRole = await prisma.user_roles.create({
-    data: {
-      id: randomUUID(),
-      userId: request.userId,
-      roleId: request.roleId,
-      assignedBy: request.assignedBy,
-      isActive: true,
     },
     include: {
       roles: true,
     },
   });
 
-  // Log the assignment in audit log
-  await prisma.auditLog.create({
-    data: {
-      id: randomUUID(),
-      userId: request.assignedBy,
-      action: 'ROLE_ASSIGNED',
-      entityType: 'UserRole',
-      entityId: userRole.id,
-      changes: JSON.stringify({
+  let userRole;
+
+  if (existingRole) {
+    if (existingRole.isActive) {
+      throw new Error('User already has this role');
+    }
+
+    // Reactivate the existing role assignment
+    userRole = await prisma.user_roles.update({
+      where: { id: existingRole.id },
+      data: {
+        isActive: true,
+        assignedBy: request.assignedBy === 'system' ? null : request.assignedBy,
+        assignedAt: new Date(),
+      },
+      include: {
+        roles: true,
+      },
+    });
+  } else {
+    // Create a new role assignment
+    userRole = await prisma.user_roles.create({
+      data: {
+        id: randomUUID(),
         userId: request.userId,
         roleId: request.roleId,
-        roleName: role.name,
-      }),
-      timestamp: new Date(),
-      ipAddress: null,
-      userAgent: null,
-    },
-  });
+        assignedBy: request.assignedBy === 'system' ? null : request.assignedBy,
+        isActive: true,
+      },
+      include: {
+        roles: true,
+      },
+    });
+  }
+
+  // Log the assignment in audit log (only if assignedBy is a valid user)
+  if (request.assignedBy !== 'system') {
+    await prisma.auditLog.create({
+      data: {
+        id: randomUUID(),
+        userId: request.assignedBy,
+        action: 'ROLE_ASSIGNED',
+        entityType: 'UserRole',
+        entityId: userRole.id,
+        changes: JSON.stringify({
+          userId: request.userId,
+          roleId: request.roleId,
+          roleName: role.name,
+        }),
+        timestamp: new Date(),
+        ipAddress: null,
+        userAgent: null,
+      },
+    });
+  }
 
   return {
     id: userRole.id,
@@ -188,24 +207,26 @@ export async function removeRoleFromUser(
     },
   });
 
-  // Log the removal in audit log
-  await prisma.auditLog.create({
-    data: {
-      id: randomUUID(),
-      userId: removedBy,
-      action: 'ROLE_REMOVED',
-      entityType: 'UserRole',
-      entityId: userRole.id,
-      changes: JSON.stringify({
-        userId,
-        roleId,
-        roleName: userRole.roles.name,
-      }),
-      timestamp: new Date(),
-      ipAddress: null,
-      userAgent: null,
-    },
-  });
+  // Log the removal in audit log (only if removedBy is a valid user)
+  if (removedBy !== 'system') {
+    await prisma.auditLog.create({
+      data: {
+        id: randomUUID(),
+        userId: removedBy,
+        action: 'ROLE_REMOVED',
+        entityType: 'UserRole',
+        entityId: userRole.id,
+        changes: JSON.stringify({
+          userId,
+          roleId,
+          roleName: userRole.roles.name,
+        }),
+        timestamp: new Date(),
+        ipAddress: null,
+        userAgent: null,
+      },
+    });
+  }
 
   return { success: true };
 }

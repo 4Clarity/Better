@@ -1,0 +1,138 @@
+{
+  "name": "Document Ingestion v4 - Working",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "file-upload",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "webhook-v4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Get binary data\n  const binaryData = item.binary;\n  \n  if (!binaryData || Object.keys(binaryData).length === 0) {\n    throw new Error('No binary data received in upload');\n  }\n  \n  // Get the first binary property key (uploaded file)\n  const binaryKey = Object.keys(binaryData)[0];\n  const fileData = binaryData[binaryKey];\n  \n  // Extract metadata\n  const originalFilename = fileData.fileName || binaryKey || 'unknown';\n  const extension = originalFilename.split('.').pop() || 'bin';\n  const timestamp = Date.now();\n  const newFilename = `${timestamp}_${originalFilename}`;\n  \n  // Calculate file size in bytes\n  let fileSizeBytes = 0;\n  if (fileData.data) {\n    fileSizeBytes = Buffer.from(fileData.data, 'base64').length;\n  }\n  \n  // Build result with BOTH json and binary\n  results.push({\n    json: {\n      timestamp: timestamp,\n      binary_key: binaryKey,\n      original_filename: originalFilename,\n      new_filename: newFilename,\n      file_extension: extension,\n      file_path: `/data/uploads/${newFilename}`,\n      file_size_bytes: fileSizeBytes,\n      mime_type: fileData.mimeType || 'application/octet-stream',\n      upload_timestamp: new Date().toISOString()\n    },\n    binary: {\n      file: fileData  // IMPORTANT: Keep binary data with key 'file'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "name": "Process Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "id": "process-v4"
+    },
+    {
+      "parameters": {
+        "fileName": "={{ $json.file_path }}",
+        "dataPropertyName": "file"
+      },
+      "name": "Write File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ],
+      "id": "write-file-v4"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (filename, original_filename, file_path, file_size, mime_type, file_extension, metadata)\nVALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)\nRETURNING id, filename, original_filename, file_size;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.new_filename,\n  $json.original_filename,\n  $json.file_path,\n  $json.file_size_bytes,\n  $json.mime_type,\n  $json.file_extension,\n  JSON.stringify({ upload_timestamp: $json.upload_timestamp })\n] }}"
+        }
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        900,
+        300
+      ],
+      "id": "postgres-v4",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-tip",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"document_id\": $json.id,\n  \"filename\": $json.filename,\n  \"original_filename\": $json.original_filename,\n  \"file_size\": $json.file_size,\n  \"message\": \"Document uploaded and saved successfully\"\n} }}"
+      },
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "response-v4"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Upload": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write File": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-06T20:20:00.000Z"
+}

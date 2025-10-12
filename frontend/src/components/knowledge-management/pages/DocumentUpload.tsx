@@ -1,14 +1,75 @@
+import { useState, useEffect } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
+import { Alert, AlertDescription } from '../../ui/alert';
+import { FolderOpen, Info } from 'lucide-react';
+import { settingsApi } from '../../../services/settingsApi';
 
 export function DocumentUpload() {
+  const [uploadPath, setUploadPath] = useState<string>('');
+  const [maxFileSize, setMaxFileSize] = useState<number>(0);
+  const [allowedFileTypes, setAllowedFileTypes] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const [path, maxSize, fileTypes] = await Promise.all([
+        settingsApi.getDocumentUploadPath(),
+        settingsApi.getMaxFileSize(),
+        settingsApi.getAllowedFileTypes(),
+      ]);
+      setUploadPath(path);
+      setMaxFileSize(maxSize);
+      setAllowedFileTypes(fileTypes);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+
+  const formatFileTypes = (): string => {
+    return allowedFileTypes.map(type => type.toUpperCase()).join(', ');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Product Documents</h2>
         <Button>Upload Document</Button>
       </div>
+
+      {/* Storage Configuration Info */}
+      {!loading && uploadPath && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              <span className="font-medium">Upload Path:</span>
+              <code className="bg-muted px-2 py-1 rounded text-xs">{uploadPath}</code>
+            </div>
+            <div className="flex items-center gap-2 border-l pl-4">
+              <span className="font-medium">Max Size:</span>
+              <span className="text-xs">{formatFileSize(maxFileSize)}</span>
+            </div>
+            <div className="flex items-center gap-2 border-l pl-4">
+              <span className="font-medium">Allowed:</span>
+              <span className="text-xs">{formatFileTypes()}</span>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
@@ -31,7 +92,14 @@ export function DocumentUpload() {
                 </svg>
                 <div className="text-sm text-muted-foreground">
                   <p>Drop files here or click to browse</p>
-                  <p className="text-xs">PDF, DOC, DOCX up to 10MB</p>
+                  <p className="text-xs">
+                    {loading ? 'Loading restrictions...' : `${formatFileTypes()} up to ${formatFileSize(maxFileSize)}`}
+                  </p>
+                  {uploadPath && (
+                    <p className="text-xs mt-1 text-muted-foreground/70">
+                      Files will be stored in: <code className="bg-muted px-1 rounded">{uploadPath}</code>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

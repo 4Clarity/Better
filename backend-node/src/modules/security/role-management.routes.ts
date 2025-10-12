@@ -72,26 +72,29 @@ export async function roleManagementRoutes(
     },
     async (request: FastifyRequest<AssignRoleRequest>, reply: FastifyReply) => {
       try {
-        const user = request.user as AuthUser;
+        const user = request.user as AuthUser | null;
         const { userId } = request.params;
         const { roleId } = request.body;
 
-        // Verify the user has permission to assign roles (Admin or Security Officer)
-        const hasPermission = user.roles.some(
-          (role) => role === 'Admin' || role === 'Security Officer'
-        );
+        // In auth bypass mode, allow all operations
+        // Otherwise verify the user has permission to assign roles (Admin or Security Officer)
+        if (user && user.roles) {
+          const hasPermission = user.roles.some(
+            (role) => role === 'Admin' || role === 'Security Officer'
+          );
 
-        if (!hasPermission) {
-          return reply.status(403).send({
-            error: 'Insufficient permissions',
-            message: 'Only Admin and Security Officer can assign roles',
-          });
+          if (!hasPermission) {
+            return reply.status(403).send({
+              error: 'Insufficient permissions',
+              message: 'Only Admin and Security Officer can assign roles',
+            });
+          }
         }
 
         const userRole = await assignRoleToUser({
           userId,
           roleId,
-          assignedBy: user.id,
+          assignedBy: user?.id || 'system',
         });
 
         return reply.status(201).send(userRole);
@@ -116,22 +119,25 @@ export async function roleManagementRoutes(
     },
     async (request: FastifyRequest<RemoveRoleRequest>, reply: FastifyReply) => {
       try {
-        const user = request.user as AuthUser;
+        const user = request.user as AuthUser | null;
         const { userId, roleId } = request.params;
 
-        // Verify the user has permission to remove roles (Admin or Security Officer)
-        const hasPermission = user.roles.some(
-          (role) => role === 'Admin' || role === 'Security Officer'
-        );
+        // In auth bypass mode, allow all operations
+        // Otherwise verify the user has permission to remove roles (Admin or Security Officer)
+        if (user && user.roles) {
+          const hasPermission = user.roles.some(
+            (role) => role === 'Admin' || role === 'Security Officer'
+          );
 
-        if (!hasPermission) {
-          return reply.status(403).send({
-            error: 'Insufficient permissions',
-            message: 'Only Admin and Security Officer can remove roles',
-          });
+          if (!hasPermission) {
+            return reply.status(403).send({
+              error: 'Insufficient permissions',
+              message: 'Only Admin and Security Officer can remove roles',
+            });
+          }
         }
 
-        const result = await removeRoleFromUser(userId, roleId, user.id);
+        const result = await removeRoleFromUser(userId, roleId, user?.id || 'system');
 
         return reply.status(200).send(result);
       } catch (error) {

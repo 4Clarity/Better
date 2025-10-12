@@ -7,6 +7,12 @@ import {
   ProductProgramListResponse,
   ProductProgramResponse,
   DeleteProductProgramResponse,
+  ProductProgramStakeholder,
+  AddStakeholderRequest,
+  UpdateStakeholderRoleRequest,
+  StakeholderResponse,
+  StakeholdersListResponse,
+  RemoveStakeholderResponse,
 } from '../types/productProgram';
 
 const API_BASE_URL = '/api/business-operations/products-programs';
@@ -112,6 +118,97 @@ export const deleteProductProgram = async (id: string): Promise<void> => {
     if (axios.isAxiosError(error)) {
       throw new Error(
         error.response?.data?.message || 'Failed to delete Product/Program'
+      );
+    }
+    throw error;
+  }
+};
+
+// Stakeholder Management API Methods (Story 4.2 - Phase 1)
+
+/**
+ * Add a stakeholder to a Product/Program
+ */
+export const addStakeholder = async (
+  productProgramId: string,
+  data: AddStakeholderRequest
+): Promise<ProductProgramStakeholder> => {
+  try {
+    const response = await axios.post<StakeholderResponse>(
+      `${API_BASE_URL}/${productProgramId}/stakeholders`,
+      data
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to add stakeholder'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get all stakeholders for a Product/Program
+ */
+export const getStakeholders = async (
+  productProgramId: string
+): Promise<ProductProgramStakeholder[]> => {
+  try {
+    const response = await axios.get<StakeholdersListResponse>(
+      `${API_BASE_URL}/${productProgramId}/stakeholders`
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to fetch stakeholders'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Update a stakeholder's role
+ */
+export const updateStakeholderRole = async (
+  productProgramId: string,
+  userId: string,
+  data: UpdateStakeholderRoleRequest
+): Promise<ProductProgramStakeholder> => {
+  try {
+    const response = await axios.put<StakeholderResponse>(
+      `${API_BASE_URL}/${productProgramId}/stakeholders/${userId}`,
+      data
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to update stakeholder role'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Remove a stakeholder from a Product/Program
+ */
+export const removeStakeholder = async (
+  productProgramId: string,
+  userId: string
+): Promise<void> => {
+  try {
+    await axios.delete<RemoveStakeholderResponse>(
+      `${API_BASE_URL}/${productProgramId}/stakeholders/${userId}`
+    );
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to remove stakeholder'
       );
     }
     throw error;

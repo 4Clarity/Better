@@ -10,6 +10,7 @@ import { taskSchemas } from './modules/task/task.service';
 import transitionRoutes from './modules/transition/transition-raw.route';
 import milestoneRoutes from './modules/milestone/milestone.route';
 import businessOperationRoutes from './modules/business-operation/business-operation.route';
+import productProgramRoutes from './modules/business-operation/product-program.routes';
 import contractRoutes from './modules/contract/contract.route';
 import enhancedTransitionRoutes from './modules/transition/enhanced-transition.route';
 import { userManagementRoutes } from './modules/user-management/user-management.routes';
@@ -164,6 +165,7 @@ export function buildServer() {
   console.log('Registering business operation routes');
   server.register(transitionRoutes, { prefix: '/api/transitions' });
   server.register(businessOperationRoutes, { prefix: '/api/business-operations' });
+  server.register(productProgramRoutes, { prefix: '/api/business-operations' });
   server.register(contractRoutes, { prefix: '/api/contracts' });
   server.register(enhancedTransitionRoutes, { prefix: '/api/enhanced-transitions' });
   server.register(userManagementRoutes, { prefix: '/api/user-management' });

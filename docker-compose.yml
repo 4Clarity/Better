@@ -76,6 +76,23 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.tip.localhost`)"
+      - "traefik.http.routers.pgadmin.entrypoints=web"
+      - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
   redis:
     image: redis:7-alpine
     ports:
@@ -116,6 +133,7 @@ services:
       - "${N8N_PORT}:5678"
     volumes:
       - n8n_data:/home/node/.n8n
+      - /Users/richardroach/data/uploads:/data/uploads
     env_file:
       - .env
     labels:
@@ -142,3 +160,4 @@ volumes:
   redis_data:
   minio_data:
   n8n_data:
+  pgadmin_data:

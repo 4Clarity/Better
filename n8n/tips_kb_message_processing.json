@@ -1,0 +1,613 @@
+{
+  "name": "Message Processing Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "msg-start",
+      "name": "Start - Message Received",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this message:\\n\\nMessage: {{ $json.content }}\\nAuthor: {{ $json.author }}\\nDate: {{ $json.date }}\\n\\nDetermine:\\n1. Message type: question | directive | update | discussion | issue\\n2. System impact: system_changing | info_only | clarification\\n3. If question: What information is being sought?\\n4. If directive/command: What system changes are required?\\n5. Urgency: critical | high | medium | low\\n6. Related entities: products, systems, procedures, people\\n7. Action required: yes/no and description\\n8. Confidence: 0.0-1.0\\n\\nReturn structured JSON\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "classify-message",
+      "name": "Claude - Classify Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude classification\nconst response = $input.first().json;\nconst classification = JSON.parse(response.content[0].text);\nconst messageData = $input.item(1).json;\n\nreturn [{\n  json: {\n    message_id: `msg-${Date.now()}`,\n    ...messageData,\n    classification: classification,\n    requires_review: classification.confidence < 0.7\n  }\n}];"
+      },
+      "id": "parse-msg-classification",
+      "name": "Parse Message Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.requires_review }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-msg-low-confidence",
+      "name": "IF Low Confidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "review_queue",
+        "fields": "message_id,classification,confidence,status,type",
+        "options": {}
+      },
+      "id": "queue-msg-review",
+      "name": "Queue for Human Review",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.classification.message_type }}",
+              "operation": "equals",
+              "value2": "question"
+            }
+          ]
+        }
+      },
+      "id": "route-msg-type",
+      "name": "Route by Message Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1050, 500],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "rules": [
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.classification.message_type }}", "value2": "question"}]
+              },
+              "renameOutput": true,
+              "outputKey": "question"
+            },
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.classification.message_type }}", "value2": "directive"}]
+              },
+              "renameOutput": true,
+              "outputKey": "directive"
+            },
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.classification.message_type }}", "value2": "update"}]
+              },
+              "renameOutput": true,
+              "outputKey": "update"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Question\nconst msg = $input.first().json;\n\nreturn [{\n  json: {\n    ...msg,\n    tags: {\n      primary: ['question', 'query'],\n      status: ['awaiting_human_answer'],\n      urgency: [msg.classification.urgency],\n      entities: msg.classification.related_entities\n    },\n    answer_status: 'unanswered',\n    queued_for_answer: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "process-question",
+      "name": "Process Question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "question_queue",
+        "fields": "message_id,content,tags,classification,status",
+        "options": {}
+      },
+      "id": "store-question",
+      "name": "Store in Question Queue",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.content }}\"\n}",
+        "headerParametersJson": "={\n  \"content-type\": \"application/json\",\n  \"authorization\": \"Bearer {{$credentials.openAiApi.apiKey}}\"\n}"
+      },
+      "id": "embed-question",
+      "name": "Generate Question Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.notification_channel }}",
+        "text": "=New question needs answering:\n\n*Question:* {{ $json.content }}\n*From:* {{ $json.author }}\n*Urgency:* {{ $json.classification.urgency }}\n*Related to:* {{ $json.classification.related_entities.products.join(', ') }}\n\nPlease respond in the TIPS portal.",
+        "otherOptions": {}
+      },
+      "id": "notify-question",
+      "name": "Notify Team - New Question",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1850, 400],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.classification.system_changing }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-system-changing",
+      "name": "IF System Changing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 600]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "documents",
+        "query": "={ \"$or\": [{{ $json.classification.related_entities.procedures.map(p => `{\"procedure_id\": \"${p}\"}`).join(',') }}] }",
+        "options": {}
+      },
+      "id": "find-affected-docs",
+      "name": "Find Affected Documents",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 700]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Compare this directive with existing documents:\\n\\nDirective: {{ $json.content }}\\nExisting Documents: {{ JSON.stringify($json.affected_docs) }}\\n\\nFor each document:\\n1. Does directive override (replace), supplement (add to), or contradict?\\n2. Which specific sections/chunks are affected?\\n3. Full or partial override?\\n4. Confidence: 0.0-1.0\\n\\nReturn structured comparison JSON\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "analyze-override",
+      "name": "Claude - Analyze Override",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1650, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse override analysis\nconst response = $input.first().json;\nconst analysis = JSON.parse(response.content[0].text);\nconst directiveData = $input.item(1).json;\n\n// Check for contradictions or low confidence\nconst hasContradiction = analysis.documents.some(d => d.relationship === 'contradict');\nconst lowConfidence = analysis.documents.some(d => d.confidence < 0.7);\n\nreturn [{\n  json: {\n    ...directiveData,\n    override_analysis: analysis,\n    requires_human_review: hasContradiction || lowConfidence,\n    contradiction_detected: hasContradiction\n  }\n}];"
+      },
+      "id": "parse-override",
+      "name": "Parse Override Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.requires_human_review }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-needs-review",
+      "name": "IF Needs Review",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 700]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "review_queue",
+        "fields": "message_id,type,override_analysis,contradiction_detected,priority",
+        "options": {}
+      },
+      "id": "flag-contradiction",
+      "name": "Flag for Human Review",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 600]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "approval_queue",
+        "fields": "directive_id,message_content,affected_documents,override_type,urgency,status",
+        "options": {}
+      },
+      "id": "queue-approval",
+      "name": "Queue for Approval",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 800]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.approval_channel }}",
+        "text": "=🔔 *Directive Requires Approval*\\n\\n*Message:* {{ $json.content }}\\n*Type:* {{ $json.classification.change_type }}\\n*Urgency:* {{ $json.classification.urgency }}\\n*Affects:* {{ $json.override_analysis.documents.map(d => d.doc_id).join(', ') }}\\n{{ $json.contradiction_detected ? '⚠️ *CONTRADICTION DETECTED*' : '' }}\\n\\nPlease review and approve in TIPS portal.",
+        "otherOptions": {}
+      },
+      "id": "notify-approval",
+      "name": "Notify Approvers",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2450, 800],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "directive-approval",
+        "method": "POST",
+        "responseMode": "lastNode",
+        "options": {
+          "noResponseBody": false
+        }
+      },
+      "id": "wait-approval",
+      "name": "Wait for Approval Response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [2650, 800]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.approval_decision }}",
+              "operation": "equals",
+              "value2": "approved"
+            }
+          ]
+        }
+      },
+      "id": "if-approved",
+      "name": "IF Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2850, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apply approved override\nconst approval = $input.first().json;\nconst directive = $input.item(1).json;\n\n// Update affected document chunks\nconst updates = directive.override_analysis.documents.map(doc => ({\n  filter: { chunk_id: { $in: doc.affected_chunks } },\n  update: {\n    $set: {\n      override_status: 'active',\n      override_message_id: directive.message_id,\n      overridden_date: new Date().toISOString(),\n      approved_by: approval.approver\n    }\n  }\n}));\n\nreturn updates.map(u => ({ json: u }));"
+      },
+      "id": "apply-override",
+      "name": "Apply Override to Documents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3050, 900]
+    },
+    {
+      "parameters": {
+        "operation": "updateMany",
+        "collection": "chunks",
+        "updateKey": "={{ $json.filter }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "override_status",
+              "fieldValue": "active"
+            },
+            {
+              "fieldId": "override_message_id",
+              "fieldValue": "={{ $json.update.$set.override_message_id }}"
+            }
+          ]
+        }
+      },
+      "id": "update-chunks",
+      "name": "Update Chunk Override Status",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3250, 900]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=CREATE (m:Message {id: '{{ $json.message_id }}'})-[r:OVERRIDES {approved_by: '{{ $json.approved_by }}', date: '{{ $json.overridden_date }}'}]->(c:Chunk {id: '{{ $json.chunk_id }}'})\nRETURN r"
+      },
+      "id": "create-override-relationship",
+      "name": "Create Override Relationship",
+      "type": "n8n-nodes-base.neo4j",
+      "typeVersion": 1,
+      "position": [3450, 900],
+      "credentials": {
+        "neo4j": {
+          "id": "4",
+          "name": "Neo4j TIPS KB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "approval_queue",
+        "updateKey": "directive_id",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "approved"
+            },
+            {
+              "fieldId": "approved_by",
+              "fieldValue": "={{ $json.approver }}"
+            },
+            {
+              "fieldId": "approved_date",
+              "fieldValue": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "update-approval-status",
+      "name": "Update Approval Status",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3650, 900]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.notification_channel }}",
+        "text": "=✅ *Directive Approved & Applied*\n\n*Message:* {{ $json.content }}\n*Approved by:* {{ $json.approved_by }}\n*Documents updated:* {{ $json.affected_docs.length }}\n\nChanges are now active in the knowledge base.",
+        "otherOptions": {}
+      },
+      "id": "notify-applied",
+      "name": "Notify Override Applied",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [3850, 900],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "approval_queue",
+        "updateKey": "directive_id",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "rejected"
+            },
+            {
+              "fieldId": "rejected_by",
+              "fieldValue": "={{ $json.approver }}"
+            },
+            {
+              "fieldId": "rejection_reason",
+              "fieldValue": "={{ $json.reason }}"
+            }
+          ]
+        }
+      },
+      "id": "log-rejection",
+      "name": "Log Rejection",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3050, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process update message (Class 3)\nconst msg = $input.first().json;\n\nreturn [{\n  json: {\n    ...msg,\n    tags: {\n      primary: ['update', 'temporal'],\n      status: ['active'],\n      urgency: [msg.classification.urgency],\n      entities: msg.classification.related_entities\n    },\n    processed_date: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "process-update",
+      "name": "Process Update Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 800]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "temporal_updates",
+        "fields": "message_id,content,tags,classification,processed_date",
+        "options": {}
+      },
+      "id": "store-update",
+      "name": "Store Temporal Update",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 800]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.baseline_workflow_id }}"
+      },
+      "id": "trigger-baseline-update",
+      "name": "Trigger Baseline Update",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1650, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate final response\nconst msg = $input.first().json;\n\nlet responseMsg = '';\nif (msg.classification.message_type === 'question') {\n  responseMsg = 'Question queued for team response';\n} else if (msg.classification.message_type === 'directive') {\n  responseMsg = msg.override_analysis ? 'Directive queued for approval' : 'Directive processed';\n} else if (msg.classification.message_type === 'update') {\n  responseMsg = 'Update processed and baseline triggered';\n}\n\nreturn [{\n  json: {\n    status: 'success',\n    message_id: msg.message_id,\n    message_type: msg.classification.message_type,\n    system_changing: msg.classification.system_changing || false,\n    requires_approval: msg.override_analysis ? true : false,\n    message: responseMsg\n  }\n}];"
+      },
+      "id": "final-msg-response",
+      "name": "Generate Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4050, 700]
+    }
+  ],
+  "connections": {
+    "Start - Message Received": {
+      "main": [[{"node": "Claude - Classify Message", "type": "main", "index": 0}]]
+    },
+    "Claude - Classify Message": {
+      "main": [[{"node": "Parse Message Classification", "type": "main", "index": 0}]]
+    },
+    "Parse Message Classification": {
+      "main": [[{"node": "IF Low Confidence", "type": "main", "index": 0}]]
+    },
+    "IF Low Confidence": {
+      "main": [
+        [{"node": "Queue for Human Review", "type": "main", "index": 0}],
+        [{"node": "Route by Message Type", "type": "main", "index": 0}]
+      ]
+    },
+    "Route by Message Type": {
+      "main": [
+        [{"node": "Process Question", "type": "main", "index": 0}],
+        [{"node": "IF System Changing", "type": "main", "index": 0}],
+        [{"node": "Process Update Message", "type": "main", "index": 0}]
+      ]
+    },
+    "Process Question": {
+      "main": [[{"node": "Store in Question Queue", "type": "main", "index": 0}]]
+    },
+    "Store in Question Queue": {
+      "main": [[{"node": "Generate Question Embedding", "type": "main", "index": 0}]]
+    },
+    "Generate Question Embedding": {
+      "main": [[{"node": "Notify Team - New Question", "type": "main", "index": 0}]]
+    },
+    "Notify Team - New Question": {
+      "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+    },
+    "IF System Changing": {
+      "main": [
+        [{"node": "Queue for Approval", "type": "main", "index": 0}],
+        [{"node": "Find Affected Documents", "type": "main", "index": 0}]
+      ]
+    },
+    "Find Affected Documents": {
+      "main": [[{"node": "Claude - Analyze Override", "type": "main", "index": 0}]]
+    },
+    "Claude - Analyze Override": {
+      "main": [[{"node": "Parse Override Analysis", "type": "main", "index": 0}]]
+    },
+    "Parse Override Analysis": {
+      "main": [[{"node": "IF Needs Review", "type": "main", "index": 0}]]
+    },
+    "IF Needs Review": {
+      "main": [
+        [{"node": "Flag for Human Review", "type": "main", "index": 0}],
+        [{"node": "Queue for Approval", "type": "main", "index": 0}]
+      ]
+    },
+    "Queue for Approval": {
+      "main": [[{"node": "Notify Approvers", "type": "main", "index": 0}]]
+    },
+    "Notify Approvers": {
+      "main": [[{"node": "Wait for Approval Response", "type": "main", "index": 0}]]
+    },
+    "Wait for Approval Response": {
+      "main": [[{"node": "IF Approved", "type": "main", "index": 0}]]
+    },
+    "IF Approved": {
+      "main": [
+        [{"node": "Apply Override to Documents", "type": "main", "index": 0}],
+        [{"node": "Log Rejection", "type": "main", "index": 0}]
+      ]
+    },
+    "Apply Override to Documents": {
+      "main": [[{"node": "Update Chunk Override Status", "type": "main", "index": 0}]]
+    },
+    "Update Chunk Override Status": {
+      "main": [[{"node": "Create Override Relationship", "type": "main", "index": 0}]]
+    },
+    "Create Override Relationship": {
+      "main": [[{"node": "Update Approval Status", "type": "main", "index": 0}]]
+    },
+    "Update Approval Status": {
+      "main": [[{"node": "Notify Override Applied", "type": "main", "index": 0}]]
+    },
+    "Notify Override Applied": {
+      "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+    },
+    "Log Rejection": {
+      "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+    },
+    "Process Update Message": {
+      "main": [[{"node": "Store Temporal Update", "type": "main", "index": 0}]]
+    },
+    "Store Temporal Update": {
+      "main": [[{"node": "Trigger Baseline Update", "type": "main", "index": 0}]]
+    },
+    "Trigger Baseline Update": {
+      "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

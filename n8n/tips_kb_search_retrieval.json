@@ -1,0 +1,448 @@
+{
+  "name": "Search & Retrieval Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "search",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-search",
+      "name": "Webhook - Search Query",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "users",
+        "query": "={ \"user_id\": \"{{ $json.user_id }}\" }",
+        "options": {}
+      },
+      "id": "get-user-context",
+      "name": "Get User Context",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare search with user context\nconst query = $input.first().json.query;\nconst user = $input.item(1).json;\n\nreturn [{\n  json: {\n    query: query,\n    user_id: user.user_id,\n    user_role: user.role,\n    mastery_level: user.onboarding?.mastery_levels || {},\n    onboarding_status: user.status,\n    preferences: {\n      show_superseded: $input.first().json.show_superseded || false,\n      show_overridden: $input.first().json.show_overridden || false\n    }\n  }\n}];"
+      },
+      "id": "prepare-search-context",
+      "name": "Prepare Search Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{ $json.query }}\"\n}",
+        "headerParametersJson": "={\n  \"content-type\": \"application/json\",\n  \"authorization\": \"Bearer {{$credentials.openAiApi.apiKey}}\"\n}"
+      },
+      "id": "generate-query-embedding",
+      "name": "Generate Query Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "={{ $json.vector_store_url }}/query",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"vector\": {{ JSON.stringify($json.embedding) }},\n  \"top_k\": 10,\n  \"filter\": {\n    \"currency_status\": {{ $json.preferences.show_superseded ? '[\"current\", \"superseded\"]' : '[\"current\"]' }}\n  }\n}"
+      },
+      "id": "vector-search",
+      "name": "Vector Similarity Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "aggregate",
+        "collection": "chunks",
+        "query": "=[\n  { \"$match\": { \"$text\": { \"$search\": \"{{ $json.query }}\" } } },\n  { \"$limit\": 10 }\n]",
+        "options": {}
+      },
+      "id": "keyword-search",
+      "name": "Keyword/BM25 Search",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=MATCH (n)-[r*1..2]-(related)\nWHERE n.content CONTAINS '{{ $json.query }}'\nRETURN n, related\nLIMIT 10"
+      },
+      "id": "graph-search",
+      "name": "Graph Relationship Search",
+      "type": "n8n-nodes-base.neo4j",
+      "typeVersion": 1,
+      "position": [1050, 700],
+      "credentials": {
+        "neo4j": {
+          "id": "4",
+          "name": "Neo4j TIPS KB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "combinationMode": "multiplex"
+      },
+      "id": "merge-search-results",
+      "name": "Merge Search Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine and rank results from multiple search methods\nconst vectorResults = $input.item(0).json.matches || [];\nconst keywordResults = $input.item(1).json.documents || [];\nconst graphResults = $input.item(2).json.results || [];\nconst userData = $input.item(3).json;\n\n// Combine and deduplicate by chunk_id\nconst resultsMap = new Map();\n\nvectorResults.forEach(r => {\n  resultsMap.set(r.id, {\n    chunk_id: r.id,\n    score: r.score * 0.5, // Weight vector search\n    source: 'vector',\n    metadata: r.metadata\n  });\n});\n\nkeywordResults.forEach(r => {\n  const existing = resultsMap.get(r.chunk_id);\n  if (existing) {\n    existing.score += 0.3; // Boost if also found in keyword\n    existing.source += '+keyword';\n  } else {\n    resultsMap.set(r.chunk_id, {\n      chunk_id: r.chunk_id,\n      score: 0.3,\n      source: 'keyword',\n      metadata: r\n    });\n  }\n});\n\ngraphResults.forEach(r => {\n  const existing = resultsMap.get(r.chunk_id);\n  if (existing) {\n    existing.score += 0.2; // Boost if connected in graph\n    existing.source += '+graph';\n  }\n});\n\n// Sort by score\nconst rankedResults = Array.from(resultsMap.values())\n  .sort((a, b) => b.score - a.score)\n  .slice(0, 5); // Top 5\n\nreturn [{\n  json: {\n    query: userData.query,\n    user_context: userData,\n    ranked_chunks: rankedResults\n  }\n}];"
+      },
+      "id": "rank-results",
+      "name": "Rank & Combine Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "chunks",
+        "query": "={ \"chunk_id\": { \"$in\": {{ JSON.stringify($json.ranked_chunks.map(r => r.chunk_id)) }} } }",
+        "options": {}
+      },
+      "id": "fetch-chunk-details",
+      "name": "Fetch Chunk Details",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process chunks and determine context needs\nconst chunks = $input.first().json.chunks || [];\nconst searchData = $input.item(1).json;\n\nconst processedChunks = chunks.map(chunk => {\n  const needsContext = chunk.standalone_score < 0.7;\n  \n  return {\n    ...chunk,\n    needs_context: needsContext,\n    context_window_size: needsContext ? (chunk.ideal_context_window || 3) : 0,\n    user_can_expand: true\n  };\n});\n\nreturn [{\n  json: {\n    ...searchData,\n    processed_chunks: processedChunks\n  }\n}];"
+      },
+      "id": "process-chunks",
+      "name": "Process Chunks for Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.user_context.onboarding_status === 'onboarding' }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-onboarding-user",
+      "name": "IF Onboarding User",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "onboarding_roadmaps",
+        "query": "={ \"learning_modules.content_sources.chunks\": { \"$in\": {{ JSON.stringify($json.processed_chunks.map(c => c.chunk_id)) }} } }",
+        "options": {}
+      },
+      "id": "find-related-modules",
+      "name": "Find Related Learning Modules",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Add learning context to results\nconst results = $input.first().json;\nconst modules = $input.item(1).json.modules || [];\n\nreturn [{\n  json: {\n    ...results,\n    learning_context: {\n      related_modules: modules.map(m => ({\n        module_id: m.module_id,\n        module_name: m.module_name,\n        relevance_note: 'This content is part of your learning path'\n      })),\n      progress_note: 'Reviewing this content counts toward module progress'\n    }\n  }\n}];"
+      },
+      "id": "add-learning-context",
+      "name": "Add Learning Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.user_context.onboarding_status === 'offboarding' }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-offboarding-user",
+      "name": "IF Offboarding User",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 600]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "question_queue",
+        "query": "={ \"user_id\": \"{{ $json.user_context.user_id }}\", \"related_chunks\": { \"$in\": {{ JSON.stringify($json.processed_chunks.map(c => c.chunk_id)) }} } }",
+        "options": {}
+      },
+      "id": "find-user-questions",
+      "name": "Find User's Previous Questions",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flag as potential documentation gap\nconst results = $input.first().json;\nconst userQuestions = $input.item(1).json.questions || [];\n\nreturn [{\n  json: {\n    ...results,\n    offboarding_context: {\n      user_questions_on_topic: userQuestions,\n      note: 'Your expertise on this topic would be valuable in the offboarding survey',\n      prompt: 'Would you like to document additional details about this?'\n    }\n  }\n}];"
+      },
+      "id": "flag-knowledge-gap",
+      "name": "Flag as Knowledge Gap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 700]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-contexts",
+      "name": "Merge All Contexts",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for override status\nconst results = $input.first().json;\n\nconst chunksWithOverrides = results.processed_chunks.map(chunk => {\n  if (chunk.override_status === 'active') {\n    // Fetch override message\n    return {\n      ...chunk,\n      has_override: true,\n      override_note: 'This content has been updated by a recent directive'\n    };\n  }\n  return chunk;\n});\n\nreturn [{\n  json: {\n    ...results,\n    processed_chunks: chunksWithOverrides\n  }\n}];"
+      },
+      "id": "check-overrides",
+      "name": "Check for Overrides",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "question_queue",
+        "query": "={ \"answer_status\": \"answered\", \"embedding\": { \"$near\": { \"$geometry\": { \"type\": \"Point\", \"coordinates\": {{ JSON.stringify($json.query_embedding) }} }, \"$maxDistance\": 0.8 } } }",
+        "options": {
+          "limit": 3
+        }
+      },
+      "id": "find-similar-qa",
+      "name": "Find Similar Q&A",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [3050, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format final search response\nconst results = $input.first().json;\nconst similarQA = $input.item(1).json.qa_pairs || [];\n\nconst formattedResults = results.processed_chunks.map(chunk => ({\n  chunk_id: chunk.chunk_id,\n  content: chunk.content,\n  standalone_score: chunk.standalone_score,\n  needs_context: chunk.needs_context,\n  context_available: chunk.needs_context ? {\n    requires_from: chunk.requires_context_from,\n    provides_to: chunk.provides_context_to,\n    action: 'Click to expand context'\n  } : null,\n  override_info: chunk.has_override ? {\n    status: 'overridden',\n    message: chunk.override_note,\n    view_directive: true\n  } : null,\n  document_info: {\n    document_id: chunk.document_id,\n    currency_status: chunk.currency_status,\n    version: chunk.version\n  }\n}));\n\nreturn [{\n  json: {\n    query: results.query,\n    results: formattedResults,\n    similar_qa: similarQA.map(qa => ({\n      question: qa.content,\n      answer: qa.answer,\n      similarity: qa.similarity_score\n    })),\n    learning_context: results.learning_context || null,\n    offboarding_context: results.offboarding_context || null,\n    result_count: formattedResults.length\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "Format Search Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3250, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}"
+      },
+      "id": "respond-search",
+      "name": "Respond - Search Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [3450, 400]
+    },
+    {
+      "parameters": {
+        "path": "expand-context",
+        "method": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-expand-context",
+      "name": "Webhook - Expand Context",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 900]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "chunks",
+        "query": "={ \"chunk_id\": \"{{ $json.chunk_id }}\" }",
+        "options": {}
+      },
+      "id": "get-primary-chunk",
+      "name": "Get Primary Chunk",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 900]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "chunks",
+        "query": "={ \"chunk_id\": { \"$in\": {{ JSON.stringify($json.requires_context_from) }} } }",
+        "options": {}
+      },
+      "id": "fetch-context-chunks",
+      "name": "Fetch Context Chunks",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [650, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble context window\nconst primaryChunk = $input.first().json;\nconst contextChunks = $input.item(1).json.chunks || [];\n\n// Order chunks logically\nconst orderedChunks = [\n  ...contextChunks.filter(c => c.chunk_index < primaryChunk.chunk_index).sort((a, b) => a.chunk_index - b.chunk_index),\n  primaryChunk,\n  ...contextChunks.filter(c => c.chunk_index > primaryChunk.chunk_index).sort((a, b) => a.chunk_index - b.chunk_index)\n];\n\nreturn [{\n  json: {\n    primary_chunk_id: primaryChunk.chunk_id,\n    context_window: orderedChunks.map(c => ({\n      chunk_id: c.chunk_id,\n      content: c.content,\n      is_primary: c.chunk_id === primaryChunk.chunk_id,\n      chunk_type: c.chunk_type,\n      chunk_index: c.chunk_index\n    })),\n    assembly_note: 'Context assembled from related chunks for complete understanding'\n  }\n}];"
+      },
+      "id": "assemble-context",
+      "name": "Assemble Context Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 900]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}"
+      },
+      "id": "respond-context",
+      "name": "Respond - Context Window",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 900]
+    }
+  ],
+  "connections": {
+    "Webhook - Search Query": {
+      "main": [[{"node": "Get User Context", "type": "main", "index": 0}]]
+    },
+    "Get User Context": {
+      "main": [[{"node": "Prepare Search Context", "type": "main", "index": 0}]]
+    },
+    "Prepare Search Context": {
+      "main": [
+        [
+          {"node": "Generate Query Embedding", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Generate Query Embedding": {
+      "main": [
+        [
+          {"node": "Vector Similarity Search", "type": "main", "index": 0},
+          {"node": "Keyword/BM25 Search", "type": "main", "index": 0},
+          {"node": "Graph Relationship Search", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Vector Similarity Search": {
+      "main": [[{"node": "Merge Search Results", "type": "main", "index": 0}]]
+    },
+    "Keyword/BM25 Search": {
+      "main": [[{"node": "Merge Search Results", "type": "main", "index": 1}]]
+    },
+    "Graph Relationship Search": {
+      "main": [[{"node": "Merge Search Results", "type": "main", "index": 2}]]
+    },
+    "Merge Search Results": {
+      "main": [[{"node": "Rank & Combine Results", "type": "main", "index": 0}]]
+    },
+    "Rank & Combine Results": {
+      "main": [[{"node": "Fetch Chunk Details", "type": "main", "index": 0}]]
+    },
+    "Fetch Chunk Details": {
+      "main": [[{"node": "Process Chunks for Context", "type": "main", "index": 0}]]
+    },
+    "Process Chunks for Context": {
+      "main": [
+        [
+          {"node": "IF Onboarding User", "type": "main", "index": 0},
+          {"node": "IF Offboarding User", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "IF Onboarding User": {
+      "main": [
+        [{"node": "Find Related Learning Modules", "type": "main", "index": 0}],
+        [{"node": "Merge All Contexts", "type": "main", "index": 0}]
+      ]
+    },
+    "Find Related Learning Modules": {
+      "main": [[{"node": "Add Learning Context", "type": "main", "index": 0}]]
+    },
+    "Add Learning Context": {
+      "main": [[{"node": "Merge All Contexts", "type": "main", "index": 0}]]
+    },
+    "IF Offboarding User": {
+      "main": [
+        [{"node": "Find User's Previous Questions", "type": "main", "index": 0}],
+        [{"node": "Merge All Contexts", "type": "main", "index": 1}]
+      ]
+    },
+    "Find User's Previous Questions": {
+      "main": [[{"node": "Flag as Knowledge Gap", "type": "main", "index": 0}]]
+    },
+    "Flag as Knowledge Gap": {
+      "main": [[{"node": "Merge All Contexts", "type": "main", "index": 1}]]
+    },
+    "Merge All Contexts": {
+      "main": [[{"node": "Check for Overrides", "type": "main", "index": 0}]]
+    },
+    "Check for Overrides": {
+      "main": [[{"node": "Find Similar Q&A", "type": "main", "index": 0}]]
+    },
+    "Find Similar Q&A": {
+      "main": [[{"node": "Format Search Response", "type": "main", "index": 0}]]
+    },
+    "Format Search Response": {
+      "main": [[{"node": "Respond - Search Results", "type": "main", "index": 0}]]
+    },
+    "Webhook - Expand Context": {
+      "main": [[{"node": "Get Primary Chunk", "type": "main", "index": 0}]]
+    },
+    "Get Primary Chunk": {
+      "main": [[{"node": "Fetch Context Chunks", "type": "main", "index": 0}]]
+    },
+    "Fetch Context Chunks": {
+      "main": [[{"node": "Assemble Context Window", "type": "main", "index": 0}]]
+    },
+    "Assemble Context Window": {
+      "main": [[{"node": "Respond - Context Window", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

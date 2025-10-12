@@ -3,12 +3,105 @@
 ## Overview
 This document captures troubleshooting experience, lessons learned, and best practices discovered during development to prevent future issues and improve development efficiency.
 
-**Last Updated:** 2025-09-23
+**Last Updated:** 2025-10-12
 **Contributors:** Quinn (QA), Development Team
 
 ---
 
 ## Lessons Learned
+
+### User Management & Role Assignment (October 2025)
+
+#### Technical Challenges & Solutions
+
+**1. Prisma Schema Field Name Mismatches**
+- **Problem:** Frontend expected camelCase fields but Prisma used snake_case database columns
+- **Solution:** Always reference Prisma generated client types and use correct field names
+- **Prevention:** Use TypeScript types from Prisma client throughout the application
+- **Example:** `product_program_id` not `productProgramId`, `security_classification` not `securityClassification`
+
+**2. Prisma Relation Names**
+- **Problem:** Prisma generates verbose relation names for disambiguating multiple foreign keys
+- **Solution:** Use exact relation names from Prisma client (e.g., `users_product_programs_created_byTousers`)
+- **Prevention:** Check `node_modules/.prisma/client/index.d.ts` for exact relation names
+- **Files Affected:**
+  - `/backend-node/src/modules/business-operation/product-program.service.ts`
+  - `/backend-node/src/modules/business-operation/business-operation.service.ts`
+
+**3. User Model Field Access**
+- **Problem:** Code tried to access `email`, `firstName`, `lastName` directly on User model
+- **Solution:** User model only has `username` field; person details are in related Person table
+- **Prevention:** Review Prisma schema before writing queries with User relations
+- **Files Affected:** `/backend-node/src/modules/security/role-management.service.ts`
+
+**4. Enum Value Conversion Between Frontend and Backend**
+- **Problem:** Frontend sends SCREAMING_SNAKE_CASE enum values but Prisma expects PascalCase
+- **Solution:** Created conversion helper functions to map between formats
+- **Example:** UI sends "SECRET" → Backend needs "Secret"
+- **Files Affected:** `/backend-node/src/modules/user-management/user-management.service.ts`
+
+**5. Date Format Conversion**
+- **Problem:** Frontend sends dates as "YYYY-MM-DD" but Prisma expects ISO-8601 DateTime
+- **Solution:** Convert date strings to full DateTime with timezone: `new Date('YYYY-MM-DDT00:00:00.000Z')`
+- **Files Affected:** `/backend-node/src/modules/user-management/user-management.service.ts`
+
+**6. Auth Bypass Mode Null Handling**
+- **Problem:** Permission checks assumed `request.user` exists, causing null reference errors
+- **Solution:** Make user nullable and skip permission checks in auth bypass mode
+- **Files Affected:** `/backend-node/src/modules/security/role-management.routes.ts`
+
+**7. Role Reactivation Logic**
+- **Problem:** Unique constraint prevented re-adding previously removed roles
+- **Solution:** Check for inactive role assignments and reactivate instead of creating new ones
+- **Files Affected:** `/backend-node/src/modules/security/role-management.service.ts`
+
+**8. Missing Required Fields with Defaults**
+- **Problem:** Database schema requires fields but frontend doesn't always provide them
+- **Solution:** Add sensible defaults in service layer (e.g., `security_classification: 'UNCLASSIFIED'`)
+- **Files Affected:** `/backend-node/src/modules/business-operation/business-operation.service.ts`
+
+**9. Undefined Field Safety in React**
+- **Problem:** Optional fields cause runtime errors when calling methods like `.replace()`
+- **Solution:** Use optional chaining and provide fallback values
+- **Example:** `program.securityClassification ? program.securityClassification.replace('_', ' ') : 'Unclassified'`
+- **Files Affected:**
+  - `/frontend/src/components/business-operations/ProductProgramsList.tsx`
+  - `/frontend/src/components/business-operations/ProductProgramDetail.tsx`
+
+**10. React Router Navigation After Login**
+- **Problem:** Login page would stay in history causing "already visited site" navigation
+- **Solution:** Use `navigate(path, { replace: true })` to replace history entry
+- **Files Affected:** `/frontend/src/pages/LoginPage.tsx`
+
+#### Development Best Practices Reinforced
+
+**Prisma Development Patterns:**
+- Always regenerate Prisma client after schema changes
+- Reference generated types from `@prisma/client` for type safety
+- Check relation names in generated client before writing queries
+- Use snake_case for database field names consistently
+
+**Type Safety:**
+- Create conversion functions for enum mappings between frontend/backend
+- Use TypeScript strict null checks to catch undefined access
+- Add optional chaining for all potentially undefined fields
+
+**Error Handling:**
+- Implement specific error messages that help users understand the issue
+- Log full error details server-side for debugging
+- Validate all foreign key references before database operations
+
+**Authentication:**
+- Support auth bypass mode for development environments
+- Make user nullable in development mode
+- Add proper permission checks for production
+
+#### QA Review Outcomes
+
+**Code Quality:** Good - Fixed multiple schema alignment issues and improved type safety
+**Security:** Secure - Proper role-based access control with permission validation
+**Performance:** Optimized - Efficient Prisma queries with proper includes
+**Maintainability:** Improved - Added conversion helpers and better error handling
 
 ### Story 2.1 - Knowledge Source Configuration (September 2025)
 

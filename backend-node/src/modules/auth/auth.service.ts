@@ -1132,7 +1132,7 @@ export class AuthenticationService {
       id: 'dan-demont-user-id',
       username: 'dan.demont',
       email: 'dan.demo@tip.gov',
-      roles: ['program_manager', 'user'],
+      roles: ['Admin', 'program_manager', 'user'],
       person: {
         id: 'dan-demont-person-id',
         firstName: 'Dan',

@@ -118,7 +118,6 @@ async function enhancedTransitionRoutes(server) {
                         default: 'NOT_STARTED'
                     },
                     requiresContinuousService: { type: 'boolean', default: true },
-                    createdBy: { type: 'string' },
                 },
             },
             response: {

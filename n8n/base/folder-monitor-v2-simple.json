@@ -1,0 +1,315 @@
+{
+  "name": "Folder Monitor v2 - Simple",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "schedule-trigger"
+    },
+    {
+      "parameters": {
+        "command": "cd /data/uploads && find . -maxdepth 1 -type f ! -name '.*' | sed 's|^./||'"
+      },
+      "name": "List Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "id": "list-files"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse file list and check database in one step\nconst items = $input.all();\nconst output = items[0]?.json?.stdout || '';\nconst files = output.split('\\n').filter(f => f.trim().length > 0 && f !== 'processed');\n\nif (files.length === 0) {\n  return [];\n}\n\n// Return array of files to process\nconst results = files.map(filename => ({\n  json: {\n    filename: filename,\n    file_path: `/data/uploads/${filename}`\n  }\n}));\n\nreturn results;"
+      },
+      "name": "Parse Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "id": "parse-files"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if file already processed by checking if it has timestamp prefix\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const filename = item.json.filename;\n  \n  // If filename starts with digits followed by underscore, it's already processed\n  const isProcessed = /^\\d+_/.test(filename);\n  \n  if (!isProcessed) {\n    results.push(item);\n  }\n}\n\nreturn results;"
+      },
+      "name": "Filter Unprocessed Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "id": "filter-unprocessed"
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.file_path }}",
+        "options": {}
+      },
+      "name": "Read File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "read-file"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process file metadata\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const binaryData = item.binary;\n  \n  if (!binaryData || Object.keys(binaryData).length === 0) {\n    continue;\n  }\n  \n  const binaryKey = Object.keys(binaryData)[0];\n  const fileData = binaryData[binaryKey];\n  const originalFilename = item.json.filename;\n  const extension = originalFilename.split('.').pop() || 'bin';\n  const timestamp = Date.now();\n  const newFilename = `${timestamp}_${originalFilename}`;\n  \n  let fileSizeBytes = 0;\n  if (fileData.data) {\n    fileSizeBytes = Buffer.from(fileData.data, 'base64').length;\n  }\n  \n  results.push({\n    json: {\n      original_filename: originalFilename,\n      new_filename: newFilename,\n      file_extension: extension,\n      file_path_original: `/data/uploads/${originalFilename}`,\n      file_path_renamed: `/data/uploads/${newFilename}`,\n      file_path_processed: `/data/uploads/processed/${newFilename}`,\n      file_size_bytes: fileSizeBytes,\n      mime_type: fileData.mimeType || 'application/octet-stream',\n      upload_timestamp: new Date().toISOString()\n    },\n    binary: {\n      file: fileData\n    }\n  });\n}\n\nreturn results;"
+      },
+      "name": "Generate Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ],
+      "id": "generate-metadata"
+    },
+    {
+      "parameters": {
+        "fileName": "={{ $json.file_path_renamed }}",
+        "dataPropertyName": "file"
+      },
+      "name": "Write Renamed File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ],
+      "id": "write-renamed"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (filename, original_filename, file_path, file_size, mime_type, file_extension, metadata)\nVALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)\nRETURNING id, filename;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.new_filename,\n  $json.original_filename,\n  $json.file_path_processed,\n  $json.file_size_bytes,\n  $json.mime_type,\n  $json.file_extension,\n  JSON.stringify({ upload_timestamp: $json.upload_timestamp, source: 'folder_monitor' })\n] }}"
+        }
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1780,
+        300
+      ],
+      "id": "save-db",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-tip",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "doc_id",
+              "name": "document_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "db_filename",
+              "name": "db_filename",
+              "value": "={{ $json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_original",
+              "name": "file_path_original",
+              "value": "={{ $node['Generate Metadata'].json.file_path_original }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_renamed",
+              "name": "file_path_renamed",
+              "value": "={{ $node['Generate Metadata'].json.file_path_renamed }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_processed",
+              "name": "file_path_processed",
+              "value": "={{ $node['Generate Metadata'].json.file_path_processed }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        2000,
+        300
+      ],
+      "id": "merge-paths"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'mv \"' + $json.file_path_renamed + '\" \"' + $json.file_path_processed + '\"' }}"
+      },
+      "name": "Move to Processed",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        300
+      ],
+      "id": "move-processed"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'rm \"' + $json.file_path_original + '\"' }}"
+      },
+      "name": "Delete Original",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        300
+      ],
+      "id": "delete-original"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Files": {
+      "main": [
+        [
+          {
+            "node": "Parse Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Files": {
+      "main": [
+        [
+          {
+            "node": "Filter Unprocessed Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Unprocessed Files": {
+      "main": [
+        [
+          {
+            "node": "Read File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read File": {
+      "main": [
+        [
+          {
+            "node": "Generate Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Metadata": {
+      "main": [
+        [
+          {
+            "node": "Write Renamed File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Renamed File": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [
+          {
+            "node": "Move to Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move to Processed": {
+      "main": [
+        [
+          {
+            "node": "Delete Original",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

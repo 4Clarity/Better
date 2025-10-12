@@ -91,17 +91,20 @@ async function userManagementRoutes(fastify) {
             return reply.code(500).send({ error: 'Failed to resend invitation' });
         }
     });
-    // Update user status
+    // Update user status with enhanced validation and audit trail
     fastify.put('/users/:id/status', async (request, reply) => {
         try {
             const { id } = request.params;
-            const { accountStatus, statusReason } = request.body;
-            const deactivatedBy = accountStatus === 'DEACTIVATED' ? 'current-user-id' : undefined;
-            const user = await userService.updateUserStatus({
+            const { accountStatus, statusReason, reasonCode } = request.body;
+            const adminId = 'current-user-id'; // This should come from JWT token
+            // Validate and update user status (includes user existence check)
+            const user = await userService.updateUserStatusWithValidation({
                 userId: id,
                 accountStatus,
                 statusReason,
-                deactivatedBy,
+                reasonCode,
+                adminId,
+                deactivatedBy: accountStatus === 'DEACTIVATED' ? adminId : undefined,
             });
             return reply.code(200).send({
                 message: 'User status updated successfully',
@@ -115,6 +118,50 @@ async function userManagementRoutes(fastify) {
         catch (error) {
             fastify.log.error(error);
             return reply.code(500).send({ error: 'Failed to update user status' });
+        }
+    });
+    // Get user status history for audit trail
+    fastify.get('/users/:id/status-history', async (request, reply) => {
+        try {
+            const { id } = request.params;
+            // Verify user exists
+            const user = await userService.getUserById(id);
+            if (!user) {
+                return reply.code(404).send({ error: 'User not found' });
+            }
+            const history = await userService.getUserStatusHistory(id);
+            return reply.code(200).send({
+                userId: id,
+                statusHistory: history,
+            });
+        }
+        catch (error) {
+            fastify.log.error(error);
+            return reply.code(500).send({ error: 'Failed to fetch user status history' });
+        }
+    });
+    // Approve status change (for approval workflow)
+    fastify.put('/users/:id/approve-status', async (request, reply) => {
+        try {
+            const { id } = request.params;
+            const { approved, approvalReason } = request.body;
+            const adminId = 'current-user-id'; // This should come from JWT token
+            // TODO: Implement approval workflow
+            // For now, this is a placeholder for future enhancement
+            return reply.code(200).send({
+                message: approved ? 'Status change approved' : 'Status change rejected',
+                approval: {
+                    userId: id,
+                    approved,
+                    approvalReason,
+                    approvedBy: adminId,
+                    approvedAt: new Date(),
+                },
+            });
+        }
+        catch (error) {
+            fastify.log.error(error);
+            return reply.code(500).send({ error: 'Failed to process status approval' });
         }
     });
     // Reactivate suspended user account
@@ -138,6 +185,7 @@ async function userManagementRoutes(fastify) {
                 userId: id,
                 accountStatus: 'ACTIVE',
                 statusReason: reason || 'Account reactivated',
+                adminId: reactivatedBy,
                 deactivatedBy: undefined, // Clear the deactivation info
             });
             return reply.code(200).send({

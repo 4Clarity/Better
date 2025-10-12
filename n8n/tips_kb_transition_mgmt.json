@@ -1,0 +1,339 @@
+{
+  "name": "Transition Management Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trans-start",
+      "name": "Start - Transition Event",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this transition:\\n\\nEvent: {{ $json.event_description }}\\nImpact: {{ $json.systems_affected }}\\nUsers affected: {{ $json.user_count }} ({{ $json.user_roles }})\\n\\nDetermine:\\n- Transition type: major | minor | personnel\\n- Severity: critical | high | medium | low\\n- Automation workflows to trigger\\n\\nReturn classification JSON\"\n    }\n  ]\n}",
+        "headerParametersJson": "={\n  \"anthropic-version\": \"2023-06-01\",\n  \"content-type\": \"application/json\"\n}"
+      },
+      "id": "classify-transition",
+      "name": "Claude - Classify Transition",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Claude API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse classification and load config\nconst response = $input.first().json;\nconst classification = JSON.parse(response.content[0].text);\nconst eventData = $input.item(1).json;\n\nreturn [{\n  json: {\n    transition_id: `trans-${Date.now()}`,\n    ...eventData,\n    classification: classification,\n    transition_type: classification.transition_type,\n    severity: classification.severity,\n    initiated_date: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "parse-transition",
+      "name": "Parse Transition Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "operation": "findOne",
+        "collection": "transition_configs",
+        "query": "={ \"transition_type\": \"{{ $json.transition_type }}\" }",
+        "options": {}
+      },
+      "id": "load-config",
+      "name": "Load Transition Configuration",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare parallel workflows based on config\nconst transData = $input.first().json;\nconst config = $input.item(1).json;\n\nconst workflows = [];\n\n// Determine which workflows to trigger\nif (config.offboarding_requirements.survey_depth !== 'none') {\n  workflows.push({\n    workflow_name: 'offboarding',\n    workflow_id: 'user_offboarding_workflow_id',\n    params: {\n      user_ids: transData.affected_users,\n      survey_type: config.offboarding_requirements.survey_depth\n    }\n  });\n}\n\nif (config.onboarding_requirements.roadmap_update === 'required') {\n  workflows.push({\n    workflow_name: 'roadmap_update',\n    workflow_id: 'roadmap_update_workflow_id',\n    params: {\n      products: transData.affected_products\n    }\n  });\n}\n\nworkflows.push({\n  workflow_name: 'documentation_review',\n  workflow_id: 'doc_review_workflow_id',\n  params: {\n    document_ids: transData.affected_documents,\n    priority: config.offboarding_requirements.documentation_priority\n  }\n});\n\nworkflows.push({\n  workflow_name: 'communication',\n  workflow_id: 'communication_workflow_id',\n  params: {\n    stakeholders: transData.stakeholders,\n    urgency: transData.severity\n  }\n});\n\nreturn workflows.map(w => ({ json: { ...transData, config: config, workflow: w } }));"
+      },
+      "id": "prepare-workflows",
+      "name": "Prepare Parallel Workflows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "mode": "multiplex"
+      },
+      "id": "split-workflows",
+      "name": "Split to Parallel Execution",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.workflow.workflow_name }}",
+              "operation": "equals",
+              "value2": "offboarding"
+            }
+          ]
+        }
+      },
+      "id": "route-workflow-type",
+      "name": "Route Workflow Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1450, 400],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "rules": [
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "offboarding"}]
+              },
+              "renameOutput": true,
+              "outputKey": "offboarding"
+            },
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "roadmap_update"}]
+              },
+              "renameOutput": true,
+              "outputKey": "roadmap_update"
+            },
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "documentation_review"}]
+              },
+              "renameOutput": true,
+              "outputKey": "documentation"
+            },
+            {
+              "conditions": {
+                "string": [{"value1": "={{ $json.workflow.workflow_name }}", "value2": "communication"}]
+              },
+              "renameOutput": true,
+              "outputKey": "communication"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow.workflow_id }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "name": "user_ids",
+              "value": "={{ JSON.stringify($json.workflow.params.user_ids) }}"
+            },
+            {
+              "name": "survey_type",
+              "value": "={{ $json.workflow.params.survey_type }}"
+            },
+            {
+              "name": "transition_context",
+              "value": "={{ $json.transition_id }}"
+            }
+          ]
+        }
+      },
+      "id": "exec-offboarding",
+      "name": "Execute Offboarding Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "documents",
+        "query": "={ \"_id\": { \"$in\": {{ JSON.stringify($json.workflow.params.document_ids) }} } }",
+        "options": {}
+      },
+      "id": "get-docs-for-review",
+      "name": "Get Documents for Review",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flag all documents for review\nconst docs = $input.first().json.documents || [];\nconst transData = $input.item(1).json;\n\nconst reviewTasks = docs.map(doc => ({\n  task_id: `review-${Date.now()}-${doc._id}`,\n  document_id: doc._id,\n  transition_id: transData.transition_id,\n  priority: transData.config.offboarding_requirements.documentation_priority,\n  status: 'pending',\n  created_date: new Date().toISOString()\n}));\n\nreturn reviewTasks.map(task => ({ json: task }));"
+      },
+      "id": "create-review-tasks",
+      "name": "Create Review Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insertMany",
+        "collection": "review_tasks",
+        "fields": "task_id,document_id,transition_id,priority,status,created_date",
+        "options": {}
+      },
+      "id": "store-review-tasks",
+      "name": "Store Review Tasks",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate communication messages\nconst transData = $input.first().json;\n\nlet message = '';\nlet urgencyEmoji = '';\n\nif (transData.severity === 'critical') {\n  urgencyEmoji = '🚨';\n  message = `CRITICAL TRANSITION: ${transData.event_description}`;\n} else if (transData.severity === 'high') {\n  urgencyEmoji = '⚠️';\n  message = `Important Transition: ${transData.event_description}`;\n} else {\n  urgencyEmoji = 'ℹ️';\n  message = `Transition Notice: ${transData.event_description}`;\n}\n\nreturn [{\n  json: {\n    ...transData,\n    notification_message: `${urgencyEmoji} *${transData.transition_type.toUpperCase()} TRANSITION*\\n\\n${message}\\n\\n*Affected Systems:* ${transData.affected_products.join(', ')}\\n*Affected Users:* ${transData.affected_users.length}\\n*Timeline:* ${transData.config.offboarding_requirements.transition_time_days} days\\n\\nActions required: Check your task queue for specific items.`\n  }\n}];"
+      },
+      "id": "prepare-notification",
+      "name": "Prepare Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 600]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $json.notification_channel }}",
+        "text": "={{ $json.notification_message }}",
+        "otherOptions": {}
+      },
+      "id": "send-slack-notification",
+      "name": "Send Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1850, 600],
+      "credentials": {
+        "slackApi": {
+          "id": "5",
+          "name": "Slack TIPS Team"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.email_service_url }}",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"to\": {{ JSON.stringify($json.stakeholder_emails) }},\n  \"subject\": \"{{ $json.transition_type.toUpperCase() }} Transition Initiated - {{ $json.event_description }}\",\n  \"body\": \"{{ $json.notification_message }}\\n\\nFor more details and to track progress, visit: {{ $json.transition_portal_url }}\"\n}"
+      },
+      "id": "send-email-notification",
+      "name": "Send Email Notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2050, 600]
+    },
+    {
+      "parameters": {
+        "mode": "once"
+      },
+      "id": "merge-workflow-results",
+      "name": "Merge Workflow Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2250, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate results from all workflows\nconst results = $input.all();\n\nconst summary = {\n  offboarding_initiated: results.some(r => r.json.workflow_name === 'offboarding'),\n  documentation_flagged: results.filter(r => r.json.workflow_name === 'documentation_review').length,\n  notifications_sent: results.some(r => r.json.workflow_name === 'communication'),\n  roadmap_updated: results.some(r => r.json.workflow_name === 'roadmap_update')\n};\n\nconst transData = results[0].json;\n\nreturn [{\n  json: {\n    transition_id: transData.transition_id,\n    status: 'workflows_initiated',\n    summary: summary,\n    next_steps: [\n      'Monitor offboarding survey completion',\n      'Track document review progress',\n      'Update baseline when ready'\n    ]\n  }\n}];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Workflow Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "transitions",
+        "fields": "transition_id,transition_type,severity,status,summary,initiated_date",
+        "options": {}
+      },
+      "id": "store-transition",
+      "name": "Store Transition Record",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monitor transition completion\nconst trans = $input.first().json;\n\nreturn [{\n  json: {\n    status: 'success',\n    transition_id: trans.transition_id,\n    message: `${trans.transition_type} transition initiated successfully`,\n    workflows_started: Object.keys(trans.summary).filter(k => trans.summary[k]).length,\n    monitoring_url: `${trans.portal_url}/transitions/${trans.transition_id}`\n  }\n}];"
+      },
+      "id": "final-trans-response",
+      "name": "Generate Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2850, 400]
+    }
+  ],
+  "connections": {
+    "Start - Transition Event": {
+      "main": [[{"node": "Claude - Classify Transition", "type": "main", "index": 0}]]
+    },
+    "Claude - Classify Transition": {
+      "main": [[{"node": "Parse Transition Classification", "type": "main", "index": 0}]]
+    },
+    "Parse Transition Classification": {
+      "main": [[{"node": "Load Transition Configuration", "type": "main", "index": 0}]]
+    },
+    "Load Transition Configuration": {
+      "main": [[{"node": "Prepare Parallel Workflows", "type": "main", "index": 0}]]
+    },
+    "Prepare Parallel Workflows": {
+      "main": [[{"node": "Split to Parallel Execution", "type": "main", "index": 0}]]
+    },
+    "Split to Parallel Execution": {
+      "main": [[{"node": "Route Workflow Type", "type": "main", "index": 0}]]
+    },
+    "Route Workflow Type": {
+      "main": [
+        [{"node": "Execute Offboarding Workflow", "type": "main", "index": 0}],
+        [{"node": "Merge Workflow Results", "type": "main", "index": 0}],
+        [{"node": "Get Documents for Review", "type": "main", "index": 0}],
+        [{"node": "Prepare Notification", "type": "main", "index": 0}]
+      ]
+    },
+    "Execute Offboarding Workflow": {
+      "main": [[{"node": "Merge Workflow Results", "type": "main", "index": 0}]]
+    },
+    "Get Documents for Review": {
+      "main": [[{"node": "Create Review Tasks", "type": "main", "index": 0}]]
+    },
+    "Create Review Tasks": {
+      "main": [[{"node": "Store Review Tasks", "type": "main", "index": 0}]]
+    },
+    "Store Review Tasks": {
+      "main": [[{"node": "Merge Workflow Results", "type": "main", "index": 0}]]
+    },
+    "Prepare Notification": {
+      "main": [[{"node": "Send Slack Notification", "type": "main", "index": 0}]]
+    },
+    "Send Slack Notification": {
+      "main": [[{"node": "Send Email Notifications", "type": "main", "index": 0}]]
+    },
+    "Send Email Notifications": {
+      "main": [[{"node": "Merge Workflow Results", "type": "main", "index": 0}]]
+    },
+    "Merge Workflow Results": {
+      "main": [[{"node": "Aggregate Workflow Results", "type": "main", "index": 0}]]
+    },
+    "Aggregate Workflow Results": {
+      "main": [[{"node": "Store Transition Record", "type": "main", "index": 0}]]
+    },
+    "Store Transition Record": {
+      "main": [[{"node": "Generate Response", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

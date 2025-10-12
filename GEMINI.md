@@ -1,7 +1,3 @@
-# GEMINI.md - Transition Intelligence Platform (TIP)
-
-This document provides a comprehensive overview of the Transition Intelligence Platform (TIP) project, designed to serve as a quick-start guide and instructional context for AI-powered development.
-
 # Project Awareness and Context
 
 - Always read implementation-plan.md at the start of a new conversation to understand the project's architecture, goals, style, and constraints.
@@ -14,6 +10,9 @@ This document provides a comprehensive overview of the Transition Intelligence P
 - Never create a file longer than 500 lines of code. If a file approaches this limit, refactor by splitting it into modules or helper files.
 - Organize code into clearly separated modules, grouped by feature or responsibility.
 - Use clear, consistent imports (prefer relative imports within packages).
+- Use snake_case naming convention for all data field definitions, across tables, prisma schema and migration scripts.
+- Use camelCase naming convention for all objects and classes.
+- Use hyphens (dashes-between-words) for file naming convention.
 
 ## Testing and Reliabiity
 - Create tests first following a test driven development cycle
@@ -27,6 +26,7 @@ This document provides a comprehensive overview of the Transition Intelligence P
   
 ## MCP's
 - Context7 - Lookup relevant feature documentation for analysis
+- N8N - Lookup n8n documentation and node implementation details
 
 
 ## When asked to design UI & frontend interface
@@ -44,6 +44,17 @@ This document provides a comprehensive overview of the Transition Intelligence P
 7. **Test migration scripts in development before production**
 8. **Document database user roles and permissions clearly**
 9. **New Migrations, seed new data tables with one test record**
+10. **Rebuild and restart docker containers after schema modifications**
+11. **Define TypeScript interfaces for complex navigation/data structures**
+12. **Create hierarchical navigation using subItems pattern for better UX**
+13. **Remove duplicate navigation elements (consolidate tabs into sidebar)**
+14. **Group related navigation items under logical parent categories**
+15. **Normalize role names when mapping between database and UI display formats**
+16. **Use Docker service names (not localhost) in container-to-container communication**
+17. **Never use JSX syntax in .ts files - use .tsx or refactor to helper functions**
+18. **Monitor Docker disk space - run `docker system prune` regularly to prevent "no space" errors**
+19. **Match API response structure to frontend interfaces to avoid runtime errors**
+20. **Create comprehensive permission matrices before implementing RBAC features**
 
 ## Future Prevention Checklist
 
@@ -54,18 +65,21 @@ This document provides a comprehensive overview of the Transition Intelligence P
 - [ ] Test error scenarios and user-facing error messages
 - [ ] Document database setup procedures for team members
 - [ ] Create rollback plans for schema changes
-## 1. Project Overview
-
-The Transition Intelligence Platform (TIP) is an AI-powered SaaS platform built to streamline government contract transitions. It features a multi-service, containerized architecture designed for scalability and robust local development.
 
 ### Core Technologies & Architecture:
 
 *   **Frontend:** A modern user interface built with **React** and **TypeScript**, using **Vite** for the build tooling.
-*   **Backend (Primary API):** A **Node.js** service using the **Express** framework and **Prisma** as the ORM for database interactions. This service handles the core business logic.
+*   **Backend (Primary API):** A **Node.js** service using the **Fastify** framework and **Prisma** as the ORM for database interactions. This service handles the core business logic.
 *   **Backend (AI/ML):** A **Python** service dedicated to AI, machine learning, and heavy data processing tasks.
 *   **Database:** **PostgreSQL** is the primary relational database.
 *   **Authentication:** Managed by **Keycloak**, providing robust, production-ready SSO capabilities. For development, the system uses JWTs and includes a simple "demo login" and an auth bypass mode.
 *   **Infrastructure & Orchestration:** The entire environment is containerized using **Docker** and orchestrated with **Docker Compose**. **Traefik** is used as a reverse proxy to manage routing to the various services under local hostnames. **MinIO** provides an S3-compatible object storage solution.
+
+### Key Documentation References:
+
+*   **Tech Stack:** See /Users/richardroach/Documents/Builder_Projects/Better/docs/technical/tech-stack.md for complete approved technology specifications
+*   **Source Tree:** See /Users/richardroach/Documents/Builder_Projects/Better/docs/technical/specifications/source-tree-integration.md for project file structure
+*   **Coding Standards:** See /Users/richardroach/Documents/Builder_Projects/Better/docs/technical/specifications/coding-standards-and-conventions.md for development conventions
 
 ### Key Directories:
 
@@ -91,7 +105,7 @@ The project is designed to be run entirely within Docker containers.
     ```
 2.  **Update `/etc/hosts`:** Add the following entries to your local hosts file to enable the custom domains used by the reverse proxy.
     ```text
-    127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost
+    127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost mail.tip.localhost pgadmin.tip.localhost
     ```
 
 ### Core Commands:
@@ -109,7 +123,7 @@ The project is designed to be run entirely within Docker containers.
     ```
 *  **General Startup**
     ```bash
-    docker-compose up -d --build backend-node reverse-proxy frontend db
+    docker-compose up -d --build backend-node reverse-proxy frontend db n8n
     ```
 
 *   **Stop Services:**
@@ -124,8 +138,11 @@ Once running, the services are available at these local URLs:
 *   **Frontend:** [http://tip.localhost](http://tip.localhost)
 *   **Node.js API:** [http://api.tip.localhost](http://api.tip.localhost)
 *   **Python API:** [http://py.tip.localhost](http://py.tip.localhost)
-*   **Traefik Dashboard:** [http://localhost:8080](http://localhost:8080)
+*   **Traefik Dashboard:** [http://localhost:8081](http://localhost:8081)
 *   **Keycloak (Auth):** [http://auth.tip.localhost](http://auth.tip.localhost)
+*   **n8n Workflows:** [http://n8n.tip.localhost](http://n8n.tip.localhost)
+*   **MailHog:** [http://mail.tip.localhost](http://mail.tip.localhost)
+*   **pgAdmin (Database):** [http://pgadmin.tip.localhost](http://pgadmin.tip.localhost) - Login: admin@admin.com / admin
 
 ## 3. Development Conventions
 

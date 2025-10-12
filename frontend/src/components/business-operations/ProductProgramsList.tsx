@@ -187,7 +187,7 @@ export function ProductProgramsList() {
                       program.securityClassification
                     )}`}
                   >
-                    {program.securityClassification.replace('_', ' ')}
+                    {program.securityClassification ? program.securityClassification.replace('_', ' ') : 'Unclassified'}
                   </span>
                 </div>
 

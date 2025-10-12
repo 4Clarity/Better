@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LoginForm from '../components/auth/LoginForm';
 import EmailFirstLoginForm from '../components/auth/EmailFirstLoginForm';
@@ -10,13 +11,20 @@ interface LoginPageProps {
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const [useEmailFirst, setUseEmailFirst] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    // If already authenticated, call success callback
-    if (isAuthenticated && onLoginSuccess) {
-      onLoginSuccess();
+    // If already authenticated, navigate to intended destination or dashboard
+    if (isAuthenticated) {
+      const from = (location.state as any)?.from?.pathname || '/dashboard';
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      } else {
+        navigate(from, { replace: true });
+      }
     }
-  }, [isAuthenticated, onLoginSuccess]);
+  }, [isAuthenticated, navigate, location, onLoginSuccess]);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -50,7 +58,14 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
               </p>
             </div>
             <button
-              onClick={() => onLoginSuccess?.()}
+              onClick={() => {
+                const from = (location.state as any)?.from?.pathname || '/dashboard';
+                if (onLoginSuccess) {
+                  onLoginSuccess();
+                } else {
+                  navigate(from, { replace: true });
+                }
+              }}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Continue to Application

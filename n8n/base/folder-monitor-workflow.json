@@ -1,0 +1,374 @@
+{
+  "name": "Folder Monitor - Auto Process",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "schedule-trigger"
+    },
+    {
+      "parameters": {
+        "command": "find /data/uploads -maxdepth 1 -type f -name '*.*' ! -name '.*' -printf '%f\\n'"
+      },
+      "name": "List Files in Uploads",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "id": "list-files"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the file list from command output\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const output = item.json.stdout || '';\n  const files = output.split('\\n').filter(f => f.trim().length > 0);\n  \n  for (const filename of files) {\n    results.push({\n      json: {\n        filename: filename,\n        file_path: `/data/uploads/${filename}`\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "name": "Parse File List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "id": "parse-files"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT filename FROM documents WHERE filename = $1;",
+        "options": {
+          "queryReplacement": "={{ [$json.filename] }}"
+        }
+      },
+      "name": "Check If Already Processed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        900,
+        300
+      ],
+      "id": "check-processed",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-tip",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "not-in-db",
+              "leftValue": "={{ $json.filename }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Filter Unprocessed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "filter-unprocessed"
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $('Parse File List').item.json.file_path }}",
+        "options": {}
+      },
+      "name": "Read Binary File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        200
+      ],
+      "id": "read-binary"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process the binary file data\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const binaryData = item.binary;\n  \n  if (!binaryData || Object.keys(binaryData).length === 0) {\n    console.log('No binary data for:', item.json.filename);\n    continue;\n  }\n  \n  const binaryKey = Object.keys(binaryData)[0];\n  const fileData = binaryData[binaryKey];\n  const originalFilename = item.json.filename;\n  const extension = originalFilename.split('.').pop() || 'bin';\n  const timestamp = Date.now();\n  const newFilename = `${timestamp}_${originalFilename}`;\n  \n  // Calculate file size\n  let fileSizeBytes = 0;\n  if (fileData.data) {\n    fileSizeBytes = Buffer.from(fileData.data, 'base64').length;\n  }\n  \n  results.push({\n    json: {\n      timestamp: timestamp,\n      original_filename: originalFilename,\n      new_filename: newFilename,\n      file_extension: extension,\n      file_path_original: `/data/uploads/${originalFilename}`,\n      file_path_renamed: `/data/uploads/${newFilename}`,\n      file_path_processed: `/data/uploads/processed/${newFilename}`,\n      file_size_bytes: fileSizeBytes,\n      mime_type: fileData.mimeType || 'application/octet-stream',\n      upload_timestamp: new Date().toISOString()\n    },\n    binary: {\n      file: fileData\n    }\n  });\n}\n\nreturn results;"
+      },
+      "name": "Process File Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        200
+      ],
+      "id": "process-file-data"
+    },
+    {
+      "parameters": {
+        "fileName": "={{ $json.file_path_renamed }}",
+        "dataPropertyName": "file"
+      },
+      "name": "Write Renamed File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        200
+      ],
+      "id": "write-renamed"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (filename, original_filename, file_path, file_size, mime_type, file_extension, metadata)\nVALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)\nRETURNING id, filename;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.new_filename,\n  $json.original_filename,\n  $json.file_path_processed,\n  $json.file_size_bytes,\n  $json.mime_type,\n  $json.file_extension,\n  JSON.stringify({ upload_timestamp: $json.upload_timestamp, source: 'folder_monitor' })\n] }}"
+        }
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2000,
+        200
+      ],
+      "id": "save-to-db",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-tip",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "document_id",
+              "name": "document_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "db_filename",
+              "name": "db_filename",
+              "value": "={{ $json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_original",
+              "name": "file_path_original",
+              "value": "={{ $('Process File Data').item.json.file_path_original }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_renamed",
+              "name": "file_path_renamed",
+              "value": "={{ $('Process File Data').item.json.file_path_renamed }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path_processed",
+              "name": "file_path_processed",
+              "value": "={{ $('Process File Data').item.json.file_path_processed }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        2220,
+        200
+      ],
+      "id": "merge-paths"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'mv \"' + $json.file_path_renamed + '\" \"' + $json.file_path_processed + '\"' }}"
+      },
+      "name": "Move to Processed",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        200
+      ],
+      "id": "move-processed"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'rm \"' + $json.file_path_original + '\"' }}"
+      },
+      "name": "Delete Original",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        200
+      ],
+      "id": "delete-original"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Files in Uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Files in Uploads": {
+      "main": [
+        [
+          {
+            "node": "Parse File List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse File List": {
+      "main": [
+        [
+          {
+            "node": "Check If Already Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Already Processed": {
+      "main": [
+        [
+          {
+            "node": "Filter Unprocessed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Unprocessed": {
+      "main": [
+        [
+          {
+            "node": "Read Binary File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Binary File": {
+      "main": [
+        [
+          {
+            "node": "Process File Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process File Data": {
+      "main": [
+        [
+          {
+            "node": "Write Renamed File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Renamed File": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [
+          {
+            "node": "Move to Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move to Processed": {
+      "main": [
+        [
+          {
+            "node": "Delete Original",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-06T21:00:00.000Z"
+}

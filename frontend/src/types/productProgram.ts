@@ -84,3 +84,40 @@ export interface DeleteProductProgramResponse {
   success: boolean;
   message: string;
 }
+
+// Stakeholder Types (Story 4.2 - Phase 1)
+
+export interface ProductProgramStakeholder {
+  id: string;
+  productProgramId: string;
+  userId: string;
+  role: string | null;
+  assignedAt: string;
+  assignedBy: string;
+  user: User;
+  assignedByUser: User;
+}
+
+export interface AddStakeholderRequest {
+  userId: string;
+  role?: string;
+}
+
+export interface UpdateStakeholderRoleRequest {
+  role: string | null;
+}
+
+export interface StakeholderResponse {
+  success: boolean;
+  data: ProductProgramStakeholder;
+}
+
+export interface StakeholdersListResponse {
+  success: boolean;
+  data: ProductProgramStakeholder[];
+}
+
+export interface RemoveStakeholderResponse {
+  success: boolean;
+  message: string;
+}

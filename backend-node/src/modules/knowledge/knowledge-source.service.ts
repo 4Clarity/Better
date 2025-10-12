@@ -53,7 +53,7 @@ export class KnowledgeSourceService {
       }
     });
 
-    return sources.map(this.transformKnowledgeSource);
+    return sources.map(source => this.transformKnowledgeSource(source));
   }
 
   async getKnowledgeSourceById(id: string) {
@@ -109,7 +109,7 @@ export class KnowledgeSourceService {
         supportedOperations: data.supportedOperations || [],
         capabilities: data.capabilities || {},
         metadata: data.metadata || {},
-        configuredBy,
+        configuredBy: configuredBy || null,
         isActive: true,
         isEnabled: false, // Disabled by default until first successful health check
         lastSyncStatus: 'Never_Synced'

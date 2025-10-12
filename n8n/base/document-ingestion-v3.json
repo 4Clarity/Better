@@ -1,0 +1,191 @@
+{
+  "name": "Document Ingestion v3",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "file-upload",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "id": "webhook-v3",
+      "webhookId": "file-upload-v3"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ $now.toUnixInteger() }}",
+              "type": "number"
+            },
+            {
+              "id": "binary_key",
+              "name": "binary_key",
+              "value": "={{ Object.keys($binary)[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "original_filename",
+              "name": "original_filename",
+              "value": "={{ $binary[Object.keys($binary)[0]].fileName }}",
+              "type": "string"
+            },
+            {
+              "id": "file_extension",
+              "name": "file_extension",
+              "value": "={{ $binary[Object.keys($binary)[0]].fileName.split('.').pop() }}",
+              "type": "string"
+            },
+            {
+              "id": "new_filename",
+              "name": "new_filename",
+              "value": "={{ $json.timestamp + '_' + $json.original_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "file_path",
+              "name": "file_path",
+              "value": "={{ '/data/uploads/' + $json.new_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "file_size_bytes",
+              "name": "file_size_bytes",
+              "value": "={{ $binary[Object.keys($binary)[0]].data ? Buffer.from($binary[Object.keys($binary)[0]].data, 'base64').length : 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "mime_type",
+              "name": "mime_type",
+              "value": "={{ $binary[Object.keys($binary)[0]].mimeType || 'application/octet-stream' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        460,
+        300
+      ],
+      "id": "set-metadata-v3"
+    },
+    {
+      "parameters": {
+        "fileName": "={{ $json.file_path }}",
+        "dataPropertyName": "={{ $json.binary_key }}"
+      },
+      "name": "Write File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ],
+      "id": "write-file-v3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (filename, original_filename, file_path, file_size, mime_type, file_extension, metadata)\nVALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)\nRETURNING id, filename, original_filename, file_size;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.new_filename,\n  $json.original_filename,\n  $json.file_path,\n  $json.file_size_bytes,\n  $json.mime_type,\n  $json.file_extension,\n  JSON.stringify({ upload_timestamp: $now.toISO() })\n] }}"
+        }
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        900,
+        300
+      ],
+      "id": "postgres-v3",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-tip",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"document_id\": $json.id,\n  \"filename\": $json.filename,\n  \"original_filename\": $json.original_filename,\n  \"file_size\": $json.file_size,\n  \"message\": \"Document uploaded and saved successfully\"\n} }}"
+      },
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "response-v3"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Metadata": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write File": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-06T20:15:00.000Z"
+}

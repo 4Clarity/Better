@@ -92,13 +92,15 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
       supportPeriodEnd: endDate,
       currentContractEnd: contractEndDate,
       performanceMetrics: data.performanceMetrics || {},
+      deliverables: data.deliverables || '', // Default empty string if not provided
+      security_classification: data.security_classification || 'UNCLASSIFIED', // Default to UNCLASSIFIED
       // Use validated currentManagerId
       currentManagerId: validCurrentManagerId,
     };
     
     console.log('Creating business operation with data:', JSON.stringify(createData, null, 2));
     
-    const businessOperation = await prisma.businessOperation.create({
+    const businessOperation = await prisma.product_programs.create({
       data: createData,
       include: {
         governmentPM: {
@@ -186,7 +188,7 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
     }
 
     const [data, total] = await Promise.all([
-      prisma.businessOperation.findMany({
+      prisma.product_programs.findMany({
         where,
         skip,
         take: limit,
@@ -224,7 +226,7 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
           }
         }
       }),
-      prisma.businessOperation.count({ where })
+      prisma.product_programs.count({ where })
     ]);
 
     return {
@@ -243,7 +245,7 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
 }
 
 export async function getBusinessOperationById(id: string) {
-  const businessOperation = await prisma.businessOperation.findUnique({
+  const businessOperation = await prisma.product_programs.findUnique({
     where: { id },
     include: {
       governmentPM: {
@@ -353,7 +355,7 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
       }
     }
 
-    const businessOperation = await prisma.businessOperation.update({
+    const businessOperation = await prisma.product_programs.update({
       where: { id },
       data: updateData,
       include: {
@@ -433,7 +435,7 @@ export async function deleteBusinessOperation(id: string) {
     throw new Error('Cannot delete business operation with active contracts');
   }
 
-  await prisma.businessOperation.delete({
+  await prisma.product_programs.delete({
     where: { id }
   });
 

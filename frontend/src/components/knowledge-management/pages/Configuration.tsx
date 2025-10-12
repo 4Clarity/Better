@@ -5,8 +5,9 @@ import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Alert, AlertDescription } from '../../ui/alert';
-import { Loader2, Plus, Database, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus, Database, AlertTriangle, Save, FolderOpen, Workflow, Network, Mail, ExternalLink, Server } from 'lucide-react';
 import { knowledgeSourceApi, type KnowledgeSource } from '../../../services/knowledgeSourceApi';
+import { settingsApi } from '../../../services/settingsApi';
 import { KnowledgeSourceConfigModal } from '../../KnowledgeManagement/KnowledgeSourceConfigModal';
 import { ConfigurationIntegrationCard } from '../../KnowledgeManagement/ConfigurationIntegrationCard';
 
@@ -18,9 +19,57 @@ export function Configuration() {
   const [editingSource, setEditingSource] = useState<KnowledgeSource | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Storage path settings
+  const [uploadPath, setUploadPath] = useState('');
+  const [maxFileSize, setMaxFileSize] = useState(0);
+  const [allowedFileTypes, setAllowedFileTypes] = useState<string[]>([]);
+  const [pathLoading, setPathLoading] = useState(false);
+  const [pathSaving, setPathSaving] = useState(false);
+  const [pathSuccess, setPathSuccess] = useState(false);
+
   useEffect(() => {
     loadKnowledgeSources();
+    loadStorageSettings();
   }, []);
+
+  const loadStorageSettings = async () => {
+    try {
+      setPathLoading(true);
+      const [path, maxSize, fileTypes] = await Promise.all([
+        settingsApi.getDocumentUploadPath(),
+        settingsApi.getMaxFileSize(),
+        settingsApi.getAllowedFileTypes(),
+      ]);
+      setUploadPath(path);
+      setMaxFileSize(maxSize);
+      setAllowedFileTypes(fileTypes);
+    } catch (err) {
+      console.error('Failed to load storage settings:', err);
+      // Initialize settings if they don't exist
+      try {
+        await settingsApi.initializeKnowledgeSettings();
+        await loadStorageSettings();
+      } catch (initErr) {
+        setError('Failed to initialize storage settings');
+      }
+    } finally {
+      setPathLoading(false);
+    }
+  };
+
+  const handleSaveUploadPath = async () => {
+    try {
+      setPathSaving(true);
+      setPathSuccess(false);
+      await settingsApi.updateDocumentUploadPath(uploadPath);
+      setPathSuccess(true);
+      setTimeout(() => setPathSuccess(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save upload path');
+    } finally {
+      setPathSaving(false);
+    }
+  };
 
   const loadKnowledgeSources = async () => {
     try {
@@ -114,6 +163,168 @@ export function Configuration() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
+          <Card className="p-6">
+            <h3 className="text-lg font-medium mb-4">Document Storage</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Document Upload Path
+                  <span className="text-xs text-muted-foreground ml-2">(Local folder or MinIO bucket name)</span>
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      value={uploadPath}
+                      onChange={(e) => setUploadPath(e.target.value)}
+                      placeholder="/data/uploads/documents"
+                      className="pl-10"
+                      disabled={pathLoading}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSaveUploadPath}
+                    disabled={pathSaving || pathLoading || !uploadPath}
+                    className="min-w-[100px]"
+                  >
+                    {pathSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : pathSuccess ? (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Saved!
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  For development, use a local path like /data/uploads/documents. For production, use MinIO bucket name.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Maximum File Size</label>
+                  <Input
+                    type="text"
+                    value={maxFileSize ? `${(maxFileSize / 1024 / 1024).toFixed(1)} MB` : 'Loading...'}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Files larger than this will be rejected
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Allowed File Types</label>
+                  <div className="flex flex-wrap gap-1 p-2 border rounded-md bg-muted min-h-[42px]">
+                    {allowedFileTypes.map((type) => (
+                      <Badge key={type} variant="secondary" className="text-xs">
+                        .{type}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="text-lg font-medium mb-4">Platform Services</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Quick access to platform infrastructure components
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* n8n Workflows */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Workflow className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">n8n Workflows</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Automation and workflow management platform for knowledge processing pipelines
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open('http://n8n.tip.localhost', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open n8n
+                </Button>
+              </div>
+
+              {/* Traefik Dashboard */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Network className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">Traefik Dashboard</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Reverse proxy and load balancer dashboard for monitoring service routing
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open('http://localhost:8081', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Traefik
+                </Button>
+              </div>
+
+              {/* MailHog */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">MailHog</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Email testing tool for capturing and viewing development emails
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open('http://mail.tip.localhost', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open MailHog
+                </Button>
+              </div>
+
+              {/* pgAdmin Database */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Server className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">Database Admin</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  PostgreSQL database management and administration interface (pgAdmin)
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open('http://pgadmin.tip.localhost', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open pgAdmin
+                </Button>
+              </div>
+            </div>
+          </Card>
+
           <Card className="p-6">
             <h3 className="text-lg font-medium mb-4">Knowledge Processing</h3>
             <div className="space-y-4">
@@ -228,32 +439,67 @@ export function Configuration() {
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-medium mb-4">Communication Integrations</h3>
-            <div className="space-y-4">
-              {[
-                { name: 'Email Integration', status: 'Connected', description: 'Process team emails for knowledge extraction' },
-                { name: 'Slack Integration', status: 'Pending', description: 'Monitor team channels for important communications' },
-                { name: 'Microsoft Teams', status: 'Available', description: 'Process Teams conversations and files' },
-                { name: 'Document Sharing', status: 'Connected', description: 'Auto-process shared documents from drive' },
-              ].map((integration, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{integration.name}</span>
-                      <Badge variant={integration.status === 'Connected' ? 'default' : integration.status === 'Pending' ? 'secondary' : 'outline'}>
-                        {integration.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{integration.description}</p>
-                  </div>
-                  <Button size="sm" variant="outline">
-                    {integration.status === 'Connected' ? 'Configure' : integration.status === 'Pending' ? 'Setup' : 'Connect'}
-                  </Button>
-                </div>
-              ))}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-medium">Integration Configurations</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Configure external data sources and communication channels for knowledge extraction
+              </p>
             </div>
-          </Card>
+            <Button onClick={handleAddSource}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add New Integration
+            </Button>
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Loading integrations...</span>
+            </div>
+          ) : knowledgeSources.length === 0 ? (
+            <Card className="p-8">
+              <div className="text-center space-y-4">
+                <Database className="h-12 w-12 mx-auto text-muted-foreground" />
+                <div>
+                  <h4 className="text-lg font-medium">No Integrations Configured</h4>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Add your first integration to start extracting knowledge from external sources.
+                  </p>
+                </div>
+                <Button onClick={handleAddSource}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Your First Integration
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                {knowledgeSources.length} integration{knowledgeSources.length !== 1 ? 's' : ''} configured
+              </div>
+              <div className="grid gap-4">
+                {knowledgeSources.map((source) => (
+                  <ConfigurationIntegrationCard
+                    key={source.id}
+                    source={source}
+                    onEdit={handleEditSource}
+                    onDelete={handleDeleteSource}
+                    onTestConnection={handleTestConnection}
+                    onToggleStatus={handleToggleStatus}
+                    loading={actionLoading === source.id}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="knowledge-sources" className="space-y-6">

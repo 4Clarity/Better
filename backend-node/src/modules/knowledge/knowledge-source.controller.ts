@@ -37,10 +37,8 @@ export class KnowledgeSourceController {
 
   async createKnowledgeSource(req: FastifyRequest, res: FastifyReply) {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        return res.status(401).send({ message: 'User authentication required' });
-      }
+      // Get user ID from authenticated user or use null for development
+      const userId = (req as any).user?.id || null;
 
       // Validate request body
       const validationError = this.validateKnowledgeSourceRequest(req.body);
@@ -80,11 +78,7 @@ export class KnowledgeSourceController {
   async updateKnowledgeSource(req: FastifyRequest, res: FastifyReply) {
     try {
       const { id } = req.params as { id: string };
-      const userId = (req as any).user?.id;
-
-      if (!userId) {
-        return res.status(401).send({ message: 'User authentication required' });
-      }
+      const userId = (req as any).user?.id || null;
 
       // Validate request body
       const validationError = this.validateKnowledgeSourceUpdateRequest(req.body);

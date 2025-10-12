@@ -321,6 +321,78 @@
 
 ---
 
+## 0.3. Role-Based UI Implementation
+
+### User Story 0.3.1: Admin - Role Impersonation and UI Access Control
+
+**As an** Admin User,
+**I want to** view and interact with the system from the perspective of any user role through role impersonation controls,
+**So that** I can test role-specific permissions, validate UI visibility for each role, and provide effective user support without compromising security.
+
+#### Acceptance Criteria - Role Impersonation
+
+- Header displays a role selector dropdown for Admin users that allows selection of any system role for impersonation
+- When a role is selected for impersonation, the selected role name appears underneath the logged-in user's name in the header
+- The left navigation sidebar displays only the menu items and features visible to the currently impersonated/active role
+- All UI elements (buttons, tabs, sections) are filtered based on the impersonated role's permissions as defined in the roles-feature-matrix
+- The logged-in user's actual username remains visible in the navigation sidebar
+- The User Profile card under Security and Access displays a list of all program roles assigned to each user
+- Admin users can assign additional roles to users from the User Profile card
+- A comprehensive Roles Capability Configuration Matrix is accessible under the Security and Access section
+- The configuration matrix displays all system sections and features with CRUD operation permissions for each user role
+- Role configurations can be applied to users as groups with support for fine-grained permission variations
+- Impersonation state persists during the user session but is clearly indicated to prevent confusion
+- Admin users can exit impersonation mode and return to their admin view at any time
+
+#### Related Stories - Role Impersonation
+
+- 0.1.1 (User Account Management) - Foundation for user data and profiles
+- 0.1.3 (Role Assignment and Access Control) - Backend RBAC implementation
+- 0.2.1 (PIV Status and Clearance Management) - Security context for conditional access
+
+#### Supported Roles for Impersonation
+
+All 8 system roles can be impersonated by Admin users:
+- Admin (full system access baseline)
+- Government Program Director (executive portfolio oversight)
+- Program Manager (operational management)
+- Departing Contractor (knowledge transfer contributor)
+- Incoming Contractor (graduated access based on clearance)
+- Security Officer (compliance enforcement)
+- Observer (read-only stakeholder monitoring)
+- Operational Support (knowledge management specialist)
+
+#### Development Tasks - Role Impersonation
+
+**Note:** Detailed implementation tasks are maintained in the story file: `docs/stories/0.3.1.role-based-ui-implementation.story.md`
+
+##### Backend Engineer (Node.js/Fastify) - Role Impersonation
+
+- **Task BE-0.3.1:** Create role impersonation middleware for API requests with audit logging
+- **Task BE-0.3.2:** Implement impersonation session management with validation and timeout controls
+- **Task BE-0.3.3:** Build impersonation API endpoints (start, end, status) with security controls
+- **Task BE-0.3.4:** Create role permission service for dynamic permission checking
+- **Task BE-0.3.5:** Implement user role management API endpoints with assignment tracking
+
+##### Frontend Engineer (React/Vite) - Role Impersonation
+
+- **Task FE-0.3.1:** Build RoleImpersonationSelector component in header with dropdown and exit functionality
+- **Task FE-0.3.2:** Create navigation permission filter utility based on roles-feature-matrix
+- **Task FE-0.3.3:** Implement UI element permission filtering for buttons, tabs, and sections
+- **Task FE-0.3.4:** Build UserProfileRolesCard component for role display and assignment
+- **Task FE-0.3.5:** Create RolesCapabilityMatrix component for comprehensive permission visualization
+- **Task FE-0.3.6:** Implement impersonation state management using React Context
+
+##### QA & Test Automation Engineer - Role Impersonation
+
+- **Task QA-0.3.1:** Write contract tests for impersonation API endpoints
+- **Task QA-0.3.2:** Create E2E tests for complete impersonation workflow (all 8 roles)
+- **Task QA-0.3.3:** Implement security testing for impersonation access controls and privilege escalation prevention
+- **Task QA-0.3.4:** Write unit tests for navigation filtering and permission checking utilities
+- **Task QA-0.3.5:** Create integration tests for role configuration matrix functionality
+
+---
+
 ## Cross-Cutting Requirements
 
 ### Security Requirements

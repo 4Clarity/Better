@@ -1,0 +1,126 @@
+{
+  "name": "Document Ingestion Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "file-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook - File Upload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "file-upload-webhook"
+    },
+    {
+      "parameters": {
+        "fileName": "={{ $json.data.filename || 'document_' + $now.format('YYYYMMDD_HHmmss') }}",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "write-file-node",
+      "name": "Write Binary File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO documents (filename, original_filename, file_path, file_size, mime_type, file_extension, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        "options": {
+          "queryReplacement": "={{ [$json.filename, $json.original_filename, $json.file_path, $json.file_size, $json.mime_type, $json.file_extension, JSON.stringify($json.metadata)] }}"
+        }
+      },
+      "id": "postgres-insert-node",
+      "name": "PostgreSQL - Insert Metadata",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, document_id: $json.id, filename: $json.filename, message: 'Document uploaded successfully' } }}"
+      },
+      "id": "webhook-response-node",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract file metadata from webhook data\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const binary = item.binary;\n  const filename = Object.keys(binary)[0];\n  const fileData = binary[filename];\n  \n  const timestamp = new Date().getTime();\n  const extension = filename.split('.').pop();\n  const newFilename = `${timestamp}_${filename}`;\n  \n  results.push({\n    json: {\n      filename: newFilename,\n      original_filename: filename,\n      file_path: `/data/uploads/${newFilename}`,\n      file_size: fileData.data ? Buffer.from(fileData.data, 'base64').length : 0,\n      mime_type: fileData.mimeType || 'application/octet-stream',\n      file_extension: extension,\n      metadata: {\n        upload_timestamp: new Date().toISOString(),\n        webhook_path: $json.path || '/file-upload'\n      }\n    },\n    binary: {\n      data: fileData\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "code-node",
+      "name": "Extract File Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - File Upload": {
+      "main": [
+        [
+          {
+            "node": "Extract File Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File Metadata": {
+      "main": [
+        [
+          {
+            "node": "Write Binary File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Binary File": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL - Insert Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL - Insert Metadata": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-06T00:00:00.000Z",
+  "versionId": "1"
+}

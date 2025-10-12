@@ -14,6 +14,8 @@ interface ConfirmDeleteDialogProps {
   onConfirm: () => void;
   itemName: string;
   isDeleting?: boolean;
+  title?: string;
+  description?: string;
 }
 
 export function ConfirmDeleteDialog({
@@ -22,14 +24,20 @@ export function ConfirmDeleteDialog({
   onConfirm,
   itemName,
   isDeleting = false,
+  title = 'Confirm Deletion',
+  description,
 }: ConfirmDeleteDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirm Deletion</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete <strong>{itemName}</strong>?
+            {description || (
+              <>
+                Are you sure you want to delete <strong>{itemName}</strong>?
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">

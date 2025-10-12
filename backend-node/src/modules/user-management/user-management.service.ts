@@ -490,20 +490,56 @@ export class UserManagementService {
   }
 
   /**
+   * Convert UI security clearance level to Prisma enum format
+   */
+  private convertSecurityClearanceLevel(level?: string): string | undefined {
+    if (!level) return undefined;
+
+    const mapping: Record<string, string> = {
+      'NONE': 'None',
+      'PUBLIC_TRUST': 'Public_Trust',
+      'CONFIDENTIAL': 'Confidential',
+      'SECRET': 'Secret',
+      'TOP_SECRET': 'Top_Secret',
+      'TS_SCI': 'TS_SCI',
+    };
+
+    return mapping[level] || level;
+  }
+
+  /**
+   * Convert date string to ISO DateTime or return undefined/null
+   */
+  private convertToDateTime(dateString?: string | null): Date | null | undefined {
+    if (!dateString) return dateString === null ? null : undefined;
+
+    // If it's already a valid date string (YYYY-MM-DD), convert to full DateTime
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return new Date(`${dateString}T00:00:00.000Z`);
+    }
+
+    // Try to parse as Date
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? undefined : date;
+  }
+
+  /**
    * Update user security information
+   * Note: PIV fields are not yet in the database schema, so they're ignored for now
    */
   async updateUserSecurity(data: UpdateSecurityStatusInput): Promise<Person> {
     return prisma.persons.update({
-      where: { 
-        user: { 
-          id: data.userId 
-        } 
+      where: {
+        users: {
+          id: data.userId
+        }
       },
       data: {
-        securityClearanceLevel: data.securityClearanceLevel,
-        clearanceExpirationDate: data.clearanceExpirationDate,
-        pivStatus: data.pivStatus,
-        pivExpirationDate: data.pivExpirationDate,
+        securityClearanceLevel: this.convertSecurityClearanceLevel(data.securityClearanceLevel) as any,
+        clearanceExpirationDate: this.convertToDateTime(data.clearanceExpirationDate),
+        // PIV fields don't exist in persons table yet - skip them
+        // pivStatus: data.pivStatus,
+        // pivExpirationDate: this.convertToDateTime(data.pivExpirationDate),
         updatedAt: new Date(),
       },
     });

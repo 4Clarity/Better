@@ -31,8 +31,8 @@ export function EditBusinessOperationPage() {
     supportPeriodStart: '',
     supportPeriodEnd: '',
     currentContractEnd: '',
-    governmentPMId: 'dan-demont-user-id',
-    directorId: 'dan-demont-user-id',
+    governmentPMId: 'user-dan-001',
+    directorId: 'user-dan-001',
     currentManagerId: '',
   });
 
@@ -80,8 +80,8 @@ export function EditBusinessOperationPage() {
         currentContractEnd: operationData.currentContractEnd 
           ? new Date(operationData.currentContractEnd).toISOString().split('T')[0] 
           : '',
-        governmentPMId: operationData.governmentPMId || 'dan-demont-user-id',
-        directorId: operationData.directorId || 'dan-demont-user-id',
+        governmentPMId: operationData.governmentPMId || 'user-dan-001',
+        directorId: operationData.directorId || 'user-dan-001',
         currentManagerId: operationData.currentManagerId || '',
       });
 
