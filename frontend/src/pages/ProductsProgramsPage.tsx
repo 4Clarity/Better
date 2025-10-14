@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { ProductProgramsList } from '@/components/business-operations/ProductProgramsList';
 import { ProductProgramForm } from '@/components/business-operations/ProductProgramForm';
 import { ProductProgramDetail } from '@/components/business-operations/ProductProgramDetail';
+import { getProductProgramById } from '@/services/productProgramApi';
+import { ProductProgram } from '@/types/productProgram';
 
 export function ProductsProgramsPage() {
   return (
@@ -90,7 +93,3 @@ function EditProductProgramPage() {
     </div>
   );
 }
-
-import { useState, useEffect } from 'react';
-import { getProductProgramById } from '@/services/productProgramApi';
-import { ProductProgram } from '@/types/productProgram';

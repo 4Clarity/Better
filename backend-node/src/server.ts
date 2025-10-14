@@ -55,7 +55,7 @@ export function buildServer() {
     origin: true, // Allow all origins for development
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-bypass', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-bypass', 'x-user-role', 'X-Requested-With'],
     exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
     preflightContinue: false,
     optionsSuccessStatus: 200 // Some legacy browsers choke on 204

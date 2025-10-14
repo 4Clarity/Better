@@ -59,37 +59,20 @@ export async function createProductProgram(
   const prisma = getPrismaClient();
 
   try {
-    // Validate user exists
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error(`User with ID "${userId}" not found`);
-    }
+    // Note: User validation is handled by authentication middleware
+    // We trust that userId is valid if the request reached this point
 
     const productProgram = await prisma.product_programs.create({
       data: {
-        ...data,
-        securityClassification: data.securityClassification as SecurityClassification,
-        criticalDates: data.criticalDates || [],
-        createdBy: userId,
-        updatedBy: userId,
-      },
-      include: {
-        createdByUser: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        updatedByUser: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        name: data.name,
+        description: data.description,
+        objectives: data.objectives,
+        deliverables: data.deliverables,
+        dependencies: data.dependencies || null,
+        security_classification: data.securityClassification as SecurityClassification,
+        critical_dates: data.criticalDates || [],
+        created_by: userId,
+        updated_by: userId,
       },
     });
 
@@ -131,6 +114,15 @@ export async function getProductProgramById(id: string, userId: string) {
                 username: true,
               },
             },
+          },
+        },
+        business_operation: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            business_function: true,
+            technical_domain: true,
           },
         },
       },
@@ -216,11 +208,7 @@ export async function updateProductProgram(
   const prisma = getPrismaClient();
 
   try {
-    // Validate user exists
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error(`User with ID "${userId}" not found`);
-    }
+    // Note: User validation is handled by authentication middleware
 
     // Check if product/program exists
     const existing = await prisma.product_programs.findUnique({ where: { id } });
@@ -229,42 +217,24 @@ export async function updateProductProgram(
     }
 
     const updateData: any = {
-      updatedBy: userId,
-      updatedAt: new Date(), // Manually set instead of relying on @updatedAt
+      updated_by: userId,
+      updated_at: new Date(), // Manually set instead of relying on @updatedAt
     };
 
-    // Only include fields that are provided in the update
+    // Only include fields that are provided in the update (use snake_case for database)
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.objectives !== undefined) updateData.objectives = data.objectives;
     if (data.deliverables !== undefined) updateData.deliverables = data.deliverables;
     if (data.dependencies !== undefined) updateData.dependencies = data.dependencies;
-    if (data.criticalDates !== undefined) updateData.criticalDates = data.criticalDates;
+    if (data.criticalDates !== undefined) updateData.critical_dates = data.criticalDates;
     if (data.securityClassification) {
-      updateData.securityClassification = data.securityClassification as SecurityClassification;
+      updateData.security_classification = data.securityClassification as SecurityClassification;
     }
 
     const productProgram = await prisma.product_programs.update({
       where: { id },
       data: updateData,
-      include: {
-        createdByUser: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        updatedByUser: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
     });
 
     console.log(`Product/Program updated: ${productProgram.id} by user: ${userId}`);
@@ -282,11 +252,7 @@ export async function deleteProductProgram(id: string, userId: string) {
   const prisma = getPrismaClient();
 
   try {
-    // Validate user exists
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new Error(`User with ID "${userId}" not found`);
-    }
+    // Note: User validation is handled by authentication middleware
 
     // Check if product/program exists
     const existing = await prisma.product_programs.findUnique({ where: { id } });
@@ -361,9 +327,9 @@ export async function addStakeholder(
     // Check if stakeholder already exists
     const existingStakeholder = await prisma.product_program_stakeholders.findUnique({
       where: {
-        productProgramId_userId: {
-          productProgramId,
-          userId: data.userId,
+        product_program_id_user_id: {
+          product_program_id: productProgramId,
+          user_id: data.userId,
         },
       },
     });
@@ -373,28 +339,50 @@ export async function addStakeholder(
     }
 
     // Create stakeholder
-    const stakeholder = await prisma.product_program_stakeholders.create({
+    await prisma.product_program_stakeholders.create({
       data: {
-        productProgramId,
-        userId: data.userId,
+        product_program_id: productProgramId,
+        user_id: data.userId,
         role: data.role || null,
-        assignedBy,
+        assigned_by: assignedBy,
+      },
+    });
+
+    // Fetch the complete stakeholder with user relations
+    const stakeholder = await prisma.product_program_stakeholders.findUnique({
+      where: {
+        product_program_id_user_id: {
+          product_program_id: productProgramId,
+          user_id: data.userId,
+        },
       },
       include: {
-        user: {
+        users_product_program_stakeholders_user_idTousers: {
           select: {
             id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+            username: true,
+            person: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                primaryEmail: true,
+              },
+            },
           },
         },
-        assignedByUser: {
+        users_product_program_stakeholders_assigned_byTousers: {
           select: {
             id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+            username: true,
+            person: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                primaryEmail: true,
+              },
+            },
           },
         },
       },
@@ -432,9 +420,9 @@ export async function removeStakeholder(
     // Validate stakeholder exists
     const stakeholder = await prisma.product_program_stakeholders.findUnique({
       where: {
-        productProgramId_userId: {
-          productProgramId,
-          userId,
+        product_program_id_user_id: {
+          product_program_id: productProgramId,
+          user_id: userId,
         },
       },
     });
@@ -446,9 +434,9 @@ export async function removeStakeholder(
     // Delete stakeholder
     await prisma.product_program_stakeholders.delete({
       where: {
-        productProgramId_userId: {
-          productProgramId,
-          userId,
+        product_program_id_user_id: {
+          product_program_id: productProgramId,
+          user_id: userId,
         },
       },
     });
@@ -485,12 +473,28 @@ export async function getStakeholders(productProgramId: string) {
           select: {
             id: true,
             username: true,
+            person: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                primaryEmail: true,
+              },
+            },
           },
         },
         users_product_program_stakeholders_assigned_byTousers: {
           select: {
             id: true,
             username: true,
+            person: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                primaryEmail: true,
+              },
+            },
           },
         },
       },
@@ -529,9 +533,9 @@ export async function updateStakeholderRole(
     // Validate stakeholder exists
     const stakeholder = await prisma.product_program_stakeholders.findUnique({
       where: {
-        productProgramId_userId: {
-          productProgramId,
-          userId,
+        product_program_id_user_id: {
+          product_program_id: productProgramId,
+          user_id: userId,
         },
       },
     });
@@ -543,31 +547,13 @@ export async function updateStakeholderRole(
     // Update role
     const updatedStakeholder = await prisma.product_program_stakeholders.update({
       where: {
-        productProgramId_userId: {
-          productProgramId,
-          userId,
+        product_program_id_user_id: {
+          product_program_id: productProgramId,
+          user_id: userId,
         },
       },
       data: {
         role: newRole,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        assignedByUser: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
       },
     });
 

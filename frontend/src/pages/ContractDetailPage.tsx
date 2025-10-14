@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { contractApi, enhancedTransitionApi, Contract, EnhancedTransition } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { NewEnhancedTransitionDialog } from "@/components/NewEnhancedTransitionDialog";
+import { EditContractDialog } from "@/components/EditContractDialog";
+import { Pencil } from "lucide-react";
 
 export function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +13,7 @@ export function ContractDetailPage() {
   const [transitions, setTransitions] = useState<EnhancedTransition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const userRole = "program_manager";
 
@@ -38,6 +41,10 @@ export function ContractDetailPage() {
     // Add the new transition to the local state immediately
     setTransitions(prev => [newTransition, ...prev]);
     // No need to refetch since we already have the new transition
+  };
+
+  const handleContractUpdated = (updatedContract: Contract) => {
+    setContract(updatedContract);
   };
 
   useEffect(() => {
@@ -122,6 +129,14 @@ export function ContractDetailPage() {
               ← Back
             </Button>
             <h1 className="text-3xl font-bold">{contract.contractName}</h1>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(contract.status)}`}>
               {contract.status.replace(/_/g, ' ')}
             </span>
@@ -294,6 +309,16 @@ export function ContractDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Edit Contract Dialog */}
+      {contract && (
+        <EditContractDialog
+          contract={contract}
+          open={isEditDialogOpen}
+          onClose={() => setIsEditDialogOpen(false)}
+          onContractUpdated={handleContractUpdated}
+        />
+      )}
     </div>
   );
 }

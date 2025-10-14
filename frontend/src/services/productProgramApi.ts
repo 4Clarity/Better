@@ -13,6 +13,14 @@ import {
   StakeholderResponse,
   StakeholdersListResponse,
   RemoveStakeholderResponse,
+  TransitionSummary,
+  AssignTransitionRequest,
+  AssignTransitionResponse,
+  RemoveTransitionResponse,
+  ProductProgramTransitionsResponse,
+  LinkToBusinessOperationRequest,
+  LinkToBusinessOperationResponse,
+  UnlinkFromBusinessOperationResponse,
 } from '../types/productProgram';
 
 const API_BASE_URL = '/api/business-operations/products-programs';
@@ -209,6 +217,146 @@ export const removeStakeholder = async (
     if (axios.isAxiosError(error)) {
       throw new Error(
         error.response?.data?.message || 'Failed to remove stakeholder'
+      );
+    }
+    throw error;
+  }
+};
+
+// Transition Categorization API Methods (Story 4.2 - Phase 2)
+
+/**
+ * Assign a transition to a Product/Program
+ * @param transitionId - ID of the transition to assign
+ * @param data - Request body containing productProgramId
+ */
+export const assignTransitionToProductProgram = async (
+  transitionId: string,
+  data: AssignTransitionRequest
+): Promise<TransitionSummary> => {
+  try {
+    const response = await axios.put<AssignTransitionResponse>(
+      `/api/transitions/${transitionId}/product-program`,
+      data
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to assign transition to product/program'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Remove product/program categorization from a transition
+ * @param transitionId - ID of the transition to uncategorize
+ */
+export const removeTransitionFromProductProgram = async (
+  transitionId: string
+): Promise<void> => {
+  try {
+    await axios.delete<RemoveTransitionResponse>(
+      `/api/transitions/${transitionId}/product-program`
+    );
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to remove transition from product/program'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get all transitions assigned to a Product/Program
+ * @param productProgramId - ID of the product/program
+ */
+export const getProductProgramTransitions = async (
+  productProgramId: string
+): Promise<TransitionSummary[]> => {
+  try {
+    const response = await axios.get<ProductProgramTransitionsResponse>(
+      `${API_BASE_URL}/${productProgramId}/transitions`
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to fetch product/program transitions'
+      );
+    }
+    throw error;
+  }
+};
+
+// Business Operation Linking API Methods (Story 4.2 - Phase 3)
+
+/**
+ * Link a Program or Product to a Business Operation
+ * @param productProgramId - ID of the program/product to link
+ * @param data - Request body containing businessOperationId
+ */
+export const linkToBusinessOperation = async (
+  productProgramId: string,
+  data: LinkToBusinessOperationRequest
+): Promise<ProductProgram> => {
+  try {
+    const response = await axios.put<LinkToBusinessOperationResponse>(
+      `${API_BASE_URL}/${productProgramId}/business-operation`,
+      data
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to link to business operation'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Unlink a Program or Product from its Business Operation
+ * @param productProgramId - ID of the program/product to unlink
+ */
+export const unlinkFromBusinessOperation = async (
+  productProgramId: string
+): Promise<void> => {
+  try {
+    await axios.delete<UnlinkFromBusinessOperationResponse>(
+      `${API_BASE_URL}/${productProgramId}/business-operation`
+    );
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to unlink from business operation'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get all Programs and Products linked to a Business Operation
+ * @param businessOperationId - ID of the business operation
+ */
+export const getProgramsProductsByBusinessOperation = async (
+  businessOperationId: string
+): Promise<ProductProgram[]> => {
+  try {
+    const response = await axios.get<{ success: boolean; data: ProductProgram[] }>(
+      `/api/business-operations/${businessOperationId}/programs-products`
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to fetch programs and products'
       );
     }
     throw error;

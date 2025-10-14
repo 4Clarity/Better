@@ -34,19 +34,27 @@ export function TransitionsPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      // Fetch all transition levels and counts
-      const [majorResponse, personnelResponse, operationalResponse, countsResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/enhanced-transitions/major?limit=100`).then(res => res.json()),
-        fetch(`${API_BASE_URL}/enhanced-transitions/personnel?limit=100`).then(res => res.json()),
-        fetch(`${API_BASE_URL}/enhanced-transitions/operational?limit=100`).then(res => res.json()),
-        fetch(`${API_BASE_URL}/enhanced-transitions/counts`).then(res => res.json())
-      ]);
-      
-      setMajorTransitions(majorResponse.data || []);
-      setPersonnelTransitions(personnelResponse.data || []);
-      setOperationalChanges(operationalResponse.data || []);
-      setTransitionCounts(countsResponse);
+
+      // Fetch basic transitions from /api/transitions endpoint
+      const response = await fetch(`${API_BASE_URL}/transitions?limit=100`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const transitions = data.data || [];
+
+      // For now, treat all basic transitions as "major" transitions
+      // In the future, you could categorize them based on some field
+      setMajorTransitions(transitions);
+      setPersonnelTransitions([]);
+      setOperationalChanges([]);
+      setTransitionCounts({
+        major: transitions.length,
+        personnel: 0,
+        operational: 0,
+        total: transitions.length
+      });
     } catch (err) {
       console.error('Failed to fetch transitions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch transitions');
@@ -156,7 +164,7 @@ export function TransitionsPage() {
                 <TransitionCard
                   key={transition.id}
                   transition={{ ...transition, transitionLevel: 'MAJOR' }}
-                  linkPath={`/enhanced-transitions/${transition.id}`}
+                  linkPath={`/transitions/${transition.id}`}
                 />
               ))
             )}

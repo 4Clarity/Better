@@ -71,6 +71,12 @@ model User {
   product_program_stakeholders_product_program_stakeholders_user_idTousers     product_program_stakeholders[]       @relation("product_program_stakeholders_user_idTousers")
   product_programs_product_programs_created_byTousers                          product_programs[]                   @relation("product_programs_created_byTousers")
   product_programs_product_programs_updated_byTousers                          product_programs[]                   @relation("product_programs_updated_byTousers")
+  business_operations_government_pm                                            business_operations[]                @relation("business_operations_government_pm_idTousers")
+  business_operations_director                                                 business_operations[]                @relation("business_operations_director_idTousers")
+  business_operations_current_manager                                          business_operations[]                @relation("business_operations_current_manager_idTousers")
+  business_operations_created                                                  business_operations[]                @relation("business_operations_created_byTousers")
+  business_operations_updated                                                  business_operations[]                @relation("business_operations_updated_byTousers")
+  contracts_contractor_pm                                                      contracts[]                          @relation("contracts_contractor_pm_idTousers")
   progress_tracking                                                            proficiency_progress_tracking[]
   system_settings_modified                                                     system_settings[]
   task_comments_authored                                                       task_comments[]                      @relation("task_comments_authorIdTousers")
@@ -751,6 +757,7 @@ model transitions {
   contractName                       String                               @db.VarChar(255)
   contractNumber                     String                               @db.VarChar(100)
   organizationId                     String
+  productProgramId                   String?                              @db.Uuid
   status                             TransitionStatus                     @default(Planning)
   startDate                          DateTime                             @db.Date
   endDate                            DateTime                             @db.Date
@@ -795,6 +802,7 @@ model transitions {
   tasks                              tasks[]
   transition_users                   transition_users[]
   organizations                      organizations                        @relation(fields: [organizationId], references: [id])
+  product_programs                   product_programs?                    @relation(fields: [productProgramId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([contractNumber], map: "idx_transitions_contract_number")
   @@index([endDate], map: "idx_transitions_end_date")
@@ -803,6 +811,7 @@ model transitions {
   @@index([riskLevel], map: "idx_transitions_risk_level")
   @@index([startDate], map: "idx_transitions_start_date")
   @@index([status], map: "idx_transitions_status")
+  @@index([productProgramId], map: "idx_transitions_product_program_id")
 }
 
 model user_sessions {
@@ -858,6 +867,70 @@ model user_roles {
   @@index([isActive], map: "idx_user_roles_isActive")
 }
 
+model business_operations {
+  id                                              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                                            String                 @db.VarChar(200)
+  description                                     String?
+  business_function                               String?                @db.VarChar(200)
+  technical_domain                                String?                @db.VarChar(200)
+  scope                                           String?
+  objectives                                      String?
+  deliverables                                    String?
+  performance_metrics                             Json                   @default("{}")
+  support_period_start                            DateTime?              @db.Date
+  support_period_end                              DateTime?              @db.Date
+  current_contract_end                            DateTime?              @db.Date
+  government_pm_id                                String?                @db.VarChar(100)
+  director_id                                     String?                @db.VarChar(100)
+  current_manager_id                              String?                @db.VarChar(100)
+  security_classification                         String                 @default("UNCLASSIFIED") @db.VarChar(50)
+  created_at                                      DateTime               @default(now()) @db.Timestamp(6)
+  updated_at                                      DateTime               @default(now()) @db.Timestamp(6)
+  created_by                                      String
+  updated_by                                      String
+  contracts                                       contracts[]
+  product_programs                                product_programs[]
+  users_business_operations_government_pm_idTousers    User?             @relation("business_operations_government_pm_idTousers", fields: [government_pm_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_business_operations_government_pm")
+  users_business_operations_director_idTousers         User?             @relation("business_operations_director_idTousers", fields: [director_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_business_operations_director")
+  users_business_operations_current_manager_idTousers  User?             @relation("business_operations_current_manager_idTousers", fields: [current_manager_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_business_operations_current_manager")
+  users_business_operations_created_byTousers          User              @relation("business_operations_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_business_operations_created_by")
+  users_business_operations_updated_byTousers          User              @relation("business_operations_updated_byTousers", fields: [updated_by], references: [id], onUpdate: NoAction, map: "fk_business_operations_updated_by")
+
+  @@index([name], map: "idx_business_operations_name")
+  @@index([business_function], map: "idx_business_operations_business_function")
+  @@index([technical_domain], map: "idx_business_operations_technical_domain")
+  @@index([government_pm_id], map: "idx_business_operations_government_pm")
+  @@index([director_id], map: "idx_business_operations_director")
+  @@index([current_manager_id], map: "idx_business_operations_current_manager")
+  @@index([created_at], map: "idx_business_operations_created_at")
+  @@index([support_period_start, support_period_end], map: "idx_business_operations_support_period")
+}
+
+model contracts {
+  id                                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  business_operation_id                   String                @db.Uuid
+  contractor_pm_id                        String?               @db.VarChar(100)
+  contract_name                           String                @db.VarChar(255)
+  contract_number                         String                @unique @db.VarChar(100)
+  contractor_name                         String                @db.VarChar(255)
+  start_date                              DateTime              @db.Date
+  end_date                                DateTime              @db.Date
+  can_be_extended                         Boolean               @default(true)
+  status                                  ContractStatus        @default(PLANNING)
+  created_at                              DateTime              @default(now()) @db.Timestamp(6)
+  updated_at                              DateTime              @default(now()) @db.Timestamp(6)
+  business_operations                     business_operations   @relation(fields: [business_operation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_contracts_business_operation")
+  users_contracts_contractor_pm_idTousers User?                 @relation("contracts_contractor_pm_idTousers", fields: [contractor_pm_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_contracts_contractor_pm")
+
+  @@index([business_operation_id], map: "idx_contracts_business_operation")
+  @@index([contractor_pm_id], map: "idx_contracts_contractor_pm")
+  @@index([contract_number], map: "idx_contracts_contract_number")
+  @@index([status], map: "idx_contracts_status")
+  @@index([start_date], map: "idx_contracts_start_date")
+  @@index([end_date], map: "idx_contracts_end_date")
+  @@index([created_at], map: "idx_contracts_created_at")
+}
+
 model product_programs {
   id                                       String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                                     String                         @db.VarChar(200)
@@ -867,11 +940,15 @@ model product_programs {
   dependencies                             String?
   security_classification                  SecurityClassification
   critical_dates                           Json                           @default("[]")
+  business_operation_type                  BusinessOperationType          @default(Program)
+  business_operation_id                    String?                        @db.Uuid
   created_at                               DateTime                       @default(now()) @db.Timestamp(6)
   updated_at                               DateTime                       @default(now()) @db.Timestamp(6)
   created_by                               String
   updated_by                               String
   product_program_stakeholders             product_program_stakeholders[]
+  transitions                              transitions[]
+  business_operation                       business_operations?           @relation(fields: [business_operation_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_product_programs_business_operation")
   users_product_programs_created_byTousers User                           @relation("product_programs_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_product_programs_created_by")
   users_product_programs_updated_byTousers User                           @relation("product_programs_updated_byTousers", fields: [updated_by], references: [id], onUpdate: NoAction, map: "fk_product_programs_updated_by")
 
@@ -880,6 +957,8 @@ model product_programs {
   @@index([name], map: "idx_product_programs_name")
   @@index([security_classification], map: "idx_product_programs_security_classification")
   @@index([updated_by], map: "idx_product_programs_updated_by")
+  @@index([business_operation_type], map: "idx_product_programs_business_operation_type")
+  @@index([business_operation_id], map: "idx_product_programs_business_operation_id")
 }
 
 model product_program_stakeholders {
@@ -1638,4 +1717,10 @@ enum KnowledgeSourceTriggerType {
   API_Call         @map("API Call")
   File_Change      @map("File Change")
   Database_Trigger @map("Database Trigger")
+}
+
+enum BusinessOperationType {
+  Operation
+  Program
+  Product
 }

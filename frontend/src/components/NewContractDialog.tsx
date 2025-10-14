@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label";
 interface NewContractDialogProps {
   businessOperationId: string;
   onContractCreated: (contract: Contract) => void;
-  userRole: string;
+  canCreate?: boolean;
 }
 
-export function NewContractDialog({ businessOperationId, onContractCreated, userRole }: NewContractDialogProps) {
+export function NewContractDialog({ businessOperationId, onContractCreated, canCreate = true }: NewContractDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +62,6 @@ export function NewContractDialog({ businessOperationId, onContractCreated, user
       setLoading(false);
     }
   };
-
-  const canCreate = userRole === 'director' || userRole === 'program_manager' || userRole === 'admin';
 
   if (!canCreate) {
     return null;

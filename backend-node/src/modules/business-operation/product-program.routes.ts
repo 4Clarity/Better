@@ -11,7 +11,12 @@ import {
   removeStakeholderHandler,
   getStakeholdersHandler,
   updateStakeholderRoleHandler,
+  getProductProgramTransitionsHandler,
 } from './product-program-stakeholders.controller';
+import {
+  linkProgramProductToOperationHandler,
+  unlinkProgramProductFromOperationHandler,
+} from './business-operation.controller';
 import { authenticate, requireRoles } from '../auth/auth.middleware';
 
 const errorSchema = {
@@ -372,6 +377,111 @@ async function productProgramRoutes(server: FastifyInstance) {
       },
     },
     removeStakeholderHandler
+  );
+
+  // Transition Categorization Routes (Story 4.2 - Phase 2)
+
+  // GET /api/business-operations/products-programs/:id/transitions - Get transitions for product/program
+  server.get(
+    '/products-programs/:id/transitions',
+    {
+      onRequest: [authenticate],
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'array' },
+            },
+          },
+          401: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    getProductProgramTransitionsHandler
+  );
+
+  // Business Operation Linking Routes (Story 4.2 - Phase 3)
+
+  // PUT /api/business-operations/products-programs/:id/business-operation
+  // Link a Program or Product to a Business Operation
+  server.put(
+    '/products-programs/:id/business-operation',
+    {
+      onRequest: [authenticate, requireRoles(['Admin', 'Gov Program Director', 'Gov Program Manager'])],
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        body: {
+          type: 'object',
+          required: ['businessOperationId'],
+          properties: {
+            businessOperationId: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'object' },
+            },
+          },
+          400: errorSchema,
+          401: errorSchema,
+          403: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    linkProgramProductToOperationHandler
+  );
+
+  // DELETE /api/business-operations/products-programs/:id/business-operation
+  // Unlink a Program or Product from its Business Operation
+  server.delete(
+    '/products-programs/:id/business-operation',
+    {
+      onRequest: [authenticate, requireRoles(['Admin', 'Gov Program Director', 'Gov Program Manager'])],
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+              data: { type: 'object' },
+            },
+          },
+          400: errorSchema,
+          401: errorSchema,
+          403: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    unlinkProgramProductFromOperationHandler
   );
 }
 

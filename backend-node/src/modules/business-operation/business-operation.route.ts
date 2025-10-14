@@ -5,6 +5,9 @@ import {
   getBusinessOperationByIdHandler,
   updateBusinessOperationHandler,
   deleteBusinessOperationHandler,
+  linkProgramProductToOperationHandler,
+  unlinkProgramProductFromOperationHandler,
+  getProgramsAndProductsHandler,
 } from './business-operation.controller';
 
 const errorSchema = {
@@ -211,6 +214,51 @@ async function businessOperationRoutes(server: FastifyInstance) {
       },
     },
     deleteBusinessOperationHandler
+  );
+
+  // ============================================
+  // Business Operation Linking Routes
+  // Story 4.2 - Phase 3
+  // ============================================
+
+  // GET /api/business-operations/:id/programs-products
+  // Get all Programs and Products linked to this Business Operation
+  server.get(
+    '/:id/programs-products',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    business_operation_type: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          404: errorSchema,
+          400: errorSchema,
+        },
+      },
+    },
+    getProgramsAndProductsHandler
   );
 }
 

@@ -437,21 +437,27 @@ export class AuthenticationApi {
   }
 
   /**
-   * Check if user has specific roles
+   * Check if user has specific roles (case-insensitive)
    */
   hasRoles(requiredRoles: string[], user?: AuthUser): boolean {
     if (!user) return false;
     if (!requiredRoles.length) return true;
-    return requiredRoles.some(role => user.roles.includes(role));
+
+    // Normalize roles to lowercase for comparison
+    const userRolesLower = user.roles.map(r => r.toLowerCase());
+    return requiredRoles.some(role => userRolesLower.includes(role.toLowerCase()));
   }
 
   /**
-   * Check if user has all required roles
+   * Check if user has all required roles (case-insensitive)
    */
   hasAllRoles(requiredRoles: string[], user?: AuthUser): boolean {
     if (!user) return false;
     if (!requiredRoles.length) return true;
-    return requiredRoles.every(role => user.roles.includes(role));
+
+    // Normalize roles to lowercase for comparison
+    const userRolesLower = user.roles.map(r => r.toLowerCase());
+    return requiredRoles.every(role => userRolesLower.includes(role.toLowerCase()));
   }
 
   /**

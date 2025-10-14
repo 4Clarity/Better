@@ -599,11 +599,16 @@ export class AuthenticationService {
         console.log(`Found existing user by keycloakId: ${user.id} (${user.username})`);
       }
 
-      // 2. If not found, look by email
+      // 2. If not found, look by email (case-insensitive)
       if (!user && keycloakData.email) {
         user = await prisma.user.findFirst({
           where: {
-            person: { primaryEmail: keycloakData.email?.toLowerCase() }
+            person: {
+              primaryEmail: {
+                equals: keycloakData.email,
+                mode: 'insensitive',
+              }
+            }
           },
           include: {
             person: true,
@@ -979,11 +984,14 @@ export class AuthenticationService {
     requiresChallenge: boolean;
   }> {
     try {
-      // Find user in database by email
+      // Find user in database by email (case-insensitive)
       const user = await prisma.user.findFirst({
         where: {
           person: {
-            primaryEmail: email.toLowerCase(),
+            primaryEmail: {
+              equals: email,
+              mode: 'insensitive',
+            },
           },
         },
         include: {
@@ -1129,15 +1137,15 @@ export class AuthenticationService {
    */
   createDemoUser(): AuthUser {
     return {
-      id: 'dan-demont-user-id',
-      username: 'dan.demont',
+      id: 'user-dan-001', // Use actual user ID from database
+      username: 'dan.demo@tip.gov',
       email: 'dan.demo@tip.gov',
-      roles: ['Admin', 'program_manager', 'user'],
+      roles: ['admin', 'program_director', 'director', 'program_manager', 'user'],
       person: {
-        id: 'dan-demont-person-id',
+        id: 'person-dan-001', // Use actual person ID from database
         firstName: 'Dan',
-        lastName: 'Demont',
-        displayName: 'Dan Demont',
+        lastName: 'Demo',
+        displayName: 'Dan Demo',
       },
     };
   }

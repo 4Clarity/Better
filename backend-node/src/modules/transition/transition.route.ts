@@ -6,6 +6,8 @@ import {
   updateTransitionHandler,
   updateTransitionStatusHandler,
   deleteTransitionHandler,
+  assignTransitionToProductProgramHandler,
+  removeTransitionFromProductProgramHandler,
 } from './transition.controller';
 import { $ref } from './transition.service';
 
@@ -187,6 +189,95 @@ async function transitionRoutes(server: FastifyInstance) {
       },
     },
     deleteTransitionHandler
+  );
+
+  // ============================================
+  // Product/Program Categorization Routes
+  // Story 4.2 - Phase 2
+  // ============================================
+
+  // PUT /api/transitions/:id/product-program - Assign transition to product/program
+  server.put(
+    '/:id/product-program',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        body: {
+          type: 'object',
+          properties: {
+            productProgramId: { type: 'string' },
+          },
+          required: ['productProgramId'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: { type: 'object' },
+            },
+          },
+          404: {
+            type: 'object',
+            properties: {
+              statusCode: { type: 'number' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    assignTransitionToProductProgramHandler
+  );
+
+  // DELETE /api/transitions/:id/product-program - Remove product/program from transition
+  server.delete(
+    '/:id/product-program',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+              data: { type: 'object' },
+            },
+          },
+          400: {
+            type: 'object',
+            properties: {
+              statusCode: { type: 'number' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          404: {
+            type: 'object',
+            properties: {
+              statusCode: { type: 'number' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    removeTransitionFromProductProgramHandler
   );
 }
 

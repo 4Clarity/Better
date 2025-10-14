@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { EditTransitionDialog } from "@/components/EditTransitionDialog";
-import { 
-  ArrowLeft, 
-  Calendar, 
-  Clock, 
-  Building, 
-  User, 
+import { ProductProgramCategorization } from "@/components/transitions/ProductProgramCategorization";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Building,
+  User,
   FileText,
   CheckCircle,
   AlertCircle,
@@ -453,6 +454,14 @@ export function EnhancedTransitionDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Product/Program Categorization (Story 4.2 - Phase 2) */}
+          <ProductProgramCategorization
+            transitionId={transition.id}
+            currentProductProgramId={transition.productProgramId}
+            currentProductProgram={transition.product_programs}
+            onUpdate={fetchTransitionDetails}
+          />
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">

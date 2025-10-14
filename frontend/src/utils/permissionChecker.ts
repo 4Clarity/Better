@@ -58,6 +58,16 @@ const FEATURE_PERMISSIONS: Record<string, Record<string, Record<string, Permissi
       'Observer': 'no_access',
       'Operational Support': 'no_access',
     },
+    'Products/Programs': {
+      'Admin': 'full',
+      'Gov Program Director': 'full',
+      'Program Manager': 'full',
+      'Departing Contractor': 'no_access',
+      'Incoming Contractor': 'no_access',
+      'Security Officer': 'no_access',
+      'Observer': 'read_only',
+      'Operational Support': 'no_access',
+    },
   },
   'Artifact Vault': {
     'Upload Artifact': {

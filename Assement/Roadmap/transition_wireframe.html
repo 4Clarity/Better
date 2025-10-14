@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transition Management System - Wireframe</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .wireframe-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: #f8f9fa;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .navigation-tabs {
+            display: flex;
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .nav-tab {
+            padding: 15px 30px;
+            background: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            border-bottom: 3px solid transparent;
+        }
+
+        .nav-tab:hover {
+            background: #f5f5f5;
+            color: #667eea;
+        }
+
+        .nav-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .view-container {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .view-container.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .widget {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e0e0e0;
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .widget-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .widget-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .widget-content {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .process-flow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+
+        .process-step {
+            flex: 1;
+            text-align: center;
+            padding: 20px;
+            position: relative;
+            min-width: 150px;
+        }
+
+        .process-step:not(:last-child)::after {
+            content: '→';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            color: #667eea;
+        }
+
+        .step-circle {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .step-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .step-description {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .integration-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px dashed #667eea;
+        }
+
+        .integration-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .integration-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        .webhook-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .webhook-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .webhook-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .knowledge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .knowledge-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .knowledge-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+
+        .knowledge-count {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .knowledge-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .task-timeline {
+            position: relative;
+            padding-left: 30px;
+            margin: 20px 0;
+        }
+
+        .timeline-line {
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #667eea;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -25px;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #667eea;
+        }
+
+        .timeline-item.completed .timeline-dot {
+            background: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        .llm-interface {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .llm-chat {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .llm-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .llm-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .llm-input button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+
+        .metric-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .user-card {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 10px;
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .user-progress {
+            text-align: right;
+        }
+
+        .progress-percent {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .process-flow {
+                flex-direction: column;
+            }
+            
+            .process-step:not(:last-child)::after {
+                content: '↓';
+                right: 50%;
+                bottom: -20px;
+                top: auto;
+                transform: translateX(50%);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="header">
+            <h1>🔄 Transition Management System</h1>
+            <p>Comprehensive Knowledge Transfer & Operational Continuity Platform</p>
+        </div>
+
+        <div class="navigation-tabs">
+            <button class="nav-tab active" onclick="switchView('dashboard')">📊 Dashboard</button>
+            <button class="nav-tab" onclick="switchView('gov-pm')">🏛️ Government PM</button>
+            <button class="nav-tab" onclick="switchView('outgoing')">📤 Outgoing Contractor</button>
+            <button class="nav-tab" onclick="switchView('incoming')">📥 Incoming Contractor</button>
+            <button class="nav-tab" onclick="switchView('knowledge')">📚 Knowledge Base</button>
+            <button class="nav-tab" onclick="switchView('integration')">🔗 Integrations</button>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard" class="view-container active">
+            <h2 style="margin-bottom: 20px;">System Overview Dashboard</h2>
+            
+            <div class="metrics-row">
+                <div class="metric-card">
+                    <div class="metric-value">87%</div>
+                    <div class="metric-label">Transition Progress</div>
+                </div>
+                <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="metric-value">23</div>
+                    <div class="metric-label">Days Remaining</div>
+                </div>
+                <div class="metric-card" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                    <div class="metric-value">142</div>
+                    <div class="metric-label">Active Tasks</div>
+                </div>
+                <div class="metric-card" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                    <div class="metric-value">1,247</div>
+                    <div class="metric-label">Knowledge Articles</div>
+                </div>
+            </div>
+
+            <div class="process-flow">
+                <div class="process-step">
+                    <div class="step-circle">1</div>
+                    <div class="step-title">Initiate</div>
+                    <div class="step-description">Transition Started</div>
+                </div>
+                <div class="process-step">
+                    <div class="step-circle">2</div>
+                    <div class="step-title">Document</div>
+                    <div class="step-description">Knowledge Capture</div>
+                </div>
+                <div class="process-step">
+                    <div class="step-circle">3</div>
+                    <div class="step-title">Transfer</div>
+                    <div class="step-description">Active Handover</div>
+                </div>
+                <div class="process-step">
+                    <div class="step-circle">4</div>
+                    <div class="step-title">Verify</div>
+                    <div class="step-description">Capability Check</div>
+                </div>
+                <div class="process-step">
+                    <div class="step-circle">5</div>
+                    <div class="step-title">Complete</div>
+                    <div class="step-description">Transition Closed</div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Active Transitions</span>
+                        <div class="widget-icon">3</div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="user-card">
+                            <div class="user-avatar">JD</div>
+                            <div class="user-info">
+                                <div class="user-name">IT Support Contract</div>
+                                <div class="user-role">Network Operations</div>
+                            </div>
+                            <div class="user-progress">
+                                <div class="progress-percent">87%</div>
+                            </div>
+                        </div>
+                        <div class="user-card">
+                            <div class="user-avatar">SF</div>
+                            <div class="user-info">
+                                <div class="user-name">Facilities Management</div>
+                                <div class="user-role">Building Services</div>
+                            </div>
+                            <div class="user-progress">
+                                <div class="progress-percent">62%</div>
+                            </div>
+                        </div>
+                        <div class="user-card">
+                            <div class="user-avatar">TC</div>
+                            <div class="user-info">
+                                <div class="user-name">Security Services</div>
+                                <div class="user-role">Access Control</div>
+                            </div>
+                            <div class="user-progress">
+                                <div class="progress-percent">45%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Recent Activities</span>
+                        <div class="widget-icon">📋</div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="task-timeline">
+                            <div class="timeline-line"></div>
+                            <div class="timeline-item completed">
+                                <div class="timeline-dot"></div>
+                                <strong>Knowledge Article Created</strong><br>
+                                <small>Network Topology Documentation - 2 hours ago</small>
+                            </div>
+                            <div class="timeline-item completed">
+                                <div class="timeline-dot"></div>
+                                <strong>Task Completed</strong><br>
+                                <small>Service Endpoint Integration - 4 hours ago</small>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <strong>Milestone Reached</strong><br>
+                                <small>Platform Baseline Established - 1 day ago</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">AI Assistant Activity</span>
+                        <div class="widget-icon">🤖</div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="llm-interface">
+                            <div class="llm-chat">
+                                <p><strong>User:</strong> What are the critical handover tasks for network operations?</p>
+                                <p><strong>AI:</strong> Based on operational priorities, here are the critical tasks:<br>
+                                1. Active incident transfers<br>
+                                2. Credential handover<br>
+                                3. Monitoring dashboard access...</p>
+                            </div>
+                            <div class="llm-input">
+                                <input type="text" placeholder="Ask AI for guidance...">
+                                <button>Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Government PM View -->
+        <div id="gov-pm" class="view-container">
+            <h2 style="margin-bottom: 20px;">Government Program Manager Interface</h2>
+            
+            <div class="dashboard-grid">
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Platform Setup</span>
+                        <div class="widget-icon">⚙️</div>
+                    </div>
+                    <div class="widget-content">
+                        <ul style="list-style: none; padding: 0;">
+                            <li style="padding: 8px 0;">✅ Define & Establish Operation</li>
+                            <li style="padding: 8px 0;">✅ Service Endpoint Integration</li>
+                            <li style="padding: 8px 0;">🔄 Messaging Integration (85%)</li>
+                            <li style="padding: 8px 0;">⏳ Invite Stakeholders</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Knowledge Curation Queue</span>
+                        <div class="widget-icon">📝</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Pending Review (7)</strong><br>
+                            <small>New facts submitted by contractors</small>
+                        </div>
+                        <div style="background: #d1ecf1; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Weekly Curation</strong><br>
+                            <small>Next review: Monday 10:00 AM</small>
+                        </div>
+                        <div style="background: #d4edda; padding: 10px; border-radius: 5px;">
+                            <strong>Version Tracking</strong><br>
+                            <small>15 versions maintained per fact</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Transition Control Panel</span>
+                        <div class="widget-icon">🎛️</div>
+                    </div>
+                    <div class="widget-content">
+                        <button style="width: 100%; padding: 12px; margin-bottom: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                            + Initiate New Transition
+                        </button>
+                        <button style="width: 100%; padding: 12px; margin-bottom: 10px; background: #ffc107; color: #333; border: none; border-radius: 5px; cursor: pointer;">
+                            📊 Generate Roadmap
+                        </button>
+                        <button style="width: 100%; padding: 12px; background: #17a2b8; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                            👥 Assign Personnel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="integration-panel">
+                <div class="integration-header">
+                    <div class="integration-icon">📊</div>
+                    <div>
+                        <h3>Transition Roadmap Overview</h3>
+                        <p style="color: #666; margin-top: 5px;">Contract & Personnel Transition Tracking</p>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <h4 style="margin-bottom: 10px;">Contract Transitions</h4>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span>IT Support</span>
+                            <span style="color: #28a745;">87% Complete</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span>Facilities</span>
+                            <span style="color: #ffc107;">62% Complete</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span>Security</span>
+                            <span style="color: #dc3545;">45% Complete</span>
+                        </div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <h4 style="margin-bottom: 10px;">Personnel Functional Roles</h4>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span>Network Admin (3)</span>
+                            <span style="color: #28a745;">Ready</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span>Database Admin (2)</span>
+                            <span style="color: #ffc107;">Training</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span>Security Analyst (4)</span>
+                            <span style="color: #17a2b8;">Onboarding</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Outgoing Contractor View -->
+        <div id="outgoing" class="view-container">
+            <h2 style="margin-bottom: 20px;">Outgoing Contractor Interface</h2>
+            
+            <div class="dashboard-grid">
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Current Task Transition</span>
+                        <div class="widget-icon">📋</div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="task-timeline">
+                            <div class="timeline-line"></div>
+                            <div class="timeline-item completed">
+                                <div class="timeline-dot"></div>
+                                <strong>Network Monitoring Handover</strong><br>
+                                <small>Documentation complete</small>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <strong>Incident Response Procedures</strong><br>
+                                <small>In progress - 65% complete</small>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <strong>System Access Transfer</strong><br>
+                                <small>Scheduled for next week</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Work Activity Summarization</span>
+                        <div class="widget-icon">📝</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="padding: 10px; background: #e8f5e9; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Daily Operations</strong><br>
+                            <small>15 documents uploaded</small>
+                        </div>
+                        <div style="padding: 10px; background: #fff3e0; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Project Documentation</strong><br>
+                            <small>8 projects documented</small>
+                        </div>
+                        <div style="padding: 10px; background: #e3f2fd; border-radius: 5px;">
+                            <strong>Knowledge Articles</strong><br>
+                            <small>23 articles created</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Verification Checklist</span>
+                        <div class="widget-icon">✓</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="display: flex; align-items: center; padding: 8px 0;">
+                            <input type="checkbox" checked style="margin-right: 10px;">
+                            <label>Task documentation complete</label>
+                        </div>
+                        <div style="display: flex; align-items: center; padding: 8px 0;">
+                            <input type="checkbox" checked style="margin-right: 10px;">
+                            <label>Critical processes verified</label>
+                        </div>
+                        <div style="display: flex; align-items: center; padding: 8px 0;">
+                            <input type="checkbox" style="margin-right: 10px;">
+                            <label>Knowledge transfer sessions</label>
+                        </div>
+                        <div style="display: flex; align-items: center; padding: 8px 0;">
+                            <input type="checkbox" style="margin-right: 10px;">
+                            <label>Final stakeholder sign-off</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Incoming Contractor View -->
+        <div id="incoming" class="view-container">
+            <h2 style="margin-bottom: 20px;">Incoming Contractor Interface</h2>
+            
+            <div class="dashboard-grid">
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">My Learning Roadmap</span>
+                        <div class="widget-icon">🎯</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f0f4ff; border-radius: 5px; margin-bottom: 10px;">
+                            <div>
+                                <strong>Role: Network Administrator</strong><br>
+                                <small>Customized learning path generated</small>
+                            </div>
+                            <div style="font-size: 24px; color: #667eea; font-weight: bold;">72%</div>
+                        </div>
+                        <div style="padding: 10px;">
+                            <div style="margin-bottom: 10px;">
+                                <strong>Current Module: System Architecture</strong>
+                                <div style="height: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 5px;">
+                                    <div style="height: 100%; width: 60%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 4px;"></div>
+                                </div>
+                            </div>
+                            <small>Next: Security Protocols | Est. 2 hours</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Elements to Master</span>
+                        <div class="widget-icon">🏆</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="display: grid; gap: 8px;">
+                            <div style="padding: 8px; background: #d4edda; border-radius: 5px;">
+                                ✓ Network Topology
+                            </div>
+                            <div style="padding: 8px; background: #d4edda; border-radius: 5px;">
+                                ✓ Monitoring Tools
+                            </div>
+                            <div style="padding: 8px; background: #fff3cd; border-radius: 5px;">
+                                ⏳ Incident Response (In Progress)
+                            </div>
+                            <div style="padding: 8px; background: #f8f9fa; border-radius: 5px;">
+                                ○ Change Management
+                            </div>
+                            <div style="padding: 8px; background: #f8f9fa; border-radius: 5px;">
+                                ○ Disaster Recovery
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">AI Knowledge Assistant</span>
+                        <div class="widget-icon">💬</div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="llm-interface">
+                            <div class="llm-chat">
+                                <p><strong>You:</strong> What's the escalation process for network outages?</p>
+                                <p><strong>AI:</strong> Based on the knowledge base, the escalation process is:<br>
+                                1. Level 1: NOC team (0-15 min)<br>
+                                2. Level 2: Network Engineer (15-30 min)<br>
+                                3. Level 3: Senior Engineer...</p>
+                                <p><em>📎 Related docs: SOP-NET-001, Escalation Matrix v2.3</em></p>
+                            </div>
+                            <div class="llm-input">
+                                <input type="text" placeholder="Ask about procedures, systems, or processes...">
+                                <button>Ask AI</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="integration-panel">
+                <div class="integration-header">
+                    <div class="integration-icon">📚</div>
+                    <div>
+                        <h3>Contextual Learning Resources</h3>
+                        <p style="color: #666; margin-top: 5px;">AI-curated materials based on your progress</p>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px;">
+                    <div style="padding: 15px; background: white; border: 2px solid #667eea; border-radius: 8px; cursor: pointer;">
+                        <strong>Network Monitoring Guide</strong><br>
+                        <small>Version 3.2 | Updated 2 days ago</small>
+                    </div>
+                    <div style="padding: 15px; background: white; border: 2px solid #667eea; border-radius: 8px; cursor: pointer;">
+                        <strong>Incident Response Playbook</strong><br>
+                        <small>Version 2.8 | Critical procedures</small>
+                    </div>
+                    <div style="padding: 15px; background: white; border: 2px solid #667eea; border-radius: 8px; cursor: pointer;">
+                        <strong>System Architecture Overview</strong><br>
+                        <small>Version 4.1 | With diagrams</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Knowledge Base View -->
+        <div id="knowledge" class="view-container">
+            <h2 style="margin-bottom: 20px;">Knowledge Management System</h2>
+            
+            <div class="knowledge-grid">
+                <div class="knowledge-card">
+                    <div class="knowledge-count">423</div>
+                    <div class="knowledge-label">Operational Procedures</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="knowledge-count">287</div>
+                    <div class="knowledge-label">System Documentation</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="knowledge-count">156</div>
+                    <div class="knowledge-label">Historical Data</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="knowledge-count">89</div>
+                    <div class="knowledge-label">Compliance Docs</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="knowledge-count">234</div>
+                    <div class="knowledge-label">Best Practices</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="knowledge-count">58</div>
+                    <div class="knowledge-label">Training Materials</div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Recent Updates</span>
+                        <div class="widget-icon">🔄</div>
+                    </div>
+                    <div class="widget-content">
+                        <div class="task-timeline">
+                            <div class="timeline-line"></div>
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <strong>Network Topology v3.2</strong><br>
+                                <small>Updated by John Doe - 2 hours ago</small>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <strong>Security Protocols v2.8</strong><br>
+                                <small>Reviewed by Gov PM - 5 hours ago</small>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-dot"></div>
+                                <strong>Disaster Recovery Plan v4.1</strong><br>
+                                <small>Major revision - Yesterday</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Version Tracking</span>
+                        <div class="widget-icon">📊</div>
+                    </div>
+                    <div class="widget-content">
+                        <p style="margin-bottom: 15px;">System maintains last 15 versions for trend analysis</p>
+                        <div style="padding: 10px; background: #e8f5e9; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Average Update Frequency</strong><br>
+                            <small>12 updates per week</small>
+                        </div>
+                        <div style="padding: 10px; background: #fff3e0; border-radius: 5px;">
+                            <strong>Trend Analysis Available</strong><br>
+                            <small>87 documents with sufficient history</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">Taxonomy Evolution</span>
+                        <div class="widget-icon">🌳</div>
+                    </div>
+                    <div class="widget-content">
+                        <p style="margin-bottom: 10px;">Auto-generated categories from content:</p>
+                        <div style="font-size: 12px; line-height: 2;">
+                            <span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; margin: 2px;">network-ops</span>
+                            <span style="background: #764ba2; color: white; padding: 2px 8px; border-radius: 12px; margin: 2px;">security</span>
+                            <span style="background: #f093fb; color: white; padding: 2px 8px; border-radius: 12px; margin: 2px;">compliance</span>
+                            <span style="background: #f5576c; color: white; padding: 2px 8px; border-radius: 12px; margin: 2px;">infrastructure</span>
+                            <span style="background: #4facfe; color: white; padding: 2px 8px; border-radius: 12px; margin: 2px;">monitoring</span>
+                            <span style="background: #00f2fe; color: white; padding: 2px 8px; border-radius: 12px; margin: 2px;">incident-mgmt</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integration View -->
+        <div id="integration" class="view-container">
+            <h2 style="margin-bottom: 20px;">System Integrations</h2>
+            
+            <div class="integration-panel">
+                <div class="integration-header">
+                    <div class="integration-icon">⚡</div>
+                    <div>
+                        <h3>n8n Webhook Workflows</h3>
+                        <p style="color: #666; margin-top: 5px;">Active webhook endpoints and workflow status</p>
+                    </div>
+                </div>
+                <div class="webhook-list">
+                    <div class="webhook-item">
+                        <div class="webhook-status"></div>
+                        <strong>Task Creation</strong> - /api/webhook/task-create
+                        <span style="margin-left: auto; color: #28a745;">Active</span>
+                    </div>
+                    <div class="webhook-item">
+                        <div class="webhook-status"></div>
+                        <strong>Progress Update</strong> - /api/webhook/progress
+                        <span style="margin-left: auto; color: #28a745;">Active</span>
+                    </div>
+                    <div class="webhook-item">
+                        <div class="webhook-status"></div>
+                        <strong>Question Submission</strong> - /api/webhook/llm-question
+                        <span style="margin-left: auto; color: #28a745;">Active</span>
+                    </div>
+                    <div class="webhook-item">
+                        <div class="webhook-status"></div>
+                        <strong>Milestone Reached</strong> - /api/webhook/milestone
+                        <span style="margin-left: auto; color: #28a745;">Active</span>
+                    </div>
+                    <div class="webhook-item">
+                        <div class="webhook-status" style="background: #ffc107;"></div>
+                        <strong>Knowledge Gap</strong> - /api/webhook/knowledge-gap
+                        <span style="margin-left: auto; color: #ffc107;">Testing</span>
+                    </div>
+                    <div class="webhook-item">
+                        <div class="webhook-status" style="background: #dc3545;"></div>
+                        <strong>Verification</strong> - /api/webhook/verify
+                        <span style="margin-left: auto; color: #dc3545;">Offline</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid" style="margin-top: 20px;">
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">LLM Integration</span>
+                        <div class="widget-icon">🤖</div>
+                    </div>
+                    <div class="widget-content">
+                        <h4 style="margin-bottom: 10px;">Task Generation Engine</h4>
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                            POST /api/llm/generate-tasks<br>
+                            {<br>
+                            &nbsp;&nbsp;"role": "network_admin",<br>
+                            &nbsp;&nbsp;"phase": "onboarding",<br>
+                            &nbsp;&nbsp;"priority": "operational"<br>
+                            }
+                        </div>
+                        <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                            Generates role-specific tasks based on operational priorities and business continuity requirements.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">External Systems</span>
+                        <div class="widget-icon">🔗</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="display: grid; gap: 10px;">
+                            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                                <span>📧 Email Service</span>
+                                <span style="color: #28a745;">Connected</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                                <span>📅 Calendar System</span>
+                                <span style="color: #28a745;">Connected</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                                <span>💬 Messaging Platform</span>
+                                <span style="color: #ffc107;">Configuring</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                                <span>📊 Analytics Engine</span>
+                                <span style="color: #28a745;">Connected</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="widget">
+                    <div class="widget-header">
+                        <span class="widget-title">API Statistics</span>
+                        <div class="widget-icon">📈</div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
+                            <div style="padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 5px;">
+                                <div style="font-size: 24px; font-weight: bold;">12,847</div>
+                                <div style="font-size: 12px;">API Calls Today</div>
+                            </div>
+                            <div style="padding: 10px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 5px;">
+                                <div style="font-size: 24px; font-weight: bold;">99.8%</div>
+                                <div style="font-size: 12px;">Uptime</div>
+                            </div>
+                            <div style="padding: 10px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border-radius: 5px;">
+                                <div style="font-size: 24px; font-weight: bold;">142ms</div>
+                                <div style="font-size: 12px;">Avg Response</div>
+                            </div>
+                            <div style="padding: 10px; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; border-radius: 5px;">
+                                <div style="font-size: 24px; font-weight: bold;">3,421</div>
+                                <div style="font-size: 12px;">LLM Queries</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchView(viewId) {
+            // Hide all views
+            document.querySelectorAll('.view-container').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected view
+            document.getElementById(viewId).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // Simulate real-time updates
+        setInterval(() => {
+            // Update metrics
+            const progressMetric = document.querySelector('.metric-value');
+            if (progressMetric && Math.random() > 0.8) {
+                const currentValue = parseInt(progressMetric.textContent);
+                if (currentValue < 100) {
+                    progressMetric.textContent = currentValue + 1 + '%';
+                }
+            }
+            
+            // Pulse webhook status indicators
+            document.querySelectorAll('.webhook-status').forEach(status => {
+                if (Math.random() > 0.9) {
+                    status.style.animation = 'none';
+                    setTimeout(() => {
+                        status.style.animation = 'pulse 2s infinite';
+                    }, 100);
+                }
+            });
+        }, 3000);
+
+        // Add click interactions
+        document.querySelectorAll('.knowledge-card').forEach(card => {
+            card.addEventListener('click', () => {
+                alert('Opening knowledge category details...\n\nThis would show:\n• All articles in this category\n• Version history\n• Recent updates\n• Trend analytics');
+            });
+        });
+
+        document.querySelectorAll('.user-card').forEach(card => {
+            card.addEventListener('click', () => {
+                alert('Opening transition details...\n\nThis would show:\n• Detailed task list\n• Timeline view\n• Assigned personnel\n• Risk indicators');
+            });
+        });
+
+        // Initialize tooltips
+        document.querySelectorAll('.widget').forEach(widget => {
+            widget.addEventListener('mouseenter', (e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15)';
+            });
+            
+            widget.addEventListener('mouseleave', (e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+            });
+        });
+    </script>
+</body>
+</html>

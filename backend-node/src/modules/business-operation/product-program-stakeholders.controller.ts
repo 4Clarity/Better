@@ -6,6 +6,7 @@ import {
   updateStakeholderRole,
   AddStakeholderInput,
 } from './product-program.service';
+import { getTransitionsByProductProgram } from '../transition/transition.service';
 
 export async function addStakeholderHandler(
   request: FastifyRequest<{
@@ -21,9 +22,12 @@ export async function addStakeholderHandler(
 
     const stakeholder = await addStakeholder(productProgramId, data, userId);
 
+    // Transform the response to match frontend expectations
+    const transformed = transformStakeholder(stakeholder);
+
     return reply.status(201).send({
       success: true,
-      data: stakeholder,
+      data: transformed,
     });
   } catch (error: any) {
     request.log.error(error);
@@ -33,6 +37,35 @@ export async function addStakeholderHandler(
       message: error.message,
     });
   }
+}
+
+// Helper function to transform stakeholder data
+function transformStakeholder(stakeholder: any) {
+  const userRelation = stakeholder.users_product_program_stakeholders_user_idTousers;
+  const assignedByRelation = stakeholder.users_product_program_stakeholders_assigned_byTousers;
+
+  return {
+    id: stakeholder.id,
+    productProgramId: stakeholder.product_program_id,
+    userId: stakeholder.user_id,
+    role: stakeholder.role,
+    assignedAt: stakeholder.assigned_at,
+    assignedBy: stakeholder.assigned_by,
+    user: {
+      id: userRelation.id,
+      email: userRelation.person.primaryEmail,
+      firstName: userRelation.person.firstName,
+      lastName: userRelation.person.lastName,
+      username: userRelation.username,
+    },
+    assignedByUser: {
+      id: assignedByRelation.id,
+      email: assignedByRelation.person.primaryEmail,
+      firstName: assignedByRelation.person.firstName,
+      lastName: assignedByRelation.person.lastName,
+      username: assignedByRelation.username,
+    },
+  };
 }
 
 export async function removeStakeholderHandler(
@@ -69,9 +102,12 @@ export async function getStakeholdersHandler(
 
     const stakeholders = await getStakeholders(productProgramId);
 
+    // Transform all stakeholders
+    const transformed = stakeholders.map(transformStakeholder);
+
     return reply.send({
       success: true,
-      data: stakeholders,
+      data: transformed,
     });
   } catch (error: any) {
     request.log.error(error);
@@ -106,6 +142,36 @@ export async function updateStakeholderRoleHandler(
     return reply.status(400).send({
       statusCode: 400,
       error: 'Bad Request',
+      message: error.message,
+    });
+  }
+}
+
+// ============================================
+// Transition Categorization Handler
+// Story 4.2 - Phase 2
+// ============================================
+
+export async function getProductProgramTransitionsHandler(
+  request: FastifyRequest<{
+    Params: { id: string };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const productProgramId = request.params.id;
+
+    const transitions = await getTransitionsByProductProgram(productProgramId);
+
+    return reply.send({
+      success: true,
+      data: transitions,
+    });
+  } catch (error: any) {
+    request.log.error(error);
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
       message: error.message,
     });
   }

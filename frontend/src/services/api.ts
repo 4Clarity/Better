@@ -98,12 +98,18 @@ export interface EnhancedTransition {
   status: 'NOT_STARTED' | 'ON_TRACK' | 'AT_RISK' | 'BLOCKED' | 'COMPLETED';
   requiresContinuousService: boolean;
   transitionLevel: 'MAJOR' | 'PERSONNEL' | 'OPERATIONAL';
+  productProgramId?: string | null; // Story 4.2 - Phase 2
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
   contract?: Contract;
   creator?: User;
   milestones?: Milestone[];
+  product_programs?: { // Story 4.2 - Phase 2: Product/Program relationship
+    id: string;
+    name: string;
+    description: string;
+  };
   _count?: {
     milestones: number;
   };

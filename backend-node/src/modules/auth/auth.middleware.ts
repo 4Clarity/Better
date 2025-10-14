@@ -61,9 +61,20 @@ export function requireRoles(requiredRoles: string[]) {
 
     // For impersonated users, check the current effective roles
     const effectiveRoles = request.user.roles;
-    const hasRequiredRole = requiredRoles.some(role => effectiveRoles.includes(role));
+    // Normalize roles for comparison: lowercase and replace spaces/underscores
+    const normalizeRole = (role: string) => role.toLowerCase().replace(/[\s_-]+/g, '');
+    const effectiveRolesNormalized = effectiveRoles.map(normalizeRole);
+    const requiredRolesNormalized = requiredRoles.map(normalizeRole);
+    const hasRequiredRole = requiredRolesNormalized.some(role => effectiveRolesNormalized.includes(role));
 
     if (!hasRequiredRole) {
+      // Debug logging to see what's happening
+      console.log('Role check failed:');
+      console.log('  User:', request.user.email);
+      console.log('  User roles:', effectiveRoles);
+      console.log('  Required roles:', requiredRoles);
+      console.log('  Has required role:', hasRequiredRole);
+
       // Enhanced error message for impersonated users
       const roleContext = request.user.isImpersonating
         ? ` (currently impersonating: ${request.user.impersonatedRole})`
@@ -72,6 +83,7 @@ export function requireRoles(requiredRoles: string[]) {
       return reply.status(403).send({
         error: 'Insufficient permissions',
         message: `Required roles: ${requiredRoles.join(', ')}${roleContext}`,
+        userRoles: effectiveRoles, // Include actual user roles in response for debugging
         isImpersonating: request.user.isImpersonating || false,
         currentRole: request.user.impersonatedRole || effectiveRoles[0],
       });

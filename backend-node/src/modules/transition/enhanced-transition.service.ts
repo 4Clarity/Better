@@ -62,7 +62,7 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
 
     console.log('Final cleaned data for Prisma:', JSON.stringify(cleanedData, null, 2));
 
-    const transition = await prisma.transition.create({
+    const transition = await prisma.transitions.create({
       data: {
         ...cleanedData,
         startDate,
@@ -76,19 +76,12 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
         //     }
         //   }
         // },
-        user: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-        },
-        Milestone: {
+        // Note: No direct user relation - transitions use transition_users for many-to-many
+        milestones: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
         },
         _count: {
-          select: { Milestone: true }
+          select: { milestones: true }
         }
       }
     });
@@ -117,7 +110,28 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
   const where: any = {};
 
   if (contractId) {
-    where.contractId = contractId;
+    // Transitions don't have a foreign key to contracts - they store contractName and contractNumber
+    // So we need to look up the contract first to get these values
+    const contract = await prisma.contracts.findUnique({
+      where: { id: contractId },
+      select: { contract_name: true, contract_number: true }
+    });
+
+    if (contract) {
+      where.contractName = contract.contract_name;
+      where.contractNumber = contract.contract_number;
+    } else {
+      // If contract not found, return empty results
+      return {
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        }
+      };
+    }
   }
 
   // Note: businessOperationId filtering disabled - no contract relation available
@@ -146,7 +160,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
   }
 
   const [data, total] = await Promise.all([
-    prisma.transition.findMany({
+    prisma.transitions.findMany({
       where,
       skip,
       take: limit,
@@ -159,20 +173,13 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
         //     }
         //   }
         // },
-        user: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-        },
+        // Note: No direct user relation - transitions use transition_users for many-to-many
         _count: {
-          select: { Milestone: true }
+          select: { milestones: true }
         }
       }
     }),
-    prisma.transition.count({ where })
+    prisma.transitions.count({ where })
   ]);
 
   return {
@@ -187,7 +194,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
 }
 
 export async function getEnhancedTransitionById(id: string) {
-  const transition = await prisma.transition.findUnique({
+  const transition = await prisma.transitions.findUnique({
     where: { id },
     include: {
       // Note: contract relation disabled - transitions only have contractName/contractNumber
@@ -223,16 +230,19 @@ export async function getEnhancedTransitionById(id: string) {
       //     }
       //   }
       // },
-      user: {
-        select: {
-            id: true,
-            person: {
-              select: { firstName: true, lastName: true, primaryEmail: true }
+      milestones: {
+        orderBy: { dueDate: 'asc' }
+      },
+      // Note: No direct user relation - transitions use transition_users for many-to-many
+      transition_users: {
+        include: {
+          users: {
+            select: {
+              id: true,
+              username: true
             }
           }
-      },
-      Milestone: {
-        orderBy: { dueDate: 'asc' }
+        }
       }
     }
   });
@@ -249,10 +259,10 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
 
   // Validate contract if being changed
   if (data.contractId && data.contractId !== existing.contractId) {
-    const contract = await prisma.contract.findUnique({
+    const contract = await prisma.contracts.findUnique({
       where: { id: data.contractId },
       include: {
-        businessOperation: {
+        business_operations: {
           select: { id: true, name: true }
         }
       }
@@ -279,7 +289,7 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
     if (data.startDate) updateData.startDate = new Date(data.startDate);
     if (data.endDate) updateData.endDate = new Date(data.endDate);
 
-    const transition = await prisma.transition.update({
+    const transition = await prisma.transitions.update({
       where: { id },
       data: updateData,
       include: {
@@ -290,19 +300,12 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
         //     }
         //   }
         // },
-        user: {
-          select: { 
-            id: true, 
-            person: { 
-              select: { firstName: true, lastName: true, primaryEmail: true } 
-            } 
-          }
-        },
-        Milestone: {
+        // Note: No direct user relation - transitions use transition_users for many-to-many
+        milestones: {
           select: { id: true, title: true, status: true, dueDate: true, priority: true }
         },
         _count: {
-          select: { Milestone: true }
+          select: { milestones: true }
         }
       }
     });
@@ -318,7 +321,7 @@ export async function deleteEnhancedTransition(id: string) {
   // Validate transition exists before deleting
   await getEnhancedTransitionById(id);
 
-  await prisma.transition.delete({
+  await prisma.transitions.delete({
     where: { id }
   });
 
@@ -332,7 +335,7 @@ export async function createMilestone(transitionId: string, data: {
   dueDate: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }) {
-  const transition = await prisma.transition.findUnique({
+  const transition = await prisma.transitions.findUnique({
     where: { id: transitionId }
   });
 
@@ -363,7 +366,7 @@ export async function updateMilestoneStatus(milestoneId: string, status: 'PENDIN
 // Legacy compatibility functions
 export async function getLegacyTransitions() {
   // Return transitions that still use the legacy format
-  const legacyTransitions = await prisma.transition.findMany({
+  const legacyTransitions = await prisma.transitions.findMany({
     where: {
       contractId: null,
       contractName: { not: null },
@@ -414,10 +417,10 @@ export async function getOperationalChanges(query: GetEnhancedTransitionsQuery) 
 // Analytics functions for dashboard
 export async function getTransitionCounts() {
   const [major, personnel, operational, total] = await Promise.all([
-    prisma.transition.count({ where: { transitionLevel: 'MAJOR' } }),
-    prisma.transition.count({ where: { transitionLevel: 'PERSONNEL' } }),
-    prisma.transition.count({ where: { transitionLevel: 'OPERATIONAL' } }),
-    prisma.transition.count()
+    prisma.transitions.count({ where: { transitionLevel: 'MAJOR' } }),
+    prisma.transitions.count({ where: { transitionLevel: 'PERSONNEL' } }),
+    prisma.transitions.count({ where: { transitionLevel: 'OPERATIONAL' } }),
+    prisma.transitions.count()
   ]);
 
   return {

@@ -384,3 +384,129 @@ async function createAuditLog(
     },
   });
 }
+
+// ============================================
+// Product/Program Categorization Functions
+// Story 4.2 - Phase 2
+// ============================================
+
+/**
+ * Assigns a transition to a Product/Program
+ * @param transitionId - The ID of the transition to assign
+ * @param productProgramId - The ID of the product/program to assign to
+ * @param assignedBy - The user ID performing the assignment
+ * @returns The updated transition with product/program data
+ */
+export async function assignToProductProgram(
+  transitionId: string,
+  productProgramId: string,
+  assignedBy: string
+) {
+  // Validate transition exists
+  const transition = await prisma.transitions.findUnique({
+    where: { id: transitionId },
+  });
+
+  if (!transition) {
+    throw new Error('Transition not found');
+  }
+
+  // Validate product/program exists
+  const productProgram = await prisma.product_programs.findUnique({
+    where: { id: productProgramId },
+  });
+
+  if (!productProgram) {
+    throw new Error('Product/Program not found');
+  }
+
+  // Update transition with product/program assignment
+  const updatedTransition = await prisma.transitions.update({
+    where: { id: transitionId },
+    data: { productProgramId: productProgramId },
+    include: {
+      product_programs: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        },
+      },
+    },
+  });
+
+  console.log(`Transition ${transitionId} assigned to Product/Program ${productProgramId} by user ${assignedBy}`);
+
+  return updatedTransition;
+}
+
+/**
+ * Removes the Product/Program assignment from a transition
+ * @param transitionId - The ID of the transition to unassign
+ * @param removedBy - The user ID performing the removal
+ * @returns The updated transition
+ */
+export async function removeFromProductProgram(
+  transitionId: string,
+  removedBy: string
+) {
+  // Validate transition exists
+  const transition = await prisma.transitions.findUnique({
+    where: { id: transitionId },
+  });
+
+  if (!transition) {
+    throw new Error('Transition not found');
+  }
+
+  if (!transition.productProgramId) {
+    throw new Error('Transition is not assigned to any Product/Program');
+  }
+
+  // Remove product/program assignment
+  const updatedTransition = await prisma.transitions.update({
+    where: { id: transitionId },
+    data: { productProgramId: null },
+  });
+
+  console.log(`Transition ${transitionId} unassigned from Product/Program by user ${removedBy}`);
+
+  return updatedTransition;
+}
+
+/**
+ * Gets all transitions assigned to a specific Product/Program
+ * @param productProgramId - The ID of the product/program
+ * @returns Array of transitions with basic details
+ */
+export async function getTransitionsByProductProgram(productProgramId: string) {
+  // Validate product/program exists
+  const productProgram = await prisma.product_programs.findUnique({
+    where: { id: productProgramId },
+  });
+
+  if (!productProgram) {
+    throw new Error('Product/Program not found');
+  }
+
+  // Get all transitions assigned to this product/program
+  const transitions = await prisma.transitions.findMany({
+    where: { productProgramId: productProgramId },
+    select: {
+      id: true,
+      name: true,
+      contractName: true,
+      contractNumber: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      description: true,
+      priority: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { startDate: 'desc' },
+  });
+
+  return transitions;
+}

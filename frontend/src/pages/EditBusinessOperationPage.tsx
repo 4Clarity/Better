@@ -7,14 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function EditBusinessOperationPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { hasRoles, isAdmin, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [operation, setOperation] = useState<BusinessOperation | null>(null);
+
+  // Check if user has permission to edit
+  const canEdit = isAdmin || hasRoles(['program_director', 'director']);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -152,7 +157,27 @@ export function EditBusinessOperationPage() {
     navigate(`/business-operations/${id}`);
   };
 
-  if (loading) {
+  // Check authorization
+  if (!authLoading && !canEdit) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center gap-4 mb-8">
+          <Link to="/business-operations">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Business Operations
+            </Button>
+          </Link>
+        </div>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <strong>Access Denied:</strong> You don't have permission to edit business operations.
+          Only Program Directors and Administrators can edit business operations.
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || authLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-center items-center h-64">

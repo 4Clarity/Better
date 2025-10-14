@@ -5,6 +5,9 @@ import {
   getBusinessOperationById,
   updateBusinessOperation,
   deleteBusinessOperation,
+  linkToBusinessOperation,
+  unlinkFromBusinessOperation,
+  getProgramsAndProductsByOperation,
   CreateBusinessOperationInput,
   UpdateBusinessOperationInput,
   GetBusinessOperationsQuery,
@@ -127,27 +130,166 @@ export async function deleteBusinessOperationHandler(
     return reply.code(200).send(result);
   } catch (error: any) {
     console.error('Delete business operation error:', error);
-    
+
     if (error.message === 'Business operation not found') {
-      return reply.code(404).send({ 
+      return reply.code(404).send({
         statusCode: 404,
         error: 'Not Found',
-        message: error.message 
+        message: error.message
       });
     }
 
     if (error.message === 'Cannot delete business operation with active contracts') {
-      return reply.code(409).send({ 
+      return reply.code(409).send({
         statusCode: 409,
         error: 'Conflict',
-        message: error.message 
+        message: error.message
       });
     }
-    
-    return reply.code(500).send({ 
+
+    return reply.code(500).send({
       statusCode: 500,
       error: 'Internal Server Error',
-      message: 'Failed to delete business operation' 
+      message: 'Failed to delete business operation'
+    });
+  }
+}
+
+// ============================================
+// Business Operation Linking Handlers
+// Story 4.2 - Phase 3
+// ============================================
+
+/**
+ * Link a Program or Product to a Business Operation
+ * PUT /api/product-programs/:id/business-operation
+ */
+export async function linkProgramProductToOperationHandler(
+  request: FastifyRequest<{
+    Params: { id: string };
+    Body: { businessOperationId: string };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const { id } = request.params;
+    const { businessOperationId } = request.body;
+
+    const updated = await linkToBusinessOperation(id, businessOperationId);
+    return reply.code(200).send({
+      success: true,
+      data: updated
+    });
+  } catch (error: any) {
+    console.error('Link to business operation error:', error);
+
+    if (error.message.includes('not found')) {
+      return reply.code(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: error.message
+      });
+    }
+
+    if (error.message.includes('Cannot link') || error.message.includes('Can only link')) {
+      return reply.code(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: error.message
+      });
+    }
+
+    return reply.code(500).send({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to link to business operation'
+    });
+  }
+}
+
+/**
+ * Unlink a Program or Product from its Business Operation
+ * DELETE /api/product-programs/:id/business-operation
+ */
+export async function unlinkProgramProductFromOperationHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  try {
+    const { id } = request.params;
+
+    const updated = await unlinkFromBusinessOperation(id);
+    return reply.code(200).send({
+      success: true,
+      message: 'Program/Product unlinked from Business Operation',
+      data: updated
+    });
+  } catch (error: any) {
+    console.error('Unlink from business operation error:', error);
+
+    if (error.message.includes('not found')) {
+      return reply.code(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: error.message
+      });
+    }
+
+    if (error.message.includes('not currently linked') || error.message.includes('Cannot unlink')) {
+      return reply.code(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: error.message
+      });
+    }
+
+    return reply.code(500).send({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to unlink from business operation'
+    });
+  }
+}
+
+/**
+ * Get all Programs and Products for a Business Operation
+ * GET /api/business-operations/:id/programs-products
+ */
+export async function getProgramsAndProductsHandler(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  try {
+    const { id } = request.params;
+
+    const programsAndProducts = await getProgramsAndProductsByOperation(id);
+    return reply.code(200).send({
+      success: true,
+      data: programsAndProducts
+    });
+  } catch (error: any) {
+    console.error('Get programs and products error:', error);
+
+    if (error.message.includes('not found')) {
+      return reply.code(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: error.message
+      });
+    }
+
+    if (error.message.includes('Can only query')) {
+      return reply.code(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: error.message
+      });
+    }
+
+    return reply.code(500).send({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch programs and products'
     });
   }
 }

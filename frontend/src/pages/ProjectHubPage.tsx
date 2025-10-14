@@ -179,6 +179,14 @@ export function ProjectHubPage() {
     if (!id || !taskTitle || !taskDue) return;
     setTaskSaving(true);
     try {
+      // Convert priority from frontend format (LOW, MEDIUM) to Prisma format (Low, Medium)
+      const priorityMap: Record<string, string> = {
+        'LOW': 'Low',
+        'MEDIUM': 'Medium',
+        'HIGH': 'High',
+        'CRITICAL': 'Critical'
+      };
+
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks`, {
         method: 'POST',
         headers: {
@@ -189,7 +197,7 @@ export function ProjectHubPage() {
         body: JSON.stringify({
           title: taskTitle,
           dueDate: new Date(`${taskDue}T12:00:00`).toISOString(),
-          priority: taskPriority,
+          priority: priorityMap[taskPriority] || 'Medium',
           description: taskDesc || undefined,
           milestoneId: taskMilestoneId || undefined,
         }),
@@ -226,6 +234,14 @@ export function ProjectHubPage() {
   const saveTask = async () => {
     if (!id || !editingTaskId) return;
     try {
+      // Convert priority from frontend format (LOW, MEDIUM) to Prisma format (Low, Medium)
+      const priorityMap: Record<string, string> = {
+        'LOW': 'Low',
+        'MEDIUM': 'Medium',
+        'HIGH': 'High',
+        'CRITICAL': 'Critical'
+      };
+
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${editingTaskId}`, {
         method: 'PUT',
         headers: {
@@ -236,7 +252,7 @@ export function ProjectHubPage() {
         body: JSON.stringify({
           title: editTaskTitle,
           dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(),
-          priority: editTaskPriority,
+          priority: priorityMap[editTaskPriority] || 'Medium',
           description: editTaskDesc || undefined,
           status: editTaskStatus,
           milestoneId: editTaskMilestoneId === '' ? null : editTaskMilestoneId,

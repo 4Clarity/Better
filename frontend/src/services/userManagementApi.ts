@@ -196,21 +196,50 @@ export class UserManagementApi {
 
     const endpoint = `/users${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const backendResponse = await this.request<{
-      users: User[];
+      users: any[];
       totalCount: number;
       page: number;
       pageSize: number;
     }>(endpoint);
-    
+
     // Check if response is already in expected format (has pagination object)
     if ((backendResponse as any).pagination) {
       return backendResponse as unknown as UsersResponse;
     }
-    
+
     // Transform backend response to match frontend expected format
+    // Backend returns users with nested person object, flatten it for frontend
+    const transformedUsers: User[] = backendResponse.users.map((user: any) => ({
+      id: user.id,
+      email: user.person.primaryEmail,
+      firstName: user.person.firstName,
+      lastName: user.person.lastName,
+      role: user.roles && user.roles.length > 0 ? user.roles[0] : '',
+      username: user.username,
+      keycloakId: user.keycloakId,
+      accountStatus: user.accountStatus,
+      statusReason: user.statusReason,
+      roles: user.roles || [],
+      permissions: user.permissions,
+      sessionTimeout: user.sessionTimeout,
+      allowedIpRanges: user.allowedIpRanges,
+      lastLoginAt: user.lastLoginAt,
+      invitationToken: user.invitationToken,
+      invitationExpiresAt: user.invitationExpiresAt,
+      invitedBy: user.invitedBy,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      deactivatedBy: user.deactivatedBy,
+      deactivatedAt: user.deactivatedAt,
+      personId: user.personId,
+      registrationRequestId: user.registrationRequestId,
+      person: user.person,
+      organizationAffiliations: user.organizationAffiliations,
+    }));
+
     const totalPages = Math.ceil(backendResponse.totalCount / backendResponse.pageSize);
     return {
-      users: backendResponse.users,
+      users: transformedUsers,
       pagination: {
         page: backendResponse.page,
         pageSize: backendResponse.pageSize,

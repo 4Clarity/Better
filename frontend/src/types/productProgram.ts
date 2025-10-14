@@ -27,6 +27,9 @@ export interface ProductProgram {
   dependencies: string | null;
   securityClassification: SecurityClassification;
   criticalDates: CriticalDate[];
+  business_operation_type?: BusinessOperationType;
+  business_operation_id?: string | null;
+  business_operation?: BusinessOperationSummary;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -120,4 +123,72 @@ export interface StakeholdersListResponse {
 export interface RemoveStakeholderResponse {
   success: boolean;
   message: string;
+}
+
+// Transition Types (Story 4.2 - Phase 2)
+
+export interface TransitionSummary {
+  id: string;
+  name: string;
+  contractName: string;
+  contractNumber: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  description: string | null;
+  priority: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssignTransitionRequest {
+  productProgramId: string;
+}
+
+export interface AssignTransitionResponse {
+  success: boolean;
+  data: TransitionSummary;
+}
+
+export interface RemoveTransitionResponse {
+  success: boolean;
+  message: string;
+  data: TransitionSummary;
+}
+
+export interface ProductProgramTransitionsResponse {
+  success: boolean;
+  data: TransitionSummary[];
+}
+
+// Business Operation Types (Story 4.2 - Phase 3)
+
+export enum BusinessOperationType {
+  Operation = 'Operation',
+  Program = 'Program',
+  Product = 'Product',
+}
+
+export interface BusinessOperationSummary {
+  id: string;
+  name: string;
+  description: string;
+  business_operation_type: BusinessOperationType;
+}
+
+export interface LinkToBusinessOperationRequest {
+  businessOperationId: string;
+}
+
+export interface LinkToBusinessOperationResponse {
+  success: boolean;
+  data: ProductProgram & {
+    business_operation?: BusinessOperationSummary;
+  };
+}
+
+export interface UnlinkFromBusinessOperationResponse {
+  success: boolean;
+  message: string;
+  data: ProductProgram;
 }

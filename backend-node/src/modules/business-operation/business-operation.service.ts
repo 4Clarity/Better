@@ -40,6 +40,36 @@ export type CreateBusinessOperationInput = z.infer<typeof createBusinessOperatio
 export type UpdateBusinessOperationInput = z.infer<typeof updateBusinessOperationSchema>;
 export type GetBusinessOperationsQuery = z.infer<typeof getBusinessOperationsQuerySchema>;
 
+// Transform database snake_case to API camelCase
+function transformBusinessOperationResponse(dbOperation: any) {
+  return {
+    id: dbOperation.id,
+    name: dbOperation.name,
+    businessFunction: dbOperation.business_function,
+    technicalDomain: dbOperation.technical_domain,
+    description: dbOperation.description,
+    scope: dbOperation.scope,
+    objectives: dbOperation.objectives,
+    performanceMetrics: dbOperation.performance_metrics,
+    supportPeriodStart: dbOperation.support_period_start,
+    supportPeriodEnd: dbOperation.support_period_end,
+    currentContractEnd: dbOperation.current_contract_end,
+    governmentPMId: dbOperation.government_pm_id,
+    directorId: dbOperation.director_id,
+    currentManagerId: dbOperation.current_manager_id,
+    securityClassification: dbOperation.security_classification,
+    createdAt: dbOperation.created_at,
+    updatedAt: dbOperation.updated_at,
+    createdBy: dbOperation.created_by,
+    updatedBy: dbOperation.updated_by,
+    // Include relations if present
+    governmentPM: dbOperation.users_business_operations_government_pm_idTousers,
+    director: dbOperation.users_business_operations_director_idTousers,
+    currentManager: dbOperation.users_business_operations_current_manager_idTousers,
+    _count: dbOperation._count,
+  };
+}
+
 // Service functions
 export async function createBusinessOperation(data: CreateBusinessOperationInput) {
   const startDate = new Date(data.supportPeriodStart);
@@ -86,24 +116,37 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
       validCurrentManagerId = userExists ? data.currentManagerId : null;
     }
     
+    // Get user ID from request context - for now use governmentPMId as creator
+    // TODO: Replace with actual authenticated user ID from request context
+    const creatorUserId = data.governmentPMId;
+
     const createData = {
-      ...data,
-      supportPeriodStart: startDate,
-      supportPeriodEnd: endDate,
-      currentContractEnd: contractEndDate,
-      performanceMetrics: data.performanceMetrics || {},
-      deliverables: data.deliverables || '', // Default empty string if not provided
-      security_classification: data.security_classification || 'UNCLASSIFIED', // Default to UNCLASSIFIED
-      // Use validated currentManagerId
-      currentManagerId: validCurrentManagerId,
+      name: data.name,
+      description: data.description,
+      business_function: data.businessFunction,
+      technical_domain: data.technicalDomain,
+      scope: data.scope,
+      objectives: data.objectives,
+      deliverables: '', // Business Operations don't use deliverables field in same way
+      performance_metrics: data.performanceMetrics || {},
+      support_period_start: startDate,
+      support_period_end: endDate,
+      current_contract_end: contractEndDate,
+      government_pm_id: data.governmentPMId,
+      director_id: data.directorId,
+      current_manager_id: validCurrentManagerId,
+      security_classification: 'UNCLASSIFIED', // Default to UNCLASSIFIED
+      // Required audit fields
+      created_by: creatorUserId,
+      updated_by: creatorUserId,
     };
-    
+
     console.log('Creating business operation with data:', JSON.stringify(createData, null, 2));
-    
-    const businessOperation = await prisma.product_programs.create({
+
+    const businessOperation = await prisma.business_operations.create({
       data: createData,
       include: {
-        governmentPM: {
+        users_business_operations_created_byTousers: {
           select: {
             id: true,
             person: {
@@ -111,7 +154,7 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
             }
           }
         },
-        director: {
+        users_business_operations_updated_byTousers: {
           select: {
             id: true,
             person: {
@@ -119,7 +162,7 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
             }
           }
         },
-        currentManager: {
+        users_business_operations_government_pm_idTousers: {
           select: {
             id: true,
             person: {
@@ -127,19 +170,26 @@ export async function createBusinessOperation(data: CreateBusinessOperationInput
             }
           }
         },
-        Contract: {
-          select: { id: true, contractName: true, contractNumber: true, status: true }
+        users_business_operations_director_idTousers: {
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
+          }
         },
-        OperationStakeholder: {
-          select: { id: true, name: true, role: true, stakeholderType: true }
-        },
-        _count: {
-          select: { Contract: true, OperationStakeholder: true }
+        users_business_operations_current_manager_idTousers: {
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, lastName: true, primaryEmail: true }
+            }
+          }
         }
       }
     });
 
-    return businessOperation;
+    return transformBusinessOperationResponse(businessOperation);
   } catch (error: any) {
     console.error('Create business operation error:', error);
     
@@ -173,28 +223,38 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { businessFunction: { contains: search, mode: 'insensitive' } },
-        { technicalDomain: { contains: search, mode: 'insensitive' } },
+        { business_function: { contains: search, mode: 'insensitive' } },
+        { technical_domain: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
       ];
     }
 
     if (businessFunction) {
-      where.businessFunction = { contains: businessFunction, mode: 'insensitive' };
+      where.business_function = { contains: businessFunction, mode: 'insensitive' };
     }
 
     if (technicalDomain) {
-      where.technicalDomain = { contains: technicalDomain, mode: 'insensitive' };
+      where.technical_domain = { contains: technicalDomain, mode: 'insensitive' };
     }
 
+    // Map sortBy fields to snake_case database columns
+    const sortByMap: Record<string, string> = {
+      name: 'name',
+      businessFunction: 'business_function',
+      technicalDomain: 'technical_domain',
+      currentContractEnd: 'current_contract_end',
+      createdAt: 'created_at'
+    };
+    const dbSortBy = sortByMap[sortBy] || 'created_at';
+
     const [data, total] = await Promise.all([
-      prisma.product_programs.findMany({
+      prisma.business_operations.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: { [dbSortBy]: sortOrder },
         include: {
-          governmentPM: {
+          users_business_operations_government_pm_idTousers: {
             select: {
               id: true,
               person: {
@@ -202,7 +262,7 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
               }
             }
           },
-          director: {
+          users_business_operations_director_idTousers: {
             select: {
               id: true,
               person: {
@@ -210,27 +270,21 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
               }
             }
           },
-          currentManager: {
+          users_business_operations_current_manager_idTousers: {
             select: {
               id: true,
               person: {
                 select: { firstName: true, lastName: true, primaryEmail: true }
               }
             }
-          },
-          Contract: {
-            select: { id: true, contractName: true, contractNumber: true, status: true }
-          },
-          _count: {
-            select: { Contract: true, OperationStakeholder: true }
           }
         }
       }),
-      prisma.product_programs.count({ where })
+      prisma.business_operations.count({ where })
     ]);
 
     return {
-      data,
+      data: data.map(op => transformBusinessOperationResponse(op)),
       pagination: {
         page,
         limit,
@@ -245,10 +299,10 @@ export async function getBusinessOperations(query: GetBusinessOperationsQuery) {
 }
 
 export async function getBusinessOperationById(id: string) {
-  const businessOperation = await prisma.product_programs.findUnique({
+  const businessOperation = await prisma.business_operations.findUnique({
     where: { id },
     include: {
-      governmentPM: {
+      users_business_operations_government_pm_idTousers: {
         select: {
           id: true,
           person: {
@@ -256,7 +310,7 @@ export async function getBusinessOperationById(id: string) {
           }
         }
       },
-      director: {
+      users_business_operations_director_idTousers: {
         select: {
           id: true,
           person: {
@@ -264,35 +318,13 @@ export async function getBusinessOperationById(id: string) {
           }
         }
       },
-      currentManager: {
+      users_business_operations_current_manager_idTousers: {
         select: {
           id: true,
           person: {
             select: { firstName: true, lastName: true, primaryEmail: true }
           }
         }
-      },
-      Contract: {
-        include: {
-          Transition: {
-            select: { id: true, name: true, status: true, startDate: true, endDate: true }
-          }
-        }
-      },
-      OperationStakeholder: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              person: {
-                select: { firstName: true, lastName: true, primaryEmail: true }
-              }
-            }
-          }
-        }
-      },
-      _count: {
-        select: { Contract: true, OperationStakeholder: true }
       }
     }
   });
@@ -301,32 +333,39 @@ export async function getBusinessOperationById(id: string) {
     throw new Error('Business operation not found');
   }
 
-  return businessOperation;
+  return transformBusinessOperationResponse(businessOperation);
 }
 
 export async function updateBusinessOperation(id: string, data: UpdateBusinessOperationInput) {
   const existing = await getBusinessOperationById(id);
 
+  console.log('Update business operation - received data:', JSON.stringify(data, null, 2));
+
   // Validate dates if provided
   if (data.supportPeriodStart || data.supportPeriodEnd) {
-    const startDate = data.supportPeriodStart ? new Date(data.supportPeriodStart) : existing.supportPeriodStart;
-    const endDate = data.supportPeriodEnd ? new Date(data.supportPeriodEnd) : existing.supportPeriodEnd;
+    const startDate = data.supportPeriodStart ? new Date(data.supportPeriodStart) : existing.support_period_start;
+    const endDate = data.supportPeriodEnd ? new Date(data.supportPeriodEnd) : existing.support_period_end;
 
     if (endDate <= startDate) {
       throw new Error('Support period end date must be after start date');
     }
-
-    // Allow contracts to extend beyond support period for flexibility
-    // Note: Removed validation that required contractEndDate <= endDate
-    // This allows for contract extensions and transition periods
   }
 
   try {
-    const updateData: any = { ...data };
-    
-    if (data.supportPeriodStart) updateData.supportPeriodStart = new Date(data.supportPeriodStart);
-    if (data.supportPeriodEnd) updateData.supportPeriodEnd = new Date(data.supportPeriodEnd);
-    if (data.currentContractEnd) updateData.currentContractEnd = new Date(data.currentContractEnd);
+    const updateData: any = {};
+
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.businessFunction !== undefined) updateData.business_function = data.businessFunction;
+    if (data.technicalDomain !== undefined) updateData.technical_domain = data.technicalDomain;
+    if (data.scope !== undefined) updateData.scope = data.scope;
+    if (data.objectives !== undefined) updateData.objectives = data.objectives;
+    if (data.performanceMetrics !== undefined) updateData.performance_metrics = data.performanceMetrics;
+    if (data.supportPeriodStart !== undefined) updateData.support_period_start = new Date(data.supportPeriodStart);
+    if (data.supportPeriodEnd !== undefined) updateData.support_period_end = new Date(data.supportPeriodEnd);
+    if (data.currentContractEnd !== undefined) updateData.current_contract_end = new Date(data.currentContractEnd);
+
+    console.log('Update business operation - updateData:', JSON.stringify(updateData, null, 2));
 
     // Validate required user IDs exist if they're being updated
     if ('governmentPMId' in data && data.governmentPMId) {
@@ -334,6 +373,7 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
       if (!governmentPM) {
         throw new Error(`Government PM with ID "${data.governmentPMId}" not found. Please select a valid user.`);
       }
+      updateData.government_pm_id = data.governmentPMId;
     }
 
     if ('directorId' in data && data.directorId) {
@@ -341,6 +381,7 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
       if (!director) {
         throw new Error(`Director with ID "${data.directorId}" not found. Please select a valid user.`);
       }
+      updateData.director_id = data.directorId;
     }
 
     // Check if currentManagerId is a valid User ID, otherwise set to null
@@ -349,17 +390,17 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
         const userExists = await prisma.user.findUnique({
           where: { id: data.currentManagerId }
         });
-        updateData.currentManagerId = userExists ? data.currentManagerId : null;
+        updateData.current_manager_id = userExists ? data.currentManagerId : null;
       } else {
-        updateData.currentManagerId = null;
+        updateData.current_manager_id = null;
       }
     }
 
-    const businessOperation = await prisma.product_programs.update({
+    const businessOperation = await prisma.business_operations.update({
       where: { id },
       data: updateData,
       include: {
-        governmentPM: {
+        users_business_operations_government_pm_idTousers: {
           select: {
             id: true,
             person: {
@@ -367,7 +408,7 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
             }
           }
         },
-        director: {
+        users_business_operations_director_idTousers: {
           select: {
             id: true,
             person: {
@@ -375,44 +416,35 @@ export async function updateBusinessOperation(id: string, data: UpdateBusinessOp
             }
           }
         },
-        currentManager: {
+        users_business_operations_current_manager_idTousers: {
           select: {
             id: true,
             person: {
               select: { firstName: true, lastName: true, primaryEmail: true }
             }
           }
-        },
-        Contract: {
-          select: { id: true, contractName: true, contractNumber: true, status: true }
-        },
-        OperationStakeholder: {
-          select: { id: true, name: true, role: true, stakeholderType: true }
-        },
-        _count: {
-          select: { Contract: true, OperationStakeholder: true }
         }
       }
     });
 
-    return businessOperation;
+    return transformBusinessOperationResponse(businessOperation);
   } catch (error: any) {
     console.error('Update business operation error:', error);
-    
+
     // Handle Prisma-specific errors
     if (error.code === 'P2021') {
       throw new Error('Database not set up: The Business Operations feature requires database tables to be created. Please contact your administrator to run the database migration.');
     }
-    
+
     if (error.code?.startsWith('P')) {
       throw new Error(`Database error: ${error.message}`);
     }
-    
+
     // Handle validation errors
     if (error.message?.includes('Invalid') || error.message?.includes('required')) {
       throw new Error(`Validation error: ${error.message}`);
     }
-    
+
     // Pass through other specific error messages
     const errorMessage = error.message || 'Failed to update business operation';
     throw new Error(errorMessage);
@@ -423,21 +455,163 @@ export async function deleteBusinessOperation(id: string) {
   // Verify the business operation exists
   await getBusinessOperationById(id);
 
-  // Check if there are active contracts
-  const activeContracts = await prisma.contract.count({
+  // Check if there are any programs/products linked to this operation
+  const linkedItems = await prisma.product_programs.count({
     where: {
-      businessOperationId: id,
-      status: { in: ['ACTIVE', 'RENEWAL'] }
+      business_operation_id: id
     }
   });
 
-  if (activeContracts > 0) {
-    throw new Error('Cannot delete business operation with active contracts');
+  if (linkedItems > 0) {
+    throw new Error('Cannot delete business operation with linked programs or products. Please unlink them first.');
   }
 
-  await prisma.product_programs.delete({
+  await prisma.business_operations.delete({
     where: { id }
   });
 
   return { message: 'Business operation deleted successfully' };
+}
+
+// ============================================
+// Business Operation Linking Methods
+// Story 4.2 - Phase 3
+// ============================================
+
+/**
+ * Link a Program or Product to a Business Operation
+ * @param programProductId - The ID of the Program or Product to link
+ * @param businessOperationId - The ID of the Business Operation to link to
+ * @returns The updated Program/Product with business operation data
+ */
+export async function linkToBusinessOperation(
+  programProductId: string,
+  businessOperationId: string
+) {
+  // Validate that the program/product exists and is not an Operation itself
+  const programProduct = await prisma.product_programs.findUnique({
+    where: { id: programProductId },
+    select: { id: true, name: true, business_operation_type: true }
+  });
+
+  if (!programProduct) {
+    throw new Error('Program/Product not found');
+  }
+
+  if (programProduct.business_operation_type === 'Operation') {
+    throw new Error('Cannot link an Operation to another Operation. Only Programs and Products can be linked to Operations.');
+  }
+
+  // Validate that the business operation exists
+  // Business Operations are now in the business_operations table
+  const businessOperation = await prisma.business_operations.findUnique({
+    where: { id: businessOperationId },
+    select: { id: true, name: true }
+  });
+
+  if (!businessOperation) {
+    throw new Error('Business Operation not found');
+  }
+
+  // Update the program/product with the business operation link
+  const updated = await prisma.product_programs.update({
+    where: { id: programProductId },
+    data: { business_operation_id: businessOperationId },
+    include: {
+      business_operation: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          business_function: true,
+          technical_domain: true
+        }
+      }
+    }
+  });
+
+  console.log(`${programProduct.business_operation_type} ${programProductId} linked to Business Operation ${businessOperationId}`);
+
+  return updated;
+}
+
+/**
+ * Unlink a Program or Product from its Business Operation
+ * @param programProductId - The ID of the Program or Product to unlink
+ * @returns The updated Program/Product
+ */
+export async function unlinkFromBusinessOperation(programProductId: string) {
+  // Validate that the program/product exists
+  const programProduct = await prisma.product_programs.findUnique({
+    where: { id: programProductId },
+    select: { id: true, business_operation_id: true, business_operation_type: true }
+  });
+
+  if (!programProduct) {
+    throw new Error('Program/Product not found');
+  }
+
+  if (!programProduct.business_operation_id) {
+    throw new Error('Program/Product is not currently linked to any Business Operation');
+  }
+
+  if (programProduct.business_operation_type === 'Operation') {
+    throw new Error('Cannot unlink an Operation. Only Programs and Products can be unlinked.');
+  }
+
+  // Remove the business operation link
+  const updated = await prisma.product_programs.update({
+    where: { id: programProductId },
+    data: { business_operation_id: null }
+  });
+
+  console.log(`${programProduct.business_operation_type} ${programProductId} unlinked from Business Operation`);
+
+  return updated;
+}
+
+/**
+ * Get all Programs and Products linked to a specific Business Operation
+ * @param businessOperationId - The ID of the Business Operation
+ * @returns Array of Programs and Products
+ */
+export async function getProgramsAndProductsByOperation(businessOperationId: string) {
+  // Validate that the business operation exists
+  // Business Operations are now in the business_operations table
+  const businessOperation = await prisma.business_operations.findUnique({
+    where: { id: businessOperationId },
+    select: { id: true, name: true }
+  });
+
+  if (!businessOperation) {
+    throw new Error('Business Operation not found');
+  }
+
+  // Get all programs and products linked to this operation
+  const programsAndProducts = await prisma.product_programs.findMany({
+    where: { business_operation_id: businessOperationId },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      objectives: true,
+      deliverables: true,
+      business_operation_type: true,
+      security_classification: true,
+      created_at: true,
+      updated_at: true,
+      _count: {
+        select: {
+          transitions: true,
+          product_program_stakeholders: true
+        }
+      }
+    },
+    orderBy: [
+      { business_operation_type: 'asc' }, // Operations, then Programs, then Products
+      { name: 'asc' }
+    ]
+  });
+
+  return programsAndProducts;
 }

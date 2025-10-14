@@ -3,28 +3,41 @@ import { useParams, useNavigate } from "react-router-dom";
 import { businessOperationApi, contractApi, BusinessOperation, Contract } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { NewContractDialog } from "@/components/NewContractDialog";
+import { NewProgramProductDialog } from "@/components/NewProgramProductDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { getProgramsProductsByBusinessOperation } from "@/services/productProgramApi";
+import { ProductProgram } from "@/types/productProgram";
 
 export function BusinessOperationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, hasRoles, isAdmin } = useAuth();
   const [operation, setOperation] = useState<BusinessOperation | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [programsProducts, setProgramsProducts] = useState<ProductProgram[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userRole = "director";
+  // Check if user has permission to edit (Program Director or Admin)
+  const canEdit = isAdmin || hasRoles(['program_director', 'director']);
+
+  // Check if user can create contracts (same permissions as edit)
+  const canCreateContract = canEdit;
+  const canCreateProgramProduct = canEdit;
 
   const fetchOperationDetails = async () => {
     if (!id) return;
-    
+
     try {
       setLoading(true);
-      const [operationData, contractsData] = await Promise.all([
+      const [operationData, contractsData, programsProductsData] = await Promise.all([
         businessOperationApi.getById(id),
-        contractApi.getByBusinessOperation(id)
+        contractApi.getByBusinessOperation(id),
+        getProgramsProductsByBusinessOperation(id)
       ]);
       setOperation(operationData);
       setContracts(contractsData);
+      setProgramsProducts(programsProductsData);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch operation details:', err);
@@ -36,6 +49,11 @@ export function BusinessOperationDetailPage() {
 
   const handleContractCreated = async (newContract: Contract) => {
     setContracts(prev => [newContract, ...prev]);
+    await fetchOperationDetails();
+  };
+
+  const handleProgramProductCreated = async (newItem: ProductProgram) => {
+    setProgramsProducts(prev => [newItem, ...prev]);
     await fetchOperationDetails();
   };
 
@@ -100,8 +118,8 @@ export function BusinessOperationDetailPage() {
       <div className="flex justify-between items-start mb-8">
         <div>
           <div className="flex items-center gap-4 mb-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate('/business-operations')}
             >
               ← Back
@@ -111,16 +129,23 @@ export function BusinessOperationDetailPage() {
           <p className="text-gray-600">{operation.businessFunction} • {operation.technicalDomain}</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline"
-            onClick={() => navigate(`/business-operations/${operation.id}/edit`)}
-          >
-            Edit Operation
-          </Button>
-          <NewContractDialog 
+          {canEdit && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/business-operations/${operation.id}/edit`)}
+            >
+              Edit Operation
+            </Button>
+          )}
+          <NewContractDialog
             businessOperationId={operation.id}
             onContractCreated={handleContractCreated}
-            userRole={userRole}
+            canCreate={canCreateContract}
+          />
+          <NewProgramProductDialog
+            businessOperationId={operation.id}
+            onCreated={handleProgramProductCreated}
+            canCreate={canCreateProgramProduct}
           />
         </div>
       </div>
@@ -163,7 +188,7 @@ export function BusinessOperationDetailPage() {
           {/* Contracts */}
           <div className="bg-white rounded-lg border p-6">
             <h2 className="text-xl font-semibold mb-4">Contracts ({contracts.length})</h2>
-            
+
             {contracts.length === 0 ? (
               <p className="text-gray-500">No contracts found for this operation.</p>
             ) : (
@@ -182,10 +207,51 @@ export function BusinessOperationDetailPage() {
                       <p>Duration: {new Date(contract.startDate).toLocaleDateString()} - {new Date(contract.endDate).toLocaleDateString()}</p>
                       <p className="flex justify-between">
                         <span>{contract._count?.transitions || 0} transition(s)</span>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => navigate(`/contracts/${contract.id}`)}
+                        >
+                          View Details
+                        </Button>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Programs & Products */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-xl font-semibold mb-4">Programs & Products ({programsProducts.length})</h2>
+
+            {programsProducts.length === 0 ? (
+              <p className="text-gray-500">No programs or products linked to this operation.</p>
+            ) : (
+              <div className="space-y-4">
+                {programsProducts.map((item) => (
+                  <div key={item.id} className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/business-operations/products-programs/${item.id}`)}>
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-medium">{item.name}</h3>
+                      <div className="flex gap-2">
+                        <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-800">
+                          {item.securityClassification}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{item.description}</p>
+                    <div className="text-sm text-gray-500">
+                      <p><span className="font-medium">Objectives:</span> {item.objectives}</p>
+                      <p className="flex justify-between mt-2">
+                        <span>{item._count?.transitions || 0} transition(s)</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/business-operations/products-programs/${item.id}`);
+                          }}
                         >
                           View Details
                         </Button>
@@ -253,6 +319,10 @@ export function BusinessOperationDetailPage() {
               <div className="flex justify-between">
                 <span>Total Contracts</span>
                 <span className="font-medium">{operation._count?.contracts || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Programs & Products</span>
+                <span className="font-medium">{programsProducts.length}</span>
               </div>
               <div className="flex justify-between">
                 <span>Total Stakeholders</span>

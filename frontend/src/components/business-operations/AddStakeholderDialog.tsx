@@ -43,11 +43,10 @@ export function AddStakeholderDialog({
     try {
       setLoading(true);
       setError(null);
-      const userManagementApi = new UserManagementApi();
-      const response = await userManagementApi.getUsers({
+      const response = await UserManagementApi.getUsers({
         page: 1,
         pageSize: 100,
-        search: searchTerm || undefined,
+        searchTerm: searchTerm || undefined,
       });
       setUsers(response.users);
     } catch (err) {
