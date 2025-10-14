@@ -11,7 +11,7 @@ interface TransitionCardProps {
     description?: string;
     startDate: string;
     endDate: string;
-    duration: string;
+    duration?: string;
     status: 'NOT_STARTED' | 'ON_TRACK' | 'AT_RISK' | 'BLOCKED' | 'COMPLETED';
     keyPersonnel?: string;
     transitionLevel?: TransitionLevel;
@@ -99,7 +99,7 @@ export function TransitionCard({ transition, linkPath }: TransitionCardProps) {
             <div>
               <div className="font-medium">Duration</div>
               <div className="text-muted-foreground">
-                {transition.duration.replace('_', ' ').toLowerCase()}
+                {transition.duration?.replace('_', ' ').toLowerCase() || 'N/A'}
               </div>
             </div>
           </div>

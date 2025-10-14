@@ -295,28 +295,6 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
             ))}
           </ul>
         </nav>
-
-        {/* User section */}
-        <div className="p-4 mt-auto border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center p-2 space-x-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-            <img 
-              className="w-8 h-8 rounded-full object-cover flex-shrink-0" 
-              src="https://placehold.co/100x100/A0AEC0/000000?text=JD" 
-              alt="User Profile" 
-            />
-            <span className={`text-sm whitespace-nowrap transition-all duration-300 ${isSidebarCollapsed ? 'md:opacity-0 md:w-0 md:overflow-hidden' : ''}`}>
-              Jane Doe
-            </span>
-          </div>
-          <button className={`flex items-center justify-center w-full p-2 mt-2 space-x-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h5a1 1 0 000-2H4V4h4a1 1 0 100-2H3zm7 3a1 1 0 00-1 1v3.586l-.293-.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l2-2a1 1 0 10-1.414-1.414L11 10.586V7a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <span className={`whitespace-nowrap transition-all duration-300 ${isSidebarCollapsed ? 'md:opacity-0 md:w-0 md:overflow-hidden' : ''}`}>
-              Log Out
-            </span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}

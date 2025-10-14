@@ -55,6 +55,95 @@
 18. **Monitor Docker disk space - run `docker system prune` regularly to prevent "no space" errors**
 19. **Match API response structure to frontend interfaces to avoid runtime errors**
 20. **Create comprehensive permission matrices before implementing RBAC features**
+21. **Always use exact Prisma model names from schema - check schema.prisma before writing queries**
+22. **Verify all relation names match Prisma schema exactly (e.g., `milestones` not `Milestone`)**
+23. **After adding new database tables, always add corresponding Prisma models**
+24. **Use snake_case for database columns, match exactly in Prisma field mapping**
+25. **Always regenerate Prisma client and restart backend after schema changes**
+26. **Role checking must be case-insensitive - database may store roles with different casing**
+27. **Test RBAC features with actual database users, not just demo/bypass logins**
+28. **Use `!== undefined` checks for optional update fields, not truthy checks - empty strings are valid values**
+29. **Be consistent with conditional logic patterns across similar operations**
+30. **Add debug logging for update operations to help troubleshoot data persistence issues**
+31. **Always transform database responses to API format - snake_case (DB) → camelCase (API)**
+32. **Create explicit transformation functions at service layer boundaries**
+33. **Test API responses match frontend interface expectations**
+34. **Document field name mappings between database and API layers**
+35. **Install Radix UI dependencies before creating shadcn/ui components**
+36. **Restart frontend container after adding new UI components to ensure Vite picks them up**
+37. **Create role-specific dashboards using composition pattern (shared widgets + persona layouts)**
+38. **Use placeholder data in new components to demonstrate UI before API integration**
+39. **Implement graceful fallbacks for unrecognized user roles in dashboard routing**
+40. **Document all new component props and variants with TypeScript interfaces**
+
+## Prisma Schema Consistency Protocol
+
+**CRITICAL RULE**: Always maintain consistency between database schema, Prisma schema, and service layer code.
+
+### When Creating New Database Tables:
+
+1. **Create Migration SQL** (`database/migrations/###_description.sql`)
+   - Use snake_case for table and column names
+   - Define proper foreign key constraints with ON DELETE and ON UPDATE actions
+   - Add indexes for performance
+   - Include seed data (one test record minimum)
+
+2. **Update Prisma Schema** (`backend-node/prisma/schema.prisma`)
+   - Add model with exact table name (use snake_case or `@@map` directive)
+   - Map all columns with correct types
+   - Define all relations with proper names (check both sides of relation)
+   - Use snake_case for relation names matching database conventions
+
+3. **Regenerate Prisma Client**
+   ```bash
+   docker-compose exec backend-node sh -c "npx prisma generate"
+   ```
+
+4. **Restart Backend Service**
+   ```bash
+   docker-compose restart backend-node
+   ```
+
+### When Writing Service Code:
+
+1. **Always check schema.prisma FIRST** before writing any Prisma queries
+2. **Verify model names** - use exact names from schema (e.g., `prisma.contracts` not `prisma.contract`)
+3. **Verify relation names** - use exact names from schema (e.g., `milestones` not `Milestone`)
+4. **Check field names** - use snake_case as defined in database/schema
+5. **Map camelCase to snake_case** when passing data between API and database
+
+### Common Pitfalls to Avoid:
+
+❌ **DON'T**: Guess model names (prisma.transition vs prisma.transitions)
+✅ **DO**: Check schema.prisma for exact model name
+
+❌ **DON'T**: Use capitalized relation names (Milestone)
+✅ **DO**: Use lowercase relation names as defined in schema (milestones)
+
+❌ **DON'T**: Mix camelCase and snake_case inconsistently
+✅ **DO**: Use snake_case in database/schema, camelCase in TypeScript
+
+❌ **DON'T**: Assume relations exist without checking
+✅ **DO**: Verify relation in schema before including in queries
+
+### Verification Steps After Schema Changes:
+
+```bash
+# 1. Run migration
+docker-compose exec db psql -U postgres -d tip -f /docker-entrypoint-initdb.d/migrations/###_description.sql
+
+# 2. Regenerate Prisma client
+docker-compose exec backend-node sh -c "npx prisma generate"
+
+# 3. Restart backend
+docker-compose restart backend-node
+
+# 4. Verify backend started successfully
+docker-compose logs backend-node | grep "Server listening"
+
+# 5. Test the endpoint
+curl http://api.tip.localhost/api/your-endpoint
+```
 
 ## Future Prevention Checklist
 
@@ -65,6 +154,17 @@
 - [ ] Test error scenarios and user-facing error messages
 - [ ] Document database setup procedures for team members
 - [ ] Create rollback plans for schema changes
+- [ ] **Check schema.prisma for exact model and relation names before writing queries**
+- [ ] **Regenerate Prisma client after any schema.prisma changes**
+- [ ] **Restart backend service after regenerating Prisma client**
+- [ ] **Verify model name pluralization (transitions vs transition)**
+- [ ] **Map camelCase API fields to snake_case database fields explicitly**
+- [ ] **Use `!== undefined` for optional update fields, not truthy checks**
+- [ ] **Ensure conditional logic is consistent across all update operations**
+- [ ] **Test update operations with empty strings, false, zero, and empty objects/arrays**
+- [ ] **Verify service layer transforms database responses to API format (snake_case → camelCase)**
+- [ ] **Test that API responses match frontend TypeScript interface definitions**
+- [ ] **Check end-to-end data flow: database → API → frontend display**
 
 ### Core Technologies & Architecture:
 
