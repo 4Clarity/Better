@@ -82,6 +82,10 @@
 45. **Test authentication with multiple user accounts, not just admin or demo users**
 46. **Verify JWT tokens are stored in localStorage after successful login**
 47. **Ensure frontend API clients read and send stored JWT tokens with every request**
+48. **Return placeholder/empty state data from backend services instead of throwing errors when data is missing**
+49. **Add defensive null checks in React components when mapping over arrays (use `array || []`)**
+50. **Provide fallback empty objects/arrays to prevent undefined property access errors**
+51. **Display user-friendly empty state messages instead of crashing when no data is available**
 
 ## Prisma Schema Consistency Protocol
 
@@ -238,6 +242,9 @@ When authentication fails unexpectedly:
 - [ ] **Ensure all API client methods include Authorization Bearer token**
 - [ ] **Verify protected routes have authentication middleware applied**
 - [ ] **Test authentication with real user accounts from database**
+- [ ] **Return graceful empty state data from services when user has no records assigned**
+- [ ] **Add defensive null checks (`|| []`, `|| {}`) before mapping arrays or accessing nested properties**
+- [ ] **Test components with empty/null data to verify they display empty states gracefully**
 
 ### Core Technologies & Architecture:
 
