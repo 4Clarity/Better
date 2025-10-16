@@ -17,7 +17,7 @@ declare module 'fastify' {
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
   try {
     // Check for development bypass
-    if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+    if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
       const demoUser = authService.createDemoUser();
       request.user = demoUser;
       return;
@@ -97,7 +97,7 @@ export function requireRoles(requiredRoles: string[]) {
 export async function optionalAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
     // Check for development bypass
-    if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+    if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
       const demoUser = authService.createDemoUser();
       request.user = demoUser;
       return;

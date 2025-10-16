@@ -75,6 +75,13 @@
 38. **Use placeholder data in new components to demonstrate UI before API integration**
 39. **Implement graceful fallbacks for unrecognized user roles in dashboard routing**
 40. **Document all new component props and variants with TypeScript interfaces**
+41. **Always check header values explicitly (=== 'true'), never rely on truthy/falsy checks for string headers**
+42. **Include Authorization Bearer token in ALL API client methods, not just auth endpoints**
+43. **Apply authentication middleware to protected routes using onRequest: [authenticate]**
+44. **Set AUTH_BYPASS=false in production environments to enforce real authentication**
+45. **Test authentication with multiple user accounts, not just admin or demo users**
+46. **Verify JWT tokens are stored in localStorage after successful login**
+47. **Ensure frontend API clients read and send stored JWT tokens with every request**
 
 ## Prisma Schema Consistency Protocol
 
@@ -145,6 +152,67 @@ docker-compose logs backend-node | grep "Server listening"
 curl http://api.tip.localhost/api/your-endpoint
 ```
 
+## Authentication & Authorization Best Practices
+
+**CRITICAL RULE**: Always validate authentication explicitly and ensure JWT tokens flow through the entire request chain.
+
+### Common Authentication Pitfalls:
+
+❌ **DON'T**: Check if header exists using truthy checks
+```typescript
+if (request.headers['x-auth-bypass']) { // WRONG - any value is truthy
+```
+
+✅ **DO**: Check header value explicitly
+```typescript
+if (request.headers['x-auth-bypass'] === 'true') { // CORRECT
+```
+
+❌ **DON'T**: Forget to include Authorization headers in API clients
+```typescript
+fetch('/api/endpoint', {
+  headers: { 'Content-Type': 'application/json' } // Missing token!
+})
+```
+
+✅ **DO**: Always include JWT token from localStorage
+```typescript
+const token = localStorage.getItem('authToken');
+fetch('/api/endpoint', {
+  headers: {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` })
+  }
+})
+```
+
+❌ **DON'T**: Leave protected routes without authentication middleware
+```typescript
+fastify.get('/api/dashboard/data', async (request, reply) => {
+  const user = request.user; // user will be undefined!
+})
+```
+
+✅ **DO**: Apply authentication middleware to protected routes
+```typescript
+fastify.get('/api/dashboard/data', {
+  onRequest: [authenticate]
+}, async (request, reply) => {
+  const user = request.user; // Now properly populated
+})
+```
+
+### Authentication Debugging Checklist:
+
+When authentication fails unexpectedly:
+1. Check `AUTH_BYPASS` environment variable in `.env` (should be `false` for real auth)
+2. Verify JWT token is stored in `localStorage.getItem('authToken')`
+3. Check Network tab → Request Headers → Verify `Authorization: Bearer ...` exists
+4. Verify `x-auth-bypass` header is `'false'` not `'true'`
+5. Check backend logs for token validation errors
+6. Verify authentication middleware is applied to the route
+7. Test with multiple user accounts, not just admin/demo users
+
 ## Future Prevention Checklist
 
 - [ ] Check table ownership before migrations (`\dt+`)
@@ -165,6 +233,11 @@ curl http://api.tip.localhost/api/your-endpoint
 - [ ] **Verify service layer transforms database responses to API format (snake_case → camelCase)**
 - [ ] **Test that API responses match frontend TypeScript interface definitions**
 - [ ] **Check end-to-end data flow: database → API → frontend display**
+- [ ] **Verify AUTH_BYPASS is set to false in production .env files**
+- [ ] **Check all header validations use explicit === 'true' comparisons, not truthy checks**
+- [ ] **Ensure all API client methods include Authorization Bearer token**
+- [ ] **Verify protected routes have authentication middleware applied**
+- [ ] **Test authentication with real user accounts from database**
 
 ### Core Technologies & Architecture:
 

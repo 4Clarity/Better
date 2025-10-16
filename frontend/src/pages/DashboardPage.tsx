@@ -32,16 +32,16 @@ export function DashboardPage() {
       return 'unknown';
     }
 
-    // Check for specific roles (case-insensitive)
-    const roles = user.roles.map(r => r.toLowerCase());
+    // Check for specific roles (case-insensitive, handle both _ and - delimiters)
+    const roles = user.roles.map(r => r.toLowerCase().replace(/-/g, '_'));
 
-    if (roles.includes('government_program_manager')) {
+    if (roles.includes('government_program_manager') || roles.includes('government_pm')) {
       return 'government_pm';
     }
-    if (roles.includes('outgoing_contractor')) {
+    if (roles.includes('outgoing_contractor') || roles.includes('departing_contractor')) {
       return 'outgoing_contractor';
     }
-    if (roles.includes('incoming_contractor')) {
+    if (roles.includes('incoming_contractor') || roles.includes('arriving_contractor')) {
       return 'incoming_contractor';
     }
 

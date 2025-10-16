@@ -30,6 +30,117 @@ const createApiUrl = (path: string): URL => {
   return new URL(fullPath);
 };
 
+// Standard API client for making HTTP requests
+export const api = {
+  async get(path: string, options?: RequestInit) {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `Request failed: ${response.statusText}`);
+    }
+
+    return response;
+  },
+
+  async post(path: string, data?: any, options?: RequestInit) {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      ...options,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `Request failed: ${response.statusText}`);
+    }
+
+    return response;
+  },
+
+  async put(path: string, data?: any, options?: RequestInit) {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      ...options,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `Request failed: ${response.statusText}`);
+    }
+
+    return response;
+  },
+
+  async patch(path: string, data?: any, options?: RequestInit) {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      ...options,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `Request failed: ${response.statusText}`);
+    }
+
+    return response;
+  },
+
+  async delete(path: string, options?: RequestInit) {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `Request failed: ${response.statusText}`);
+    }
+
+    return response;
+  },
+};
+
 // Types
 export interface BusinessOperation {
   id: string;
@@ -143,9 +254,11 @@ export interface Milestone {
   title: string;
   description?: string;
   dueDate: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' | 'OVERDUE';
+  priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  status: 'Not_Started' | 'In_Progress' | 'Completed' | 'Blocked' | 'Overdue';
   transitionId: string;
+  assignedTo?: string | null;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -155,14 +268,17 @@ export interface Task {
   title: string;
   description?: string | null;
   dueDate: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'NOT_STARTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'ON_HOLD' | 'BLOCKED' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE';
+  priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  status: 'Not_Started' | 'Assigned' | 'In_Progress' | 'On_Hold' | 'Blocked' | 'Under_Review' | 'Completed' | 'Cancelled' | 'Overdue';
   transitionId: string;
   milestoneId?: string | null;
   parentTaskId?: string | null;
   orderIndex?: number;
   sequence?: string; // present in tree responses
   children?: Task[]; // present in tree responses
+  assignedTo?: string | null;
+  assignedBy: string;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -537,5 +653,64 @@ export const enhancedTransitionApi = {
       const error = await response.json();
       throw new Error(error.message || `Failed to delete enhanced transition: ${response.statusText}`);
     }
+  },
+};
+
+// Users API
+export const userApi = {
+  async getAll(params?: {
+    page?: number;
+    pageSize?: number;
+  }): Promise<PaginatedResponse<User>> {
+    const url = createApiUrl(`/user-management/users`);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.append(key, value.toString());
+        }
+      });
+    }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch users: ${response.statusText}`);
+    }
+
+    // Transform backend response to match frontend expectations
+    const backendResponse = await response.json();
+    return {
+      data: backendResponse.users.map((u: any) => {
+        let role = 'User';
+        try {
+          if (u.roles && typeof u.roles === 'string') {
+            const rolesArray = JSON.parse(u.roles);
+            role = Array.isArray(rolesArray) && rolesArray.length > 0 ? rolesArray[0] : 'User';
+          }
+        } catch (e) {
+          console.warn('Failed to parse roles for user', u.id, e);
+        }
+        return {
+          id: u.id,
+          firstName: u.person.firstName,
+          lastName: u.person.lastName,
+          email: u.person.primaryEmail,
+          role,
+        };
+      }),
+      pagination: {
+        page: backendResponse.page || 1,
+        limit: backendResponse.pageSize || 20,
+        total: backendResponse.totalCount || 0,
+        totalPages: Math.ceil((backendResponse.totalCount || 0) / (backendResponse.pageSize || 20)),
+      },
+    };
+  },
+
+  async getById(id: string): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/user-management/users/${id}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user: ${response.statusText}`);
+    }
+    return response.json();
   },
 };

@@ -310,13 +310,13 @@ export class AuthenticationApi {
    */
   async getCurrentUser(): Promise<UserProfileResponse> {
     const token = this.getStoredToken();
-    
+
     const response = await fetch(`${this.baseUrl}/me`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        'x-auth-bypass': 'true', // Enable auth bypass for development
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
     });
 
@@ -364,13 +364,13 @@ export class AuthenticationApi {
    */
   async updateProfile(updates: { firstName?: string; lastName?: string }): Promise<AuthResponse> {
     const token = this.getStoredToken();
-    
+
     const response = await fetch(`${this.baseUrl}/me`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        'x-auth-bypass': 'true', // Enable auth bypass for development
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
       body: JSON.stringify(updates),
     });
@@ -502,7 +502,7 @@ export class AuthenticationApi {
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        'x-auth-bypass': 'true', // Enable auth bypass for development
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
       body: JSON.stringify({ role: roleToImpersonate }),
     });
@@ -546,7 +546,7 @@ export class AuthenticationApi {
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        'x-auth-bypass': 'true', // Enable auth bypass for development
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
     });
 
@@ -585,7 +585,7 @@ export class AuthenticationApi {
       headers: {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        'x-auth-bypass': 'true', // Enable auth bypass for development
+        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
     });
 

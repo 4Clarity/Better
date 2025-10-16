@@ -303,7 +303,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       let user;
       
       // Check for development bypass
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
         user = authService.createDemoUser();
       } else {
         // SECURITY FIX: Implement proper token validation
@@ -392,7 +392,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       // Authenticate user
       let user;
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
         user = authService.createDemoUser();
       } else {
         const authHeader = request.headers.authorization;
@@ -448,7 +448,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       // Authenticate user
       let user;
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
         user = authService.createDemoUser();
       } else {
         const authHeader = request.headers.authorization;
@@ -495,7 +495,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       // Authenticate user
       let user;
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
         user = authService.createDemoUser();
       } else {
         const authHeader = request.headers.authorization;
@@ -533,7 +533,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       let user;
 
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
         user = authService.createDemoUser();
       } else {
         // SECURITY FIX: Implement proper token validation
@@ -588,7 +588,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       // Authenticate user
       let user;
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass']) {
+      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
         user = authService.createDemoUser();
       } else {
         const authHeader = request.headers.authorization;
