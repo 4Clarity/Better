@@ -20,8 +20,8 @@ The chosen stack aligns perfectly with the enterprise's guiding principles of us
     - *Rationale:* Complies with the security requirement to use a local, corporate-hosted LLM with no public internet access.
 
 ### 2.2. Data & Storage
-- **Database:** PostgreSQL 16+.
-    - *Rationale:* The mandated relational database for the enterprise.
+- **Database:** PostgreSQL 16+ with pgvector extension.
+    - *Rationale:* The mandated relational database for the enterprise. pgvector extension enables vector similarity search for AI/ML features.
 - **ORMs:** Prisma (for Node.js) and SQLAlchemy/SQLModel (for Python).
     - *Rationale:* The approved ORMs for their respective services.
 - **Object Storage:** MinIO.

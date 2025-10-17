@@ -86,6 +86,10 @@
 49. **Add defensive null checks in React components when mapping over arrays (use `array || []`)**
 50. **Provide fallback empty objects/arrays to prevent undefined property access errors**
 51. **Display user-friendly empty state messages instead of crashing when no data is available**
+52. **Use pgvector/pgvector:pg16 Docker image for PostgreSQL to enable vector similarity search**
+53. **Always install pgvector extension in database: `CREATE EXTENSION IF NOT EXISTS vector;`**
+54. **Configure pgAdmin with servers.json and pgpass files for auto-connection to application database**
+55. **Include pgAdmin service in docker-compose startup commands to ensure database admin access**
 
 ## Prisma Schema Consistency Protocol
 
@@ -245,13 +249,16 @@ When authentication fails unexpectedly:
 - [ ] **Return graceful empty state data from services when user has no records assigned**
 - [ ] **Add defensive null checks (`|| []`, `|| {}`) before mapping arrays or accessing nested properties**
 - [ ] **Test components with empty/null data to verify they display empty states gracefully**
+- [ ] **Verify pgvector extension is installed when working with vector embeddings**
+- [ ] **Include pgAdmin in docker-compose startup for database administration access**
+- [ ] **Ensure pgAdmin servers.json configuration is mounted correctly**
 
 ### Core Technologies & Architecture:
 
 *   **Frontend:** A modern user interface built with **React** and **TypeScript**, using **Vite** for the build tooling.
 *   **Backend (Primary API):** A **Node.js** service using the **Fastify** framework and **Prisma** as the ORM for database interactions. This service handles the core business logic.
 *   **Backend (AI/ML):** A **Python** service dedicated to AI, machine learning, and heavy data processing tasks.
-*   **Database:** **PostgreSQL** is the primary relational database.
+*   **Database:** **PostgreSQL** (with **pgvector** extension) is the primary relational database, supporting vector similarity search for AI/ML features.
 *   **Authentication:** Managed by **Keycloak**, providing robust, production-ready SSO capabilities. For development, the system uses JWTs and includes a simple "demo login" and an auth bypass mode.
 *   **Infrastructure & Orchestration:** The entire environment is containerized using **Docker** and orchestrated with **Docker Compose**. **Traefik** is used as a reverse proxy to manage routing to the various services under local hostnames. **MinIO** provides an S3-compatible object storage solution.
 
@@ -303,7 +310,7 @@ The project is designed to be run entirely within Docker containers.
     ```
 *  **General Startup**
     ```bash
-    docker-compose up -d --build backend-node reverse-proxy frontend db n8n
+    docker-compose up -d --build backend-node reverse-proxy frontend db pgadmin n8n
     ```
 
 *   **Stop Services:**
@@ -323,6 +330,39 @@ Once running, the services are available at these local URLs:
 *   **n8n Workflows:** [http://n8n.tip.localhost](http://n8n.tip.localhost)
 *   **MailHog:** [http://mail.tip.localhost](http://mail.tip.localhost)
 *   **pgAdmin (Database):** [http://pgadmin.tip.localhost](http://pgadmin.tip.localhost) - Login: admin@admin.com / admin
+
+### pgAdmin Configuration:
+
+The TIP Application Database is pre-configured to auto-connect in pgAdmin. The configuration is defined in:
+- `pgadmin-config/servers.json` - Server connection details
+- `pgadmin-config/pgpass` - Secure password storage
+
+**Connection Details:**
+- Host: `db` (Docker internal network)
+- Port: `5432`
+- Database: `tip`
+- Username: `user`
+- Password: `password`
+
+**Starting pgAdmin:**
+```bash
+docker-compose up -d pgadmin
+```
+
+The "TIP Application Database" connection will automatically appear in the pgAdmin sidebar after login.
+
+### Database Extensions:
+
+The PostgreSQL database includes the following extensions:
+- **pgvector** (v0.8.0) - Vector data type with ivfflat and hnsw access methods for AI/ML similarity search
+- **pgcrypto** - Cryptographic functions
+- **uuid-ossp** - UUID generation
+- **plpgsql** - Procedural language
+
+To verify installed extensions:
+```bash
+docker exec better-db-1 psql -U user -d tip -c "\dx"
+```
 
 ## 3. Development Conventions
 
