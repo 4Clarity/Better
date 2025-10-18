@@ -3,12 +3,83 @@
 ## Overview
 This document captures troubleshooting experience, lessons learned, and best practices discovered during development to prevent future issues and improve development efficiency.
 
-**Last Updated:** 2025-10-12
+**Last Updated:** 2025-10-18
 **Contributors:** Quinn (QA), Development Team
 
 ---
 
 ## Lessons Learned
+
+### Local LLM Integration - Ollama (October 2025)
+
+#### Technical Challenges & Solutions
+
+**1. Docker Container to Host Communication**
+- **Problem:** Docker containers cannot access `localhost` on host machine
+- **Solution:** Use `host.docker.internal` hostname to access host services from containers
+- **Prevention:** Always use `host.docker.internal` for container-to-host communication
+- **Example:** `OLLAMA_API_URL=http://host.docker.internal:11434`
+
+**2. Model-Specific Capabilities**
+- **Problem:** Not all models support all features (e.g., embeddings)
+- **Solution:** Verify model capabilities before making API calls; provide helpful error messages
+- **Prevention:** Document model-specific limitations in service layer and API responses
+- **Files Affected:**
+  - `/backend-node/src/services/ollama.service.ts`
+  - `/backend-node/src/routes/ollama.routes.ts`
+
+**3. LLM Response Timeouts**
+- **Problem:** Default HTTP timeouts too short for LLM operations
+- **Solution:** Use longer timeouts for generation (120s), shorter for health checks (5s)
+- **Prevention:** Configure appropriate timeouts based on operation type
+- **Files Affected:** `/backend-node/src/services/ollama.service.ts`
+
+**4. Service Health Checks**
+- **Problem:** No way to verify Ollama availability before making requests
+- **Solution:** Implemented health check endpoint that verifies connectivity and model availability
+- **Prevention:** Always include health endpoints for external service integrations
+- **Files Affected:** `/backend-node/src/routes/ollama.routes.ts`
+
+**5. Comprehensive Unit Testing for External APIs**
+- **Problem:** Testing external APIs requires network calls which are slow and unreliable
+- **Solution:** Mock axios for isolated unit testing with comprehensive coverage
+- **Prevention:** Use dependency injection and mocking for all external service tests
+- **Files Affected:** `/backend-node/src/services/__tests__/ollama.service.test.ts`
+
+#### Development Best Practices Reinforced
+
+**Service Architecture:**
+- Create dedicated service classes for external integrations
+- Implement health check methods for all external services
+- Use singleton pattern for service instances
+- Document all public methods with JSDoc comments
+
+**TypeScript Interfaces:**
+- Define comprehensive interfaces for all API request/response types
+- Use const enums for role types and other constants
+- Export types for use in routes and controllers
+
+**Error Handling:**
+- Provide specific error messages for different failure scenarios
+- Log errors server-side with full context
+- Return user-friendly error messages via API
+- Handle model-not-found scenarios gracefully
+
+**API Design:**
+- Follow RESTful patterns for resource endpoints
+- Use consistent response format `{success, data/error}`
+- Include Fastify schema validation for all routes
+- Document endpoints with OpenAPI-compatible schemas
+
+#### QA Review Outcomes
+
+**Code Quality:** Excellent - Clean service architecture with strong type safety
+**Security:** Secure - No API keys exposed, proper error handling
+**Performance:** Optimized - Appropriate timeouts and async operations
+**Test Coverage:** Outstanding - 100% coverage with comprehensive mocks
+**Integration:** Successful - Verified with live Ollama instance
+
+
 
 ### User Management & Role Assignment (October 2025)
 
@@ -206,6 +277,11 @@ This document captures troubleshooting experience, lessons learned, and best pra
 - [ ] Ensure middleware is properly registered before route registration
 - [ ] Test authentication flows end-to-end
 - [ ] Verify all dependencies are in package.json
+- [ ] Use host.docker.internal for container-to-host service access
+- [ ] Configure appropriate timeouts for external service calls
+- [ ] Implement health checks for all external service integrations
+- [ ] Verify model/feature capabilities before using external APIs
+- [ ] Mock external services in unit tests for isolation
 
 ### Before Deployment
 - [ ] Run full test suite (unit, component, E2E, contract)

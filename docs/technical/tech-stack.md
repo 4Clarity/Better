@@ -16,8 +16,13 @@ The chosen stack aligns perfectly with the enterprise's guiding principles of us
     - *Rationale:* Adheres to the enterprise mandate for Node.js services, ensuring type safety and schema validation.
 - **Python API/Agents:** FastAPI, Pydantic v2, PydanticAI.
     - *Rationale:* Follows the enterprise standard for Python services.
-- **Local LLM Runtime:** Ollama or a self-hosted Bedrock instance.
+- **Local LLM Runtime:** Ollama (implemented) or a self-hosted Bedrock instance.
     - *Rationale:* Complies with the security requirement to use a local, corporate-hosted LLM with no public internet access.
+    - *Implementation Status:* Ollama integration complete with full API support
+      - Service: `backend-node/src/services/ollama.service.ts`
+      - Routes: `backend-node/src/routes/ollama.routes.ts`
+      - Endpoints: Health check, text generation, chat, embeddings, model management
+      - Configuration: `OLLAMA_API_URL=http://host.docker.internal:11434`
 
 ### 2.2. Data & Storage
 - **Database:** PostgreSQL 16+ with pgvector extension.

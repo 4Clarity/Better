@@ -90,6 +90,45 @@
 53. **Always install pgvector extension in database: `CREATE EXTENSION IF NOT EXISTS vector;`**
 54. **Configure pgAdmin with servers.json and pgpass files for auto-connection to application database**
 55. **Include pgAdmin service in docker-compose startup commands to ensure database admin access**
+56. **Use host.docker.internal hostname to access host machine services from Docker containers**
+57. **Create dedicated service classes for external LLM/AI integrations with health checks**
+58. **Test AI/LLM integrations with multiple models to verify compatibility (embeddings, chat, etc.)**
+59. **Document model-specific capabilities and limitations in service layer**
+60. **Provide comprehensive unit test coverage for AI service integrations using mocked APIs**
+
+## Local LLM Integration (Ollama)
+
+**Setup Requirements:**
+- Ollama must be running on host machine
+- Default port: 11434
+- Use `host.docker.internal` for container-to-host communication
+
+**Environment Variables:**
+```bash
+OLLAMA_API_URL=http://host.docker.internal:11434
+OLLAMA_API_KEY=not-required  # Ollama doesn't require API keys
+OLLAMA_DEFAULT_MODEL=gemma3:1b  # Or your preferred model
+```
+
+**Service Architecture:**
+- Service class: `backend-node/src/services/ollama.service.ts`
+- API routes: `backend-node/src/routes/ollama.routes.ts`
+- Unit tests: `backend-node/src/services/__tests__/ollama.service.test.ts`
+
+**Available Endpoints:**
+- `/api/ollama/health` - Health check
+- `/api/ollama/models` - List models
+- `/api/ollama/generate` - Text generation
+- `/api/ollama/chat` - Chat completion
+- `/api/ollama/ask` - Simple Q&A
+- `/api/ollama/embeddings` - Generate embeddings (model-dependent)
+
+**Best Practices:**
+- Always check health endpoint before making LLM calls
+- Use appropriate timeouts (2min for generation, 5sec for health)
+- Verify model supports requested capability (embeddings, chat, etc.)
+- Handle model-not-found errors gracefully
+- Provide fallback behavior when Ollama is unavailable
 
 ## Prisma Schema Consistency Protocol
 
@@ -252,6 +291,10 @@ When authentication fails unexpectedly:
 - [ ] **Verify pgvector extension is installed when working with vector embeddings**
 - [ ] **Include pgAdmin in docker-compose startup for database administration access**
 - [ ] **Ensure pgAdmin servers.json configuration is mounted correctly**
+- [ ] **Use host.docker.internal for accessing host services from Docker containers**
+- [ ] **Verify Ollama service health before making LLM API calls**
+- [ ] **Check model capabilities before using embeddings or other features**
+- [ ] **Provide fallback behavior when local LLM is unavailable**
 
 ### Core Technologies & Architecture:
 

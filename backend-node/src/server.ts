@@ -23,6 +23,15 @@ import knowledgeSourceRoutes from './modules/knowledge/knowledge-source.routes';
 import n8nIntegrationRoutes from './modules/knowledge/n8n-integration.routes';
 import { settingsRoutes } from './modules/settings/settings.routes';
 import { impersonationRoutes, roleManagementRoutes } from './modules/security';
+import { aiPlanningRoutes } from './modules/business-operation/ai-planning.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import platformSetupRoutes from './routes/platform-setup.routes';
+import learningPathRoutes from './routes/learning-path.routes';
+import skillsAssessmentRoutes from './routes/skills-assessment.routes';
+import handoverChecklistRoutes from './routes/handover-checklist.routes';
+import activityLogRoutes from './routes/activity-log.routes';
+import chatRoutes from './routes/chat.routes';
+import ollamaRoutes from './routes/ollama.routes';
 
 export function buildServer() {
   const server = Fastify({
@@ -176,6 +185,15 @@ export function buildServer() {
   server.register(settingsRoutes, { prefix: '/api/settings' });
   server.register(impersonationRoutes);
   server.register(roleManagementRoutes);
+  server.register(aiPlanningRoutes);
+  server.register(dashboardRoutes, { prefix: '/api/dashboard' });
+  server.register(platformSetupRoutes, { prefix: '/api/platform' });
+  server.register(learningPathRoutes, { prefix: '/api/learning' });
+  server.register(skillsAssessmentRoutes, { prefix: '/api/skills' });
+  server.register(handoverChecklistRoutes, { prefix: '/api/handover-checklist' });
+  server.register(activityLogRoutes, { prefix: '/api/activity-logs' });
+  server.register(chatRoutes, { prefix: '/api/chat' });
+  server.register(ollamaRoutes, { prefix: '/api/ollama' });
 
   // Register nested milestone routes under transitions
   server.register(async function (server) {
