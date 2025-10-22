@@ -95,6 +95,62 @@
 58. **Test AI/LLM integrations with multiple models to verify compatibility (embeddings, chat, etc.)**
 59. **Document model-specific capabilities and limitations in service layer**
 60. **Provide comprehensive unit test coverage for AI service integrations using mocked APIs**
+61. **Auto-generate secure temporary passwords in user invitation flows - never collect passwords manually**
+62. **User accounts created through wizards should start with "Pending" status and require password reset on first login**
+63. **Include clear user instructions that new users contact support for temporary credentials**
+
+## User Invitation Security Best Practices
+
+**CRITICAL RULE**: Never collect or manually enter passwords in invitation forms. Always auto-generate secure temporary passwords on the backend.
+
+### Password Generation Requirements:
+- Minimum 12 characters
+- Include uppercase, lowercase, numbers, and symbols
+- Random generation with proper entropy
+- Auto-set `mustChangePassword: true` flag
+- Account starts with `accountStatus: 'Pending'`
+
+### Stakeholder Setup Wizard Pattern:
+```typescript
+// Frontend - Remove password field from invitation form
+interface InvitedUser {
+  firstName: string;
+  lastName: string;
+  primaryEmail: string;
+  username: string;
+  roles: string[];
+  // NO password field here
+}
+
+// Frontend - Generate password on submission
+const generateSecurePassword = (): string => {
+  const length = 12;
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*';
+  // ... implementation
+};
+
+// Backend already handles secure storage
+await UserManagementService.inviteUser({
+  personData: { ... },
+  userData: {
+    username,
+    password: temporaryPassword, // Auto-generated
+    roles
+  }
+});
+```
+
+### User Communication Flow:
+1. Admin invites user via wizard (no password entered)
+2. System creates account with "Pending" status
+3. Temporary password auto-generated and securely stored
+4. User contacts support to receive credentials
+5. User logs in with temporary password
+6. **Forced password reset** on first login
+7. Account status updated to "Active"
 
 ## Local LLM Integration (Ollama)
 

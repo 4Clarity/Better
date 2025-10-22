@@ -160,11 +160,65 @@ This document outlines the standard user workflows and administrative procedures
 
 ### Workflow 4: User Management and Security (System Administrator)
 
-**Frequency:** Ongoing user lifecycle management  
-**Duration:** 5-20 minutes per user  
+**Frequency:** Ongoing user lifecycle management
+**Duration:** 5-20 minutes per user
 **Compliance:** Government security requirements
 
-#### User Invitation Process:
+#### Stakeholder Setup Wizard (Recommended for Initial Setup):
+1. **Navigate to Dashboard Setup**
+   - Click "Product Operations Setup" from Dashboard
+   - Select "Stakeholder Management Setup"
+   - Multi-step wizard guides through complete setup
+
+2. **Step 1: Define Stakeholder Roles**
+   - Review standard roles:
+     - Government Program Manager
+     - Outgoing Contractor
+     - Incoming Contractor
+     - Technical Lead
+     - Security Officer
+     - Operational Support
+   - All roles enabled by default
+
+3. **Step 2: Invite Stakeholders**
+   - **Search Existing Users**:
+     - Search by name or email
+     - Select from active users
+     - Add to stakeholder list
+
+   - **Invite New Users**:
+     - Click "+ Invite New User"
+     - Fill required fields:
+       - First Name, Last Name (required)
+       - Primary Email (required)
+       - Username (required - use "Generate" button)
+       - Contact information (optional)
+       - Security clearance level
+       - Role assignments (select one or more)
+       - Organization affiliation (optional)
+     - **Important**: Password is auto-generated (not entered manually)
+     - Add to pending stakeholder list
+
+4. **Step 3: Configure Communication**
+   - Set notification preferences:
+     - Email notifications
+     - In-app notifications
+     - Weekly digest
+   - Set default meeting cadence
+
+5. **Step 4: Review & Confirm**
+   - Review all invited stakeholders
+   - Verify communication settings
+   - Click "Complete Setup"
+
+6. **Post-Setup Process**
+   - User accounts created with "Pending" status
+   - Secure temporary passwords auto-generated
+   - **New users contact support for credentials**
+   - All accounts require password reset on first login
+   - Visit User Management page to monitor status
+
+#### Individual User Invitation Process:
 1. **Initiate User Invitation**
    - Navigate to User Management (Security & Access)
    - Click "Invite New User"
@@ -179,17 +233,20 @@ This document outlines the standard user workflows and administrative procedures
    - Configure clearance expiration date
    - Set PIV status and expiration
    - Assign appropriate system roles
+   - **Password auto-generated** (not manually entered)
 
-3. **Send Invitation**
-   - System generates invitation token
-   - Email invitation sent (when implemented)
-   - User receives secure invitation link
+3. **Account Creation**
+   - System generates secure temporary password
+   - Creates user account with "Pending" status
+   - Sets mustChangePassword flag
+   - User must contact support for temporary credentials
 
-4. **Invitation Acceptance**
-   - User clicks invitation link
-   - Completes registration process
-   - Confirms personal information
-   - System activates user account
+4. **First Login Process**
+   - User contacts support for temporary password
+   - User logs in with temporary credentials
+   - **Forced password reset** on initial login
+   - User creates new secure password
+   - Account status updated to "Active"
 
 #### User Status Management:
 1. **Status Updates**
