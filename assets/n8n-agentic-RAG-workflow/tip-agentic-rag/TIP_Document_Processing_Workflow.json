@@ -1,0 +1,734 @@
+{
+  "name": "TIP Document Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tip-document-processing",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "tip-doc-webhook",
+      "name": "Document Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1220, 1120],
+      "webhookId": "tip-document-processing",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{ HTTP_HEADER_AUTH_ID }}",
+          "name": "TIP API Auth"
+        }
+      },
+      "notes": "Receives webhook from backend-python when document is uploaded"
+    },
+    {
+      "parameters": {
+        "content": "## TIP Document Processing Workflow\n\nProcesses uploaded documents:\n1. Receive webhook from Python API\n2. Route by file type (PDF, DOCX, CSV, Excel)\n3. Extract text/data\n4. Chunk content\n5. Generate embeddings (Ollama)\n6. Store in PostgreSQL\n7. Update document status",
+        "height": 867,
+        "width": 3073,
+        "color": 5
+      },
+      "id": "tip-sticky-processing",
+      "name": "Sticky Note - Processing",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1280, 1000]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "document-id",
+              "name": "document_id",
+              "value": "={{ $json.body.document_id }}",
+              "type": "string"
+            },
+            {
+              "id": "filename",
+              "name": "filename",
+              "value": "={{ $json.body.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "mime-type",
+              "name": "mime_type",
+              "value": "={{ $json.body.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "file-content",
+              "name": "file_content_base64",
+              "value": "={{ $json.body.file_content_base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tip-extract-fields",
+      "name": "Extract Document Info",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1040, 1120]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'ANALYZING', n8n_workflow_id = '{{ $workflow.id }}', updated_at = CURRENT_TIMESTAMP WHERE id = '{{ $json.document_id }}';",
+        "options": {}
+      },
+      "id": "tip-update-status-analyzing",
+      "name": "Update Status - Analyzing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-860, 1120],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mime_type }}",
+                    "rightValue": "application/pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mime_type }}",
+                    "rightValue": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Excel"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mime_type }}",
+                    "rightValue": "text/csv",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CSV"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 3
+        }
+      },
+      "id": "tip-file-type-switch",
+      "name": "Route by File Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [-680, 1120]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "file_data",
+        "options": {}
+      },
+      "id": "tip-extract-pdf",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-480, 980]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "file_data",
+        "options": {}
+      },
+      "id": "tip-extract-excel",
+      "name": "Extract Excel Data",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-480, 1100]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "file_data",
+        "options": {}
+      },
+      "id": "tip-extract-csv",
+      "name": "Extract CSV Data",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-480, 1220]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "file_data",
+        "options": {}
+      },
+      "id": "tip-extract-text",
+      "name": "Extract Document Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [-480, 1340]
+    },
+    {
+      "parameters": {
+        "chunkSize": 800,
+        "chunkOverlap": 100
+      },
+      "id": "tip-text-splitter",
+      "name": "Character Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [-240, 1480]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434"
+        }
+      },
+      "id": "tip-embeddings-processing",
+      "name": "Embeddings Ollama",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [-100, 1600]
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.data || $json.text || $json.content }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "document_id",
+                "value": "={{ $('Extract Document Info').first().json.document_id }}"
+              },
+              {
+                "name": "filename",
+                "value": "={{ $('Extract Document Info').first().json.filename }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "tip-data-loader",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [60, 1480]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "knowledge_document_chunks",
+          "mode": "list",
+          "cachedResultName": "knowledge_document_chunks"
+        },
+        "options": {}
+      },
+      "id": "tip-insert-chunks",
+      "name": "Insert into PostgreSQL Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePostgres",
+      "typeVersion": 1,
+      "position": [240, 1360],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "Stores chunks with embeddings in knowledge_document_chunks table"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "tip-aggregate-rows",
+      "name": "Aggregate Rows",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [-280, 1100]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "document_rows",
+          "mode": "list",
+          "cachedResultName": "document_rows"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "dataset_id": "={{ $('Extract Document Info').first().json.document_id }}",
+            "row_data": "={{ $json.toJsonString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "dataset_id",
+              "displayName": "dataset_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "row_data",
+              "displayName": "row_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tip-insert-tabular-rows",
+      "name": "Insert Tabular Rows",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-80, 1100],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "Stores individual rows from CSV/Excel in document_rows table"
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "concatenate",
+              "field": "data",
+              "includeOtherFields": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tip-summarize-tabular",
+      "name": "Summarize Tabular Data",
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1,
+      "position": [-80, 1220],
+      "notes": "Creates summary for RAG embedding"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "schema-extract",
+              "name": "schema",
+              "value": "={{ $json.keys().toJsonString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tip-extract-schema",
+      "name": "Extract Schema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [100, 1100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET chunking_strategy = jsonb_build_object('schema', '{{ $json.schema }}'::jsonb, 'type', 'tabular'), upload_status = 'COMPLETED', chunk_count = (SELECT COUNT(*) FROM document_rows WHERE dataset_id = '{{ $('Extract Document Info').first().json.document_id }}') WHERE id = '{{ $('Extract Document Info').first().json.document_id }}';",
+        "options": {}
+      },
+      "id": "tip-update-completed-tabular",
+      "name": "Update Status - Completed (Tabular)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [280, 1100],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'COMPLETED', chunk_count = (SELECT COUNT(*) FROM knowledge_document_chunks WHERE document_id = '{{ $('Extract Document Info').first().json.document_id }}') WHERE id = '{{ $('Extract Document Info').first().json.document_id }}';",
+        "options": {}
+      },
+      "id": "tip-update-completed-text",
+      "name": "Update Status - Completed (Text)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [440, 1360],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "errorWorkflow": "error-handler",
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'FAILED', processing_error = '{{ $json.error.message }}' WHERE id = '{{ $('Extract Document Info').first().json.document_id }}';",
+        "options": {}
+      },
+      "id": "tip-error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [80, 900],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling\n\nIf any node fails, document status is updated to FAILED with error message",
+        "height": 200,
+        "width": 400,
+        "color": 7
+      },
+      "id": "tip-sticky-error",
+      "name": "Sticky Note - Error",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-100, 840]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Decode base64 file content and add as binary data\nconst base64Content = $input.item.json.file_content_base64;\nconst binaryBuffer = Buffer.from(base64Content, 'base64');\n\nreturn {\n  json: $input.item.json,\n  binary: {\n    file_data: {\n      data: binaryBuffer.toString('base64'),\n      mimeType: $input.item.json.mime_type,\n      fileName: $input.item.json.filename\n    }\n  }\n};"
+      },
+      "id": "tip-decode-base64",
+      "name": "Decode Base64 File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 1280],
+      "notes": "Converts base64 string to binary data for extraction nodes"
+    }
+  ],
+  "connections": {
+    "Document Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Document Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Info": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Analyzing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Analyzing": {
+      "main": [
+        [
+          {
+            "node": "Decode Base64 File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decode Base64 File": {
+      "main": [
+        [
+          {
+            "node": "Route by File Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by File Type": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Excel Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract CSV Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Document Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Insert into PostgreSQL Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Text": {
+      "main": [
+        [
+          {
+            "node": "Insert into PostgreSQL Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Excel Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Tabular Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract CSV Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Tabular Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Rows": {
+      "main": [
+        [
+          {
+            "node": "Summarize Tabular Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Tabular Data": {
+      "main": [
+        [
+          {
+            "node": "Extract Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Tabular Rows": {
+      "main": [
+        [
+          {
+            "node": "Extract Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Schema": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Completed (Tabular)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert into PostgreSQL Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Completed (Text)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert into PostgreSQL Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert into PostgreSQL Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "{{ ERROR_WORKFLOW_ID }}"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "tip-application"
+  },
+  "tags": [
+    {
+      "name": "TIP",
+      "id": "tip-tag"
+    },
+    {
+      "name": "Document Processing",
+      "id": "doc-processing-tag"
+    }
+  ]
+}

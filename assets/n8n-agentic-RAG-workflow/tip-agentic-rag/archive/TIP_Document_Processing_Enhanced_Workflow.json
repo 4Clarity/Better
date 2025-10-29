@@ -1,0 +1,559 @@
+{
+  "name": "TIP Document Processing (Enhanced with Curation)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tip-document-processing-enhanced",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "tip-doc-webhook-enhanced",
+      "name": "Document Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "tip-document-processing-enhanced",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{ HTTP_HEADER_AUTH_ID }}",
+          "name": "TIP API Auth"
+        }
+      },
+      "notes": "Receives webhook from backend-python when document is uploaded"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "document-id",
+              "name": "document_id",
+              "value": "={{ $json.body.document_id }}",
+              "type": "string"
+            },
+            {
+              "id": "filename",
+              "name": "filename",
+              "value": "={{ $json.body.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "file-content",
+              "name": "file_content",
+              "value": "={{ $json.body.file_content }}",
+              "type": "string"
+            },
+            {
+              "id": "mime-type",
+              "name": "mime_type",
+              "value": "={{ $json.body.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "user-id",
+              "name": "user_id",
+              "value": "={{ $json.body.uploaded_by }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "extract-doc-info-enhanced",
+      "name": "Extract Document Info",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'ANALYZING', updated_at = NOW() WHERE id = '{{ $json.document_id }}'",
+        "options": {}
+      },
+      "id": "update-status-analyzing",
+      "name": "Update Status - Analyzing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [400, 300],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decode base64 file content\nconst base64Content = $input.item.json.file_content;\nconst fileBuffer = Buffer.from(base64Content, 'base64');\n\nreturn {\n  json: {\n    ...item.json,\n    file_buffer: fileBuffer,\n    file_size_bytes: fileBuffer.length\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: $input.item.json.mime_type,\n      fileName: $input.item.json.filename\n    }\n  }\n};"
+      },
+      "id": "decode-file-enhanced",
+      "name": "Decode Base64 File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO document_versions (id, document_id, version_number, content_hash, docling_metadata, created_at) VALUES (gen_random_uuid()::TEXT, '{{ $json.document_id }}', 1, encode(digest('{{ $json.file_content }}', 'sha256'), 'hex'), '{\"processed_by\":\"docling\",\"workflow\":\"n8n\"}', NOW())",
+        "options": {}
+      },
+      "id": "create-version-record",
+      "name": "Create Version Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [800, 300],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "pdf-route",
+              "leftValue": "={{ $json.mime_type }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "docx-route",
+              "leftValue": "={{ $json.mime_type }}",
+              "rightValue": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "csv-route",
+              "leftValue": "={{ $json.mime_type }}",
+              "rightValue": "text/csv",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "excel-route",
+              "leftValue": "={{ $json.mime_type }}",
+              "rightValue": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "route-by-type-enhanced",
+      "name": "Route by File Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "documentBinaryProperty": "data",
+        "options": {
+          "chunkSize": 500,
+          "chunkOverlap": 50,
+          "separator": "\\n\\n"
+        }
+      },
+      "id": "chunk-text-enhanced",
+      "name": "Character Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434"
+        }
+      },
+      "id": "embeddings-ollama-enhanced",
+      "name": "Embeddings Ollama",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "knowledge_document_chunks",
+        "columns": {
+          "mappings": [
+            {
+              "column": "id",
+              "value": "={{ gen_random_uuid() }}"
+            },
+            {
+              "column": "document_id",
+              "value": "={{ $json.document_id }}"
+            },
+            {
+              "column": "chunk_index",
+              "value": "={{ $index }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $json.pageContent }}"
+            },
+            {
+              "column": "embedding",
+              "value": "={{ JSON.stringify($json.embedding) }}"
+            },
+            {
+              "column": "token_count",
+              "value": "={{ $json.pageContent.length / 4 }}"
+            },
+            {
+              "column": "vector_model",
+              "value": "nomic-embed-text"
+            }
+          ]
+        }
+      },
+      "id": "insert-chunks-enhanced",
+      "name": "Insert Chunks to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1600, 200],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate quality score based on document characteristics\nconst items = $input.all();\nconst firstItem = items[0].json;\n\nconst chunkCount = items.length;\nconst avgTokenCount = items.reduce((sum, item) => sum + (item.json.token_count || 0), 0) / chunkCount;\nconst hasMetadata = !!firstItem.metadata;\nconst filenameQuality = firstItem.filename && firstItem.filename.length > 5 ? 0.2 : 0;\n\n// Quality score components:\n// - Chunk count (optimal 5-50 chunks): 0-0.3\n// - Average token count (optimal 300-600): 0-0.3\n// - Has metadata: 0.2\n// - Filename quality: 0.2\n\nlet chunkScore = 0.3;\nif (chunkCount < 3) chunkScore = 0.1;\nelse if (chunkCount > 100) chunkScore = 0.15;\n\nlet tokenScore = 0.3;\nif (avgTokenCount < 100) tokenScore = 0.1;\nelse if (avgTokenCount > 1000) tokenScore = 0.15;\n\nconst qualityScore = chunkScore + tokenScore + (hasMetadata ? 0.2 : 0) + filenameQuality;\n\nreturn {\n  json: {\n    document_id: firstItem.document_id,\n    quality_score: Math.min(qualityScore, 1.0).toFixed(2),\n    chunk_count: chunkCount,\n    avg_token_count: Math.round(avgTokenCount),\n    auto_approve: qualityScore >= 0.7\n  }\n};"
+      },
+      "id": "calculate-quality-score",
+      "name": "Calculate Quality Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO curation_queue (id, item_type, item_id, status, priority, quality_score, metadata, created_at, updated_at) VALUES (gen_random_uuid()::TEXT, 'document', '{{ $json.document_id }}', '{{ $json.auto_approve ? \"approved\" : \"pending\" }}', 'normal', {{ $json.quality_score }}, '{\"chunk_count\":{{ $json.chunk_count }},\"avg_tokens\":{{ $json.avg_token_count }}}', NOW(), NOW())",
+        "options": {}
+      },
+      "id": "add-to-curation-queue",
+      "name": "Add to Curation Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2000, 200],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.auto_approve }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-auto-approve",
+      "name": "Check Auto-Approve",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'COMPLETED', curation_status = 'approved', updated_at = NOW() WHERE id = '{{ $json.document_id }}'",
+        "options": {}
+      },
+      "id": "auto-approve-document",
+      "name": "Auto-Approve High Quality",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2400, 100],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'COMPLETED', curation_status = 'pending', updated_at = NOW() WHERE id = '{{ $json.document_id }}'",
+        "options": {}
+      },
+      "id": "mark-for-manual-review",
+      "name": "Mark for Manual Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2400, 300],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://backend-node:3000/api/notifications/curation-needed",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $json.document_id }}"
+            },
+            {
+              "name": "quality_score",
+              "value": "={{ $json.quality_score }}"
+            },
+            {
+              "name": "type",
+              "value": "document_review_needed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-curators",
+      "name": "Notify Curators",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2600, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'FAILED', error_message = '{{ $json.error }}', updated_at = NOW() WHERE id = '{{ $json.document_id }}'",
+        "options": {}
+      },
+      "id": "handle-error-enhanced",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1000, 500],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Enhanced Document Processing with Curation\n\n### New Features:\n- **Version Tracking**: Every document gets a version record with content hash\n- **Quality Scoring**: Automatic quality assessment based on chunk count, token distribution, and metadata\n- **Auto-Approval**: High-quality documents (score ≥ 0.7) are automatically approved\n- **Curation Queue**: All documents are added to curation queue for tracking\n- **Manual Review**: Lower-quality documents trigger curator notifications\n\n### Quality Score Components:\n1. Chunk count optimization (0-0.3)\n2. Token count distribution (0-0.3)\n3. Metadata presence (0.2)\n4. Filename quality (0.2)\n\n### Curation Workflow:\n- **Auto-Approved**: Quality ≥ 0.7 → status='approved'\n- **Manual Review**: Quality < 0.7 → status='pending', notify curators\n- **Failed**: Processing error → status='failed'",
+        "height": 600,
+        "width": 400,
+        "color": 6
+      },
+      "id": "sticky-curation-info",
+      "name": "Sticky Note - Curation Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1700, 400]
+    }
+  ],
+  "connections": {
+    "Document Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Document Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Info": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Analyzing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Analyzing": {
+      "main": [
+        [
+          {
+            "node": "Decode Base64 File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decode Base64 File": {
+      "main": [
+        [
+          {
+            "node": "Create Version Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Version Record": {
+      "main": [
+        [
+          {
+            "node": "Route by File Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by File Type": {
+      "main": [
+        [
+          {
+            "node": "Character Text Splitter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Character Text Splitter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Character Text Splitter": {
+      "main": [
+        [
+          {
+            "node": "Embeddings Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "main": [
+        [
+          {
+            "node": "Insert Chunks to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Chunks to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Calculate Quality Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Quality Score": {
+      "main": [
+        [
+          {
+            "node": "Add to Curation Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Curation Queue": {
+      "main": [
+        [
+          {
+            "node": "Check Auto-Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Auto-Approve": {
+      "main": [
+        [
+          {
+            "node": "Auto-Approve High Quality",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark for Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark for Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Notify Curators",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-26T00:00:00.000Z",
+  "versionId": "enhanced-1.0"
+}

@@ -1,0 +1,77 @@
+{
+  "name": "TIP RAG - Reset Chat History",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "922b0bf0-fe17-435b-8bb3-45587940cf2a",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "TRUNCATE TABLE n8n_chat_histories;",
+        "additionalFields": {}
+      },
+      "id": "c58a5ea2-67b5-4d19-832a-9947efe22895",
+      "name": "Clear Chat History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Reset Chat History\n\nThis workflow clears all chat history from the n8n_chat_histories table.\n\n### Usage:\n1. Click 'Execute Workflow' button\n2. Chat history will be truncated\n3. All conversations start fresh\n\n### When to Use:\n- Chat agent responding to old questions\n- Testing new workflow versions\n- Clearing accumulated context\n\n**Note**: This affects ALL chat sessions, not just one conversation.",
+        "height": 340,
+        "width": 300,
+        "color": 4
+      },
+      "id": "7d479f69-78c0-476b-a6f6-4e00fc794bd7",
+      "name": "Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Clear Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "56d00ae4-e257-495e-8a99-340b3c0e5920",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "reset-chat-history",
+  "tags": []
+}

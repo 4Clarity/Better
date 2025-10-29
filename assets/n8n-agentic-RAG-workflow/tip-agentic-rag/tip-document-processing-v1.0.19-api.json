@@ -1,0 +1,583 @@
+{
+  "name": "TIP Document Processing v1.0.19",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-processing",
+        "options": {}
+      },
+      "id": "5067c363-f207-44f3-b50f-3a0e70ae2f9c",
+      "name": "Document Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        128
+      ],
+      "webhookId": "tip-document-processing-enhanced",
+      "notes": "Receives webhook from backend-python when document is uploaded"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "document-id",
+              "name": "document_id",
+              "value": "={{ $json.body.document_id }}",
+              "type": "string"
+            },
+            {
+              "id": "filename",
+              "name": "filename",
+              "value": "={{ $json.body.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "file-content",
+              "name": "file_content",
+              "value": "={{ $json.body.file_content }}",
+              "type": "string"
+            },
+            {
+              "id": "mime-type",
+              "name": "mime_type",
+              "value": "={{ $json.body.mime_type }}",
+              "type": "string"
+            },
+            {
+              "id": "user-id",
+              "name": "user_id",
+              "value": "={{ $json.body.uploaded_by }}",
+              "type": "string"
+            },
+            {
+              "id": "extracted-text",
+              "name": "extracted_text",
+              "value": "={{ $json.body.extracted_text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "597b2ca4-8537-44ac-9770-81a765821554",
+      "name": "Extract Document Info",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        -1552,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents SET upload_status = 'ANALYZING', updated_at = NOW() WHERE id = '{{ $json.document_id }}'",
+        "options": {}
+      },
+      "id": "31f681c6-cdf0-459b-b191-6335af2e18f3",
+      "name": "Update Status - Analyzing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1328,
+        208
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO document_versions (id, document_id, version_number, content_hash, docling_metadata, created_at) VALUES (gen_random_uuid()::TEXT, '{{ $json.document_id }}', 1, encode(digest('{{ $json.file_content }}', 'sha256'), 'hex'), '{\"processed_by\":\"docling\",\"workflow\":\"n8n\"}', NOW())",
+        "options": {}
+      },
+      "id": "10da238b-38f0-43e7-a761-f7067a4a2364",
+      "name": "Create Version Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -656,
+        32
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_vectors",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "text": "={{ $json.pageContent }}",
+            "metadata": "={{ JSON.stringify({\n  document_id: $json.document_id,\n  filename: $json.filename,\n  chunk_index: $json.chunk_index,\n  mime_type: $json.mime_type,\n  security_classification: $json.security_classification,\n  total_chunks: $json.total_chunks,\n  chunk_size: $json.chunk_size\n}) }}",
+            "embedding": "={{ JSON.stringify($json.embedding) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "ff094e3f-0b62-4a5b-89d7-45d4ef18bd73",
+      "name": "Insert Chunks to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        240,
+        128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate quality score based on document characteristics\nconst items = $input.all();\n\nconsole.log('=== Calculate Quality Score ===');\nconsole.log(`Received ${items.length} items (chunks)`);\n\nif (items.length === 0) {\n  throw new Error('No items received');\n}\n\nconst firstItem = items[0].json;\nconsole.log('First item keys:', Object.keys(firstItem));\nconsole.log('Document ID:', firstItem.document_id);\n\n// Get document_id from chunks (all chunks have same document_id)\nconst documentId = firstItem.document_id;\n\n// Calculate metrics\nconst chunkCount = items.length;\nconst avgChunkSize = items.reduce((sum, item) => sum + (item.json.chunk_size || 0), 0) / chunkCount;\nconst hasFilename = !!firstItem.filename;\nconst filenameQuality = hasFilename && firstItem.filename.length > 5 ? 0.2 : 0;\n\nconsole.log(`Chunk count: ${chunkCount}`);\nconsole.log(`Average chunk size: ${avgChunkSize}`);\n\n// Quality score components:\n// - Chunk count (optimal 3-20 chunks): 0-0.3\n// - Average chunk size (optimal 300-600 chars): 0-0.3\n// - Has filename: 0.2\n// - Has metadata: 0.2\n\nlet chunkScore = 0.3;\nif (chunkCount < 2) chunkScore = 0.1;\nelse if (chunkCount > 50) chunkScore = 0.15;\n\nlet sizeScore = 0.3;\nif (avgChunkSize < 100) sizeScore = 0.1;\nelse if (avgChunkSize > 1000) sizeScore = 0.15;\n\nconst qualityScore = chunkScore + sizeScore + filenameQuality + 0.2;\n\nconsole.log(`Quality score: ${qualityScore}`);\nconsole.log(`Auto-approve: ${qualityScore >= 0.7}`);\n\nreturn {\n  json: {\n    document_id: documentId,\n    quality_score: parseFloat(Math.min(qualityScore, 1.0).toFixed(2)),\n    chunk_count: chunkCount,\n    avg_token_count: Math.round(avgChunkSize / 4), // Rough estimate: 4 chars per token\n    auto_approve: qualityScore >= 0.7,\n    filename: firstItem.filename\n  }\n};"
+      },
+      "id": "5134fab4-8894-41f7-83b2-84663fbd8f47",
+      "name": "Calculate Quality Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO curation_queue (item_type, item_id, status, priority, quality_score, metadata, created_at, updated_at) \nVALUES (\n  'document', \n  COALESCE(NULLIF('{{ $json.document_id }}', 'undefined'), '00000000-0000-0000-0000-000000000000')::uuid,\n  CASE WHEN {{ $json.auto_approve }} = true THEN 'approved' ELSE 'pending' END, \n  'normal', \n  {{ $json.quality_score || 0.5 }}, \n  jsonb_build_object(\n    'chunk_count', {{ $json.chunk_count || 0 }},\n    'avg_tokens', {{ $json.avg_token_count || 0 }},\n    'filename', '{{ $json.filename || \"unknown\" }}'\n  ), \n  NOW(), \n  NOW()\n)\nRETURNING id, item_type, item_id, status, quality_score",
+        "options": {}
+      },
+      "id": "7f460a3b-5005-4885-8130-5dd1ca2437f7",
+      "name": "Add to Curation Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        688,
+        128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.auto_approve }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4e2b78ba-8920-4408-bb53-035c4a96824b",
+      "name": "Check Auto-Approve",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        912,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents \nSET \n  upload_status = 'COMPLETED', \n  curation_status = 'approved',\n  chunk_count = {{ $json.chunk_count || 0 }},\n  updated_at = NOW() \nWHERE id = '{{ $json.document_id }}'\nRETURNING id, filename, upload_status, curation_status, chunk_count",
+        "options": {}
+      },
+      "id": "d02eded5-2c09-4d56-9135-fe03bf773b91",
+      "name": "Auto-Approve High Quality",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1136,
+        32
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents \nSET \n  upload_status = 'COMPLETED', \n  curation_status = 'pending',\n  chunk_count = {{ $json.chunk_count || 0 }},\n  updated_at = NOW() \nWHERE id = '{{ $json.document_id }}'\nRETURNING id, filename, upload_status, curation_status, chunk_count",
+        "options": {}
+      },
+      "id": "0e1568c4-988a-4362-be70-b73af068a1df",
+      "name": "Mark for Manual Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1136,
+        224
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://backend-node:3000/api/notifications/curation-needed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $json.document_id }}"
+            },
+            {
+              "name": "quality_score",
+              "value": "={{ $json.quality_score }}"
+            },
+            {
+              "name": "type",
+              "value": "document_review_needed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "63e5a47c-5ba1-4ed8-addb-86fe2798b227",
+      "name": "Notify Curators",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents\nSET\n  upload_status = 'FAILED',\n  processing_error = '{{ $json.error }}',\n  n8n_execution_error = '{{ $json.error }}',\n  updated_at = NOW()\nWHERE id = '{{ $json.document_id }}'\nRETURNING id, filename, upload_status, processing_error;",
+        "options": {}
+      },
+      "id": "df93e04d-13a1-46b5-8dbe-588f8e29cb32",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        240,
+        320
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      },
+      "notes": "Updates failed document status using n8n expressions:\n- upload_status = FAILED\n- processing_error = {{ $json.error }}\n- n8n_execution_error = {{ $json.error }}\n\nInput required:\n- $json.error (error message)\n- $json.document_id (document UUID)"
+    },
+    {
+      "parameters": {
+        "content": "## Enhanced Document Processing with Curation\n\n### New Features:\n- **Version Tracking**: Every document gets a version record with content hash\n- **Quality Scoring**: Automatic quality assessment based on chunk count, token distribution, and metadata\n- **Auto-Approval**: High-quality documents (score \u2265 0.7) are automatically approved\n- **Curation Queue**: All documents are added to curation queue for tracking\n- **Manual Review**: Lower-quality documents trigger curator notifications\n\n### Quality Score Components:\n1. Chunk count optimization (0-0.3)\n2. Token count distribution (0-0.3)\n3. Metadata presence (0.2)\n4. Filename quality (0.2)\n\n### Curation Workflow:\n- **Auto-Approved**: Quality \u2265 0.7 \u2192 status='approved'\n- **Manual Review**: Quality < 0.7 \u2192 status='pending', notify curators\n- **Failed**: Processing error \u2192 status='failed'",
+        "height": 600,
+        "width": 528,
+        "color": 6
+      },
+      "id": "1ff6e302-143b-4ec7-951b-68094b8e1948",
+      "name": "Sticky Note - Curation Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": " // Use the second item (index 1) which has file_content\n  const allItems = $input.all();\n\n  console.log('=== DEBUG ===');\n  console.log('Total items:', allItems.length);\n  allItems.forEach((item, index) => {\n    console.log(`Item ${index} keys:`, Object.keys(item.json));\n  });\n\n  // Find the item with file_content\n  let dataItem = allItems.find(item => 'file_content' in item.json);\n\n  if (!dataItem) {\n    throw new Error('No item found with file_content. Total items: ' + allItems.length);\n  }\n\n  const json = dataItem.json;\n  console.log('Using item with file_content, size:', json.file_content?.length || 0);\n\n  // Convert to binary\n  const buffer = Buffer.from(json.file_content, 'base64');\n\n  return [{\n    json: {\n      document_id: json.document_id,\n      filename: json.filename,\n      mime_type: json.mime_type,\n      file_size: json.file_size,\n      security_classification: json.security_classification,\n      storage_path: json.storage_path\n    },\n    binary: {\n      data: {\n        data: buffer.toString('base64'),\n        mimeType: json.mime_type,\n        fileName: json.filename\n      }\n    }\n  }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        128
+      ],
+      "id": "6634b03a-dbd3-4c7a-88f4-32e8ce41631b",
+      "name": "Convert Base64 to Binary"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1104,
+        128
+      ],
+      "id": "a1edffbe-0a6f-470f-9d5b-226f9b107656",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE knowledge_documents \nSET \n  upload_status = 'COMPLETED', \n  chunk_count = (\n    SELECT COUNT(*) \n    FROM n8n_vectors \n    WHERE metadata->>'document_id' = '{{ $json.document_id }}'\n  ),\n  updated_at = NOW()\nWHERE id = '{{ $json.document_id }}'\nRETURNING id, filename, upload_status, chunk_count",
+        "options": {}
+      },
+      "id": "6144eb11-df30-4fc2-92da-e3812e1c020a",
+      "name": "Update Status - COMPLETED",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1360,
+        128
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      },
+      "notes": "Updates document status to COMPLETED and sets chunk count after successful processing"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process document: chunk text and generate embeddings\nconst items = $input.all();\nconst results = [];\n\nconsole.log('=== Process Document Started ===');\nconsole.log(`Received ${items.length} items`);\n\n// Configuration\nconst CHUNK_SIZE = 500;  // characters per chunk\nconst CHUNK_OVERLAP = 50;  // overlap between chunks\nconst OLLAMA_URL = 'http://host.docker.internal:11434/api/embeddings';\nconst OLLAMA_MODEL = 'nomic-embed-text:latest';\n\n// Helper: Split text into chunks\nfunction chunkText(text, chunkSize, overlap) {\n  const chunks = [];\n  let start = 0;\n\n  while (start < text.length) {\n    const end = Math.min(start + chunkSize, text.length);\n    const chunk = text.slice(start, end);\n\n    if (chunk.trim().length > 0) {\n      chunks.push(chunk);\n    }\n\n    start += chunkSize - overlap;\n  }\n\n  return chunks;\n}\n\n// Helper: Get embedding from Ollama using n8n's this.helpers\nasync function getEmbedding(text, nodeContext) {\n  try {\n    console.log(`Calling Ollama API at: ${OLLAMA_URL}`);\n\n    // Use n8n's this.helpers.httpRequest() method\n    const response = await nodeContext.helpers.httpRequest({\n      method: 'POST',\n      url: OLLAMA_URL,\n      headers: {\n        'Content-Type': 'application/json'\n      },\n      body: JSON.stringify({\n        model: OLLAMA_MODEL,\n        prompt: text\n      })\n    });\n\n    // Parse the response\n    const data = typeof response === 'string' ? JSON.parse(response) : response;\n\n    if (!data || !data.embedding) {\n      throw new Error('Ollama API did not return embedding data');\n    }\n\n    console.log(`Embedding received: ${data.embedding.length} dimensions`);\n    return data.embedding;\n\n  } catch (error) {\n    console.error('Ollama embedding error:', error.message);\n    throw error;\n  }\n}\n\n// Process each document\nfor (let i = 0; i < items.length; i++) {\n  try {\n    const item = items[i];\n    console.log(`\\n--- Processing item ${i + 1}/${items.length} ---`);\n    console.log('Item keys:', Object.keys(item.json));\n\n    // If item is already marked as failed, pass it through to error handling\n    if (item.json.failed === true || item.json.error) {\n      console.log(`Item ${i + 1} is marked as failed: ${item.json.error}`);\n      console.log(`Passing to error handling: ${item.json.filename || 'unknown'}`);\n\n      results.push({\n        json: {\n          error: item.json.error || 'Unknown error',\n          document_id: item.json.document_id || 'unknown',\n          filename: item.json.filename || 'unknown',\n          mime_type: item.json.mime_type || 'unknown',\n          failed: true,\n          processing_stage: 'text_extraction',\n          original_error: item.json\n        }\n      });\n      continue;\n    }\n\n    // Use pre-extracted text from backend-python (for PDFs) or extract from binary (for text files)\n    const text = item.json.extracted_text || item.json.text;\n    const documentId = item.json.document_id;\n    const filename = item.json.filename;\n    const mimeType = item.json.mime_type;\n    const securityClassification = item.json.security_classification || 'unclassified';\n\n    console.log(`Document: ${filename}`);\n    console.log(`MIME type: ${mimeType}`);\n    console.log(`Text length: ${text ? text.length : 0} characters`);\n\n    if (!text || text.length === 0) {\n      throw new Error(`No text content found for ${filename}`);\n    }\n\n    console.log(`Processing ${filename}: ${text.length} characters`);\n\n    // Chunk the text\n    const chunks = chunkText(text, CHUNK_SIZE, CHUNK_OVERLAP);\n    console.log(`Created ${chunks.length} chunks`);\n\n    // Generate embeddings for each chunk\n    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {\n      const chunkText = chunks[chunkIndex];\n\n      console.log(`Chunk ${chunkIndex + 1}/${chunks.length}: ${chunkText.length} chars`);\n      console.log(`Generating embedding...`);\n\n      // Get embedding from Ollama - pass 'this' context\n      const embedding = await getEmbedding(chunkText, this);\n\n      // Format for Insert Chunks node\n      results.push({\n        json: {\n          // Fields expected by Insert Chunks node\n          pageContent: chunkText,\n          embedding: embedding,\n\n          // Metadata\n          document_id: documentId,\n          filename: filename,\n          chunk_index: chunkIndex,\n          mime_type: mimeType,\n          security_classification: securityClassification,\n          total_chunks: chunks.length,\n          chunk_size: chunkText.length\n        }\n      });\n\n      console.log(`Chunk ${chunkIndex + 1} processed successfully`);\n\n      // Small delay to avoid overwhelming Ollama\n      await new Promise(resolve => setTimeout(resolve, 100));\n    }\n\n    console.log(`Document ${filename} processing complete: ${chunks.length} chunks created`);\n\n  } catch (error) {\n    console.error(`\\nERROR processing item ${i + 1}:`, error.message);\n    console.error('Stack:', error.stack);\n\n    results.push({\n      json: {\n        error: error.message,\n        document_id: items[i].json?.document_id || 'unknown',\n        filename: items[i].json?.filename || 'unknown',\n        mime_type: items[i].json?.mime_type || 'unknown',\n        failed: true,\n        processing_stage: 'chunking_embedding',\n        stack: error.stack\n      }\n    });\n  }\n}\n\nconsole.log(`\\n=== Process Document Complete ===`);\nconsole.log(`Processed ${results.length} items total`);\nconsole.log(`Successful chunks: ${results.filter(r => !r.json.failed).length}`);\nconsole.log(`Failed items: ${results.filter(r => r.json.failed).length}`);\n\nif (results.length === 0) {\n  console.log('WARNING: No items to return - all processing failed');\n  return [{\n    json: {\n      error: 'All documents failed processing',\n      failed: true,\n      processing_stage: 'batch_processing'\n    }\n  }];\n}\n\nreturn results;"
+      },
+      "id": "6176eade-0e83-40e5-b9ab-bab1f48c7600",
+      "name": "Process Document - Chunk & Embed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        224
+      ],
+      "notesInFlow": true,
+      "notes": "Chunks text and generates embeddings via Ollama API. Outputs data formatted for PostgreSQL insertion."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.pageContent }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cdbc56fb-538d-4301-98c4-4d5d5eed903a",
+      "name": "Filter Errors vs Chunks",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        16,
+        224
+      ],
+      "notesInFlow": true,
+      "notes": "Routes failed items to error handling, successful chunks to database insertion"
+    }
+  ],
+  "connections": {
+    "Document Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Document Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Info": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Analyzing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Analyzing": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Insert Chunks to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Calculate Quality Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Quality Score": {
+      "main": [
+        [
+          {
+            "node": "Add to Curation Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Curation Queue": {
+      "main": [
+        [
+          {
+            "node": "Check Auto-Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Auto-Approve": {
+      "main": [
+        [
+          {
+            "node": "Auto-Approve High Quality",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark for Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark for Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Notify Curators",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Status - COMPLETED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Base64 to Binary": {
+      "main": [
+        [
+          {
+            "node": "Process Document - Chunk & Embed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Version Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Convert Base64 to Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Approve High Quality": {
+      "main": [
+        [
+          {
+            "node": "Update Status - COMPLETED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Document - Chunk & Embed": {
+      "main": [
+        [
+          {
+            "node": "Filter Errors vs Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Errors vs Chunks": {
+      "main": [
+        [
+          {
+            "node": "Insert Chunks to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

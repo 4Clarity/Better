@@ -1,0 +1,416 @@
+{
+  "name": "TIP Agentic RAG AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "tip-openai-chat-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [-280, 820],
+      "credentials": {
+        "openAiApi": {
+          "id": "{{ OPENAI_CREDENTIAL_ID }}",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Language model for RAG agent responses. Can be replaced with Ollama for local inference."
+    },
+    {
+      "parameters": {
+        "content": "## TIP RAG AI Agent with Chat Interface\n\nThis workflow provides an AI agent that can:\n- Search TIP knowledge base using vector similarity\n- Query tabular data (contracts, budgets) using SQL\n- Retrieve full documents when needed\n- Answer questions about government transition planning",
+        "height": 464.80,
+        "width": 1035.64
+      },
+      "id": "tip-sticky-note-agent",
+      "name": "Sticky Note - Agent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-587.51, 520]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "tip-respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [280, 600]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chat-input",
+              "name": "chatInput",
+              "value": "={{ $json?.chatInput || $json.body.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "session-id",
+              "name": "sessionId",
+              "value": "={{ $json?.sessionId || $json.body.sessionId}}",
+              "type": "string"
+            },
+            {
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $json?.userId || $json.body.userId || 'anonymous'}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tip-edit-fields",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-280, 600]
+    },
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "id": "tip-chat-trigger",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [-540, 600],
+      "webhookId": "tip-rag-chat-{{ UNIQUE_ID }}"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tip-rag-chat",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tip-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-540, 800],
+      "webhookId": "tip-rag-chat-webhook",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{ HTTP_HEADER_AUTH_ID }}",
+          "name": "TIP API Auth"
+        }
+      },
+      "notes": "Webhook for TIP frontend chat integration"
+    },
+    {
+      "parameters": {},
+      "id": "tip-postgres-memory",
+      "name": "Postgres Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [-140, 820],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "Uses TIP's PostgreSQL for chat history storage"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "You are a TIP (Transition Intelligence Platform) assistant specializing in government transition planning. You help answer questions about:\n\n- Transition timelines and milestones\n- Contract requirements and deliverables  \n- Stakeholder roles and responsibilities\n- Knowledge transfer procedures\n- Security classifications and compliance\n- Budget and resource planning\n- Risk mitigation strategies\n\nYou have access to tools that let you:\n1. Search the knowledge base using RAG (vector similarity)\n2. Query tabular data (contracts, budgets, schedules) using SQL\n3. Retrieve full document text when context is needed\n4. List available documents and their schemas\n\nAlways start by performing RAG unless the question requires SQL queries for tabular data (e.g., 'sum all contract values', 'find maximum budget'). If RAG doesn't provide sufficient context, look up available documents and retrieve full text if needed.\n\nImportant guidelines:\n- Always cite sources using document titles and chunk references\n- If information requires security clearance above the user's level, politely decline\n- For numerical questions about contracts/budgets, use SQL queries on document_rows table\n- For policy/procedure questions, use RAG or full document retrieval\n- If you don't find the answer, say so honestly - don't make things up\n\nFormat your responses clearly with:\n- Direct answer first\n- Supporting details\n- Source citations\n- Related documents or topics if relevant"
+        }
+      },
+      "id": "tip-rag-agent",
+      "name": "TIP RAG AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [-60, 600]
+    },
+    {
+      "parameters": {
+        "content": "## Agent Tools for TIP RAG",
+        "height": 528.86,
+        "width": 583.46,
+        "color": 4
+      },
+      "id": "tip-sticky-tools",
+      "name": "Sticky Note - Tools",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [460, 460]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Use this tool to fetch all available documents in the TIP knowledge base. Returns document metadata including titles, types, security classifications, and schemas for tabular documents (CSV/Excel files).",
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "knowledge_documents",
+          "mode": "list",
+          "cachedResultName": "knowledge_documents"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [0, 820],
+      "id": "tip-list-documents-tool",
+      "name": "List Documents",
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "Tool to discover available documents"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Given a document ID, fetches the complete text from the document by concatenating all chunks. Use this when you need full context that RAG chunks might not provide.",
+        "operation": "executeQuery",
+        "query": "SELECT document_id, filename, full_text FROM get_document_full_text($1);",
+        "options": {
+          "queryReplacement": "={{ $fromAI('document_id') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [140, 820],
+      "id": "tip-get-file-contents-tool",
+      "name": "Get File Contents",
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "Tool to retrieve full document text"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Run a SQL query on tabular data from CSV/Excel files. Use this for numerical analysis, aggregations, and filtering on structured data.\n\nThe document_rows table stores rows with:\n- dataset_id: The document ID (from knowledge_documents)\n- row_data: JSONB object with column names as keys\n\nExample queries:\n\n1. Calculate total contract value:\nSELECT SUM((row_data->>'contract_value')::numeric) as total\nFROM document_rows\nWHERE dataset_id = 'doc-123';\n\n2. Find contracts by status:\nSELECT row_data->>'contractor' as contractor,\n       row_data->>'contract_number' as contract_num,\n       (row_data->>'contract_value')::numeric as value\nFROM document_rows\nWHERE dataset_id = 'doc-123'\n  AND row_data->>'status' = 'Active'\nORDER BY (row_data->>'contract_value')::numeric DESC;\n\n3. Group by category:\nSELECT row_data->>'category' as category,\n       COUNT(*) as count,\n       AVG((row_data->>'amount')::numeric) as avg_amount\nFROM document_rows\nWHERE dataset_id = 'doc-123'\nGROUP BY row_data->>'category';",
+        "operation": "executeQuery",
+        "query": "{{ $fromAI('sql_query') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [300, 820],
+      "id": "tip-query-document-rows-tool",
+      "name": "Query Document Rows",
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "Tool to query tabular data with SQL"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "knowledge_search",
+        "toolDescription": "Use RAG (Retrieval-Augmented Generation) to search the TIP knowledge base using vector similarity. Best for finding relevant information in text documents, policies, procedures, and technical documentation.",
+        "tableName": {
+          "__rl": true,
+          "value": "knowledge_document_chunks",
+          "mode": "list",
+          "cachedResultName": "knowledge_document_chunks"
+        },
+        "options": {
+          "queryName": "match_knowledge_document_chunks",
+          "topK": 5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [620, 600],
+      "id": "tip-vector-store",
+      "name": "TIP Vector Store",
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      },
+      "notes": "PostgreSQL-based vector store (replaces Supabase)"
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [720, 780],
+      "id": "tip-embeddings-ollama",
+      "name": "Embeddings Ollama",
+      "notes": "Uses TIP's Ollama service for embeddings (768d vectors)"
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TIP RAG AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Documents": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File Contents": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Document Rows": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TIP Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "TIP Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "tip-application"
+  },
+  "tags": [
+    {
+      "name": "TIP",
+      "id": "tip-tag"
+    },
+    {
+      "name": "RAG",
+      "id": "rag-tag"
+    },
+    {
+      "name": "AI Agent",
+      "id": "agent-tag"
+    }
+  ]
+}

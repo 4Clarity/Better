@@ -1,0 +1,287 @@
+{
+  "name": "TIP Agentic RAG - Tool-First Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "manual-chat",
+      "name": "Manual Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "You are a TIP knowledge base assistant. Your job is to answer questions using the tools available to you.\n\n## CRITICAL RULES:\n\n1. **ALWAYS USE TOOLS** - Never make up answers. If you don't have a tool for something, say so.\n\n2. **TOOL SELECTION GUIDE**:\n   - \"how many documents\" → Use list_documents tool\n   - \"what documents are available\" → Use list_documents tool  \n   - \"search for X\" → Use knowledge_search tool\n   - \"tell me about X\" → Use knowledge_search tool\n   - \"show me document Y\" → Use get_file_contents tool\n   - \"calculate/sum/count data\" → Use query_document_rows tool\n   - \"what facts about X\" → Use search_facts tool\n\n3. **RESPONSE FORMAT**:\n   - State which tool you're using\n   - Show the tool results\n   - Summarize findings\n   - If no results: Say \"I found no information\" (DON'T make up answers)\n\n## Example Interactions:\n\nUser: \"How many documents do you have?\"\nYou: \"Let me check using the list_documents tool...\"\n[Call list_documents]\nYou: \"I found [X] documents in the knowledge base.\"\n\nUser: \"Tell me about contracts\"\nYou: \"I'll search for information about contracts...\"\n[Call knowledge_search with query=\"contracts\"]\nYou: \"Here's what I found: [results from tool]\"\n\n## Important:\n- If no documents are processed yet, say: \"The knowledge base has documents but they haven't been processed for searching yet.\"\n- Always cite which tool you used\n- Be helpful but honest about what you can and cannot find\n\nNow, please answer the user's question using the appropriate tools.",
+        "hasOutputParser": true
+      },
+      "id": "rag-agent",
+      "name": "TIP RAG AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "content": "## Tool-First Agent\n\nThis agent is configured to ALWAYS use tools.\n\nTest Questions:\n1. \"How many documents do you have?\"\n2. \"List available documents\"\n3. \"Search for information about X\"\n\nExpected:\n- Agent states which tool it's using\n- Shows tool results\n- Doesn't make up answers\n\n## Current Status:\n- 40 documents uploaded\n- 0 chunks processed\n- Agent will report this accurately",
+        "height": 400,
+        "width": 380,
+        "color": 6
+      },
+      "id": "sticky",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-100, 500]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434",
+          "temperature": 0.1,
+          "maxTokens": 1500
+        }
+      },
+      "id": "ollama-chat",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434"
+        }
+      },
+      "id": "embeddings",
+      "name": "Embeddings Ollama",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [200, 900]
+    },
+    {
+      "parameters": {
+        "name": "knowledge_search",
+        "description": "Search documents using semantic similarity. Use this when user asks 'tell me about X', 'search for Y', 'find information on Z'. Returns relevant document chunks. Input: query (string).",
+        "topK": 5
+      },
+      "id": "knowledge-search",
+      "name": "Knowledge Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1,
+      "position": [200, 600]
+    },
+    {
+      "parameters": {
+        "name": "list_documents",
+        "description": "List all documents in the knowledge base. Use this when user asks 'how many documents', 'what documents are available', 'list documents'. Returns array of document metadata. No input required.",
+        "method": "GET",
+        "url": "http://backend-node:3000/api/knowledge/documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "list-docs",
+      "name": "List Documents Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [200, 700]
+    },
+    {
+      "parameters": {
+        "name": "get_file_contents",
+        "description": "Retrieve full text of a specific document. Use when user asks 'show me document X', 'get contents of Y'. Requires document_id. Input: document_id (string).",
+        "code": "const { Client } = require('pg');\n\nconst client = new Client({\n  host: 'db',\n  port: 5432,\n  database: 'tip',\n  user: 'user',\n  password: 'password'\n});\n\nawait client.connect();\n\ntry {\n  const documentId = $input.document_id || $input.first().json.document_id;\n  \n  if (!documentId) {\n    return { error: 'document_id is required. Ask user for specific document ID.' };\n  }\n  \n  const result = await client.query(\n    \"SELECT get_document_full_text($1) as full_text\",\n    [documentId]\n  );\n  \n  await client.end();\n  \n  if (result.rows.length > 0 && result.rows[0].full_text) {\n    return {\n      document_id: documentId,\n      full_text: result.rows[0].full_text,\n      status: 'success'\n    };\n  } else {\n    return {\n      document_id: documentId,\n      full_text: '',\n      status: 'no_content',\n      message: 'Document exists but has no processed content yet'\n    };\n  }\n} catch (error) {\n  await client.end();\n  return { error: error.message, status: 'error' };\n}"
+      },
+      "id": "get-file",
+      "name": "Get File Contents Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [200, 800]
+    },
+    {
+      "parameters": {
+        "name": "query_document_rows",
+        "description": "Query tabular data from CSV/Excel files. Use for calculations, aggregations, filtering. Input: sql_query (string). Only SELECT queries allowed.",
+        "code": "const { Client } = require('pg');\n\nconst client = new Client({\n  host: 'db',\n  port: 5432,\n  database: 'tip',\n  user: 'user',\n  password: 'password'\n});\n\nawait client.connect();\n\ntry {\n  const sqlQuery = $input.sql_query || $input.first().json.sql_query;\n  \n  if (!sqlQuery) {\n    return { error: 'sql_query is required' };\n  }\n  \n  if (!sqlQuery.trim().toLowerCase().startsWith('select')) {\n    return { error: 'Only SELECT queries allowed' };\n  }\n  \n  const result = await client.query(sqlQuery);\n  await client.end();\n  \n  return {\n    query: sqlQuery,\n    row_count: result.rows.length,\n    results: result.rows,\n    status: 'success'\n  };\n} catch (error) {\n  await client.end();\n  return { \n    error: error.message,\n    query: sqlQuery,\n    status: 'error'\n  };\n}"
+      },
+      "id": "query-rows",
+      "name": "Query Document Rows Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [200, 1000]
+    },
+    {
+      "parameters": {
+        "name": "search_facts",
+        "description": "Search extracted facts from documents. Use for specific fact queries like dates, names, metrics. Input: query (string).",
+        "method": "POST",
+        "url": "http://backend-python:8000/api/knowledge/facts/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "id": "search-facts",
+      "name": "Search Facts Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [200, 1100]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "test-session",
+        "contextWindowLength": 5
+      },
+      "id": "memory",
+      "name": "PostgreSQL Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [600, 600],
+      "credentials": {
+        "postgres": {
+          "name": "TIP PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Knowledge Search Tool",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Documents Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File Contents Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Document Rows Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Facts Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1
+}

@@ -1,0 +1,396 @@
+{
+  "name": "TIP Agentic RAG (Enhanced with mem0)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tip-rag-chat-enhanced",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "chat-webhook-enhanced",
+      "name": "When chat message received",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "tip-rag-chat-enhanced"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chat-input",
+              "name": "chatInput",
+              "value": "={{ $json.body.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "session-id",
+              "name": "sessionId",
+              "value": "={{ $json.body.sessionId || 'default-session' }}",
+              "type": "string"
+            },
+            {
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $json.body.userId || 'anonymous' }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "extract-chat-fields",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "=You are an AI assistant for the TIP (Transition Intelligence Platform) application, specialized in government contract transitions and knowledge management.\n\n## Your Capabilities\n\nYou have access to five powerful tools:\n\n1. **knowledge_search** - Vector similarity search across document chunks (semantic search)\n2. **List Documents** - Browse available documents and their metadata\n3. **Get File Contents** - Retrieve full document text when complete context is needed\n4. **Query Document Rows** - Execute SQL queries on structured tabular data (CSV/Excel)\n5. **Search Facts (mem0)** - Query extracted facts and memories from documents\n\n## Enhanced Features with mem0\n\n### Fact-Based Retrieval\n- Use the \"Search Facts\" tool to find specific facts, dates, entities, and requirements\n- Facts are pre-extracted, structured, and categorized for quick retrieval\n- Facts include confidence scores and source references\n- Related facts are automatically linked\n\n### When to Use Each Tool\n\n- **Search Facts**: For specific information (dates, names, requirements, metrics)\n  - Example: \"What is the transition deadline?\"\n  - Example: \"Who is the primary stakeholder?\"\n  - Example: \"What are the security requirements?\"\n\n- **knowledge_search**: For semantic/conceptual questions\n  - Example: \"How does the handover process work?\"\n  - Example: \"What are best practices for stakeholder management?\"\n\n- **Query Document Rows**: For numerical analysis and aggregations\n  - Example: \"What is the total budget across all contracts?\"\n  - Example: \"How many milestones are due this month?\"\n\n- **Get File Contents**: When you need complete document context\n  - Example: \"Show me the entire transition plan\"\n\n- **List Documents**: To discover available information\n  - Example: \"What documents are available about security clearances?\"\n\n## Response Guidelines\n\n1. **Always cite sources**: Include document names and fact IDs when applicable\n2. **Show confidence**: Mention confidence scores from facts when available\n3. **Combine tools**: Use multiple tools together for comprehensive answers\n   - Example: Search Facts for specific dates, then use knowledge_search for context\n4. **Explain reasoning**: Show which tool you used and why\n5. **Handle uncertainty**: If confidence is low or facts conflict, say so\n\n## Domain Knowledge\n\nYou understand:\n- Government contract transitions (incoming/outgoing contractors)\n- Transition timelines (T-180 to T+90 days)\n- Stakeholder roles (Government PM, Contractor PM, Security Officers, etc.)\n- Security classifications (UNCLASSIFIED, CUI, SECRET, TOP SECRET)\n- Knowledge management (documents, facts, curation)\n- Milestone and task management\n\n## Example Interaction\n\nUser: \"When is the initial stakeholder meeting?\"\n\nYou: \n1. Use **Search Facts** tool to find date-type facts about \"stakeholder meeting\"\n2. Return: \"According to Transition_Plan_2024.pdf (Fact ID: abc-123, confidence: 0.95), the initial stakeholder identification meeting is scheduled for T-180 days (March 15, 2024). This is a critical Phase 1 milestone.\"\n\nAlways prioritize accuracy, cite sources, and provide actionable information for transition planning.",
+        "hasOutputParser": true
+      },
+      "id": "rag-agent-enhanced",
+      "name": "TIP RAG AI Agent (Enhanced)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ { \"response\": $json.output, \"sessionId\": $('Edit Fields').item.json.sessionId, \"timestamp\": new Date().toISOString() } }}"
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "content": "## Enhanced Agentic RAG with mem0\n\n### New Features:\n- **Fact-Based Retrieval**: Query pre-extracted facts for quick, precise answers\n- **5 Tools Available**: Vector search, SQL queries, full doc retrieval, metadata browsing, fact search\n- **Confidence Scores**: Facts include confidence ratings\n- **Source Citations**: All responses include document and fact references\n- **Intelligent Tool Selection**: Agent automatically chooses best tool(s) for each query\n\n### Benefits of mem0 Integration:\n1. **Faster retrieval** of specific facts (dates, names, requirements)\n2. **Structured data** vs. unstructured text search\n3. **Confidence scoring** for fact accuracy\n4. **Related facts** automatically linked\n5. **Fact versioning** tracks changes over time",
+        "height": 500,
+        "width": 400,
+        "color": 6
+      },
+      "id": "sticky-enhanced-info",
+      "name": "Sticky Note - Enhanced Features",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-100, 500]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434",
+          "temperature": 0.2,
+          "maxTokens": 2000
+        }
+      },
+      "id": "ollama-chat-model",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest",
+        "options": {
+          "baseURL": "http://host.docker.internal:11434"
+        }
+      },
+      "id": "ollama-embeddings",
+      "name": "Embeddings Ollama",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [600, 500]
+    },
+    {
+      "parameters": {
+        "name": "knowledge_search",
+        "description": "Search for information in the knowledge base using semantic similarity. Returns relevant text chunks from documents. Use this for conceptual questions and general information retrieval.",
+        "vectorStore": "pgVector",
+        "pgVector": {
+          "tableName": "knowledge_chunks",
+          "columns": {
+            "id": "id",
+            "embedding": "embedding",
+            "content": "content",
+            "metadata": "chunk_strategy_applied"
+          }
+        },
+        "topK": 5
+      },
+      "id": "vector-store-tool",
+      "name": "Knowledge Vector Store Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1,
+      "position": [200, 500],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "List Documents",
+        "description": "Browse available documents in the knowledge base. Returns metadata including document names, upload dates, types, and security classifications. Use this to discover what information is available.",
+        "method": "GET",
+        "url": "http://backend-node:3000/api/knowledge/documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "list-documents-tool",
+      "name": "List Documents Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [200, 600]
+    },
+    {
+      "parameters": {
+        "name": "Get File Contents",
+        "description": "Retrieve the complete text content of a specific document. Use this when you need full context or when chunks don't provide enough information. Requires document_id.",
+        "operation": "executeQuery",
+        "query": "SELECT get_document_full_text('{{ $json.document_id }}') as full_text"
+      },
+      "id": "get-full-document-tool",
+      "name": "Get Full Document Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolPostgres",
+      "typeVersion": 1,
+      "position": [200, 700],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "Query Document Rows",
+        "description": "Execute SQL queries on structured tabular data from CSV/Excel files. Use this for numerical analysis, aggregations, filtering, and data exploration. Returns query results as JSON.",
+        "operation": "executeQuery",
+        "query": "={{ $json.sql_query }}"
+      },
+      "id": "sql-query-tool",
+      "name": "SQL Query Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolPostgres",
+      "typeVersion": 1,
+      "position": [200, 800],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "Search Facts",
+        "description": "Query extracted facts from documents using mem0. Returns specific facts with confidence scores, categories, and source references. Use this for precise information like dates, names, requirements, metrics, and entities. Better than vector search for factual queries.",
+        "method": "POST",
+        "url": "http://backend-python:8000/api/knowledge/facts/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "fact_types",
+              "value": "={{ $json.fact_types || [] }}"
+            },
+            {
+              "name": "limit",
+              "value": "={{ $json.limit || 10 }}"
+            },
+            {
+              "name": "min_confidence",
+              "value": "={{ $json.min_confidence || 0.7 }}"
+            }
+          ]
+        }
+      },
+      "id": "search-facts-tool",
+      "name": "Search Facts Tool (mem0)",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [200, 900]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "postgres-chat-memory",
+      "name": "PostgreSQL Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [600, 600],
+      "credentials": {
+        "postgres": {
+          "id": "{{ POSTGRES_CREDENTIAL_ID }}",
+          "name": "TIP PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TIP RAG AI Agent (Enhanced)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Knowledge Vector Store Tool",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Vector Store Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Documents Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Full Document Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL Query Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Facts Tool (mem0)": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "TIP RAG AI Agent (Enhanced)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-26T00:00:00.000Z",
+  "versionId": "enhanced-1.0"
+}

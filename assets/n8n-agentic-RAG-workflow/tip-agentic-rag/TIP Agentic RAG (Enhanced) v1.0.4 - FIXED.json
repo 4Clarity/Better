@@ -1,0 +1,378 @@
+{
+  "name": "TIP Agentic RAG (Enhanced) v1.0.4 - FIXED",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7589fb7f-357b-44e1-a689-7924d9c4e96b",
+      "name": "Manual Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -112
+      ],
+      "webhookId": "manual-chat-test"
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "hasOutputParser": true,
+        "options": {
+          "maxIterations": 15
+        }
+      },
+      "id": "85a657b6-81a8-4589-b964-ae3e73b23c37",
+      "name": "TIP RAG AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        208,
+        -112
+      ],
+      "notes": "You are an AI assistant for the TIP (Transition Intelligence Platform) application.\n\nYou help with government contract transitions and knowledge management.\n\nYou have access to tools for:\n- Searching documents (knowledge_search)\n- Listing available documents (list_documents)  \n- Getting full document text (get_file_contents)\n- Querying tabular data (query_document_rows)\n- Searching extracted facts (search_facts)\n\nAlways cite your sources and be helpful!"
+    },
+    {
+      "parameters": {
+        "content": "## TIP Agentic RAG v1.0.4 - FIXED\n\n### What's Fixed:\n\u2713 Tool Chat Model using gemma3:1b (fast processing)\n\u2713 List Documents URL corrected (/api/documents)\n\u2713 Max iterations increased (15)\n\u2713 Proper architecture maintained\n\n### Architecture:\n- Tool Chat Model: gemma3:1b (processes retrieved chunks)\n- Agent Chat Model: llama3.2:latest (generates responses)\n- Document Embeddings: nomic-embed-text:latest\n- Vector Store: Postgres PGVector (768d)\n\n### Test: \"Where did Lord Rama return to?\"\nExpected: 30-60 seconds",
+        "height": 480,
+        "width": 380,
+        "color": 6
+      },
+      "id": "202b4565-06c4-4185-ab29-14e52d171e84",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "5c243373-cef2-4280-8e47-58094ff3b3fc",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        112
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "VT2XzfTTHLMUnsoz",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "knowledge_search",
+        "description": "Search the knowledge base using semantic similarity. Input: query (string). Returns relevant document chunks.",
+        "topK": 5
+      },
+      "id": "0b30a05f-2661-4551-8fa0-5d4f90916048",
+      "name": "Knowledge Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-node:3000/api/documents",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {}
+          ]
+        }
+      },
+      "id": "e38112bb-f464-4d08-87f3-59c5eb379b35",
+      "name": "List Documents Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        272,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "name": "get_file_contents",
+        "description": "Get full text of a document. Input: document_id (string)."
+      },
+      "id": "5d9b2caa-5909-4ec3-bd0d-c587abf58abe",
+      "name": "Get File Contents Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [
+        400,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "name": "query_document_rows",
+        "description": "Query tabular data from CSV/Excel. Input: sql_query (string). Only SELECT queries allowed."
+      },
+      "id": "5dd652a7-4ded-410e-abf7-d958ee3c24e9",
+      "name": "Query Document Rows Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [
+        544,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend-python:8000/api/knowledge/facts/search",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "parametersBody": {
+          "values": [
+            {}
+          ]
+        }
+      },
+      "id": "6626939a-846b-4662-879e-8a453fb010c4",
+      "name": "Search Facts Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.documentId || $json.id || $json.document_id || 'default-session' }}"
+      },
+      "id": "76e4bc9f-44a4-41b4-9b62-3f2d9bff0670",
+      "name": "PostgreSQL Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gemma3:1b",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        128,
+        336
+      ],
+      "id": "a0c8c701-5439-4045-94b1-c66865220ac3",
+      "name": "Tool Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "VT2XzfTTHLMUnsoz",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.3,
+      "position": [
+        -192,
+        336
+      ],
+      "id": "f6ac44b7-06dd-4ba4-a4ce-10377f4d127a",
+      "name": "Postgres PGVector Store",
+      "credentials": {
+        "postgres": {
+          "id": "6GnXzlqXi5q6xMPY",
+          "name": "Tip PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        512
+      ],
+      "id": "f79cd76e-7b09-4b01-9113-32adb9f6258f",
+      "name": "Embeddings Ollama1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "VT2XzfTTHLMUnsoz",
+          "name": "Ollama account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Documents Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File Contents Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Document Rows Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Facts Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "TIP RAG AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres PGVector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Knowledge Search Tool",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Knowledge Search Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "65466d16-2f01-4c5f-93da-afe2086a1f24",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "26b5839a5853f07a877e2fcea9f992a7ede4a6c959fb92da830a087cbe2da988"
+  },
+  "id": "IAnszBP1h4qzKFUm",
+  "tags": []
+}
