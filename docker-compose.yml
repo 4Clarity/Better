@@ -65,6 +65,7 @@ services:
     depends_on:
       - db
       - redis
+      - minio
 
   db:
     image: pgvector/pgvector:pg16
@@ -129,6 +130,11 @@ services:
     env_file:
       - .env
     command: server /data --console-address ":9001"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`minio.tip.localhost`)"
+      - "traefik.http.routers.minio.entrypoints=web"
+      - "traefik.http.services.minio.loadbalancer.server.port=9001"
 
   n8n:
     image: n8nio/n8n
@@ -139,6 +145,11 @@ services:
       - /Users/richardroach/data/uploads:/data/uploads
     env_file:
       - .env
+    environment:
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - DB_SQLITE_POOL_SIZE=3
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.n8n.rule=Host(`n8n.tip.localhost`)"

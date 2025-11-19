@@ -6,11 +6,14 @@ exports.updateTaskHandler = updateTaskHandler;
 exports.deleteTaskHandler = deleteTaskHandler;
 exports.getTaskTreeHandler = getTaskTreeHandler;
 exports.moveTaskHandler = moveTaskHandler;
+exports.getCombinedTasksHandler = getCombinedTasksHandler;
 const task_service_1 = require("./task.service");
 async function createTaskHandler(request, reply) {
     try {
         const { transitionId } = request.params;
-        const task = await (0, task_service_1.createTask)(transitionId, request.body);
+        // Support x-user-id header for auth bypass mode, otherwise fall back to authenticated user
+        const userId = request.headers['x-user-id'] || request.user?.id || 'user-richard-001';
+        const task = await (0, task_service_1.createTask)(transitionId, request.body, userId);
         return reply.code(201).send(task);
     }
     catch (e) {
@@ -73,5 +76,17 @@ async function moveTaskHandler(request, reply) {
         const message = e?.message || 'Failed to move task';
         const code = message.includes('not found') || message.includes('Parent task') ? 400 : 500;
         return reply.code(code).send({ statusCode: code, error: code === 400 ? 'Bad Request' : 'Internal Server Error', message });
+    }
+}
+async function getCombinedTasksHandler(request, reply) {
+    try {
+        const { transitionId } = request.params;
+        const combined = await (0, task_service_1.getCombinedTasks)(transitionId);
+        return reply.code(200).send(combined);
+    }
+    catch (e) {
+        const message = e?.message || 'Failed to fetch combined tasks';
+        const code = message.includes('not found') ? 404 : 500;
+        return reply.code(code).send({ statusCode: code, error: code === 404 ? 'Not Found' : 'Internal Server Error', message });
     }
 }

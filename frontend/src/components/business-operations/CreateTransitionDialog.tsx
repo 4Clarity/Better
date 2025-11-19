@@ -11,7 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { API_BASE_URL } from '@/services/api';
+import { AIPlanningWizard } from '../transitions/ai-planning';
+import { TransitionType } from '@/types/ai-planning';
+import { Bot, Sparkles } from 'lucide-react';
 
 interface CreateTransitionDialogProps {
   isOpen: boolean;
@@ -28,6 +32,9 @@ export function CreateTransitionDialog({
 }: CreateTransitionDialogProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useAIPlanning, setUseAIPlanning] = useState(false);
+  const [showAIWizard, setShowAIWizard] = useState(false);
+  const [createdTransitionId, setCreatedTransitionId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     contractName: '',
     contractNumber: '',
@@ -127,16 +134,23 @@ export function CreateTransitionDialog({
         throw new Error(errorData.message || 'Failed to assign transition to product/program');
       }
 
-      // Reset form and close dialog
-      setFormData({
-        contractName: '',
-        contractNumber: '',
-        startDate: '',
-        endDate: '',
-        keyPersonnel: '',
-        description: '',
-      });
-      onSuccess();
+      // If AI planning is enabled, show wizard
+      if (useAIPlanning) {
+        setCreatedTransitionId(createdTransition.id);
+        setShowAIWizard(true);
+      } else {
+        // Reset form and close dialog
+        setFormData({
+          contractName: '',
+          contractNumber: '',
+          startDate: '',
+          endDate: '',
+          keyPersonnel: '',
+          description: '',
+        });
+        setUseAIPlanning(false);
+        onSuccess();
+      }
     } catch (err) {
       console.error('Failed to create transition:', err);
       setError(err instanceof Error ? err.message : 'Failed to create transition');
@@ -146,7 +160,7 @@ export function CreateTransitionDialog({
   };
 
   const handleClose = () => {
-    if (!loading) {
+    if (!loading && !showAIWizard) {
       setFormData({
         contractName: '',
         contractNumber: '',
@@ -156,9 +170,70 @@ export function CreateTransitionDialog({
         description: '',
       });
       setError(null);
+      setUseAIPlanning(false);
+      setShowAIWizard(false);
+      setCreatedTransitionId(null);
       onClose();
     }
   };
+
+  const handleAIPlanningComplete = (result: {
+    sessionId: string;
+    tasksCreated: number;
+    milestonesCreated: number;
+  }) => {
+    // Reset state
+    setFormData({
+      contractName: '',
+      contractNumber: '',
+      startDate: '',
+      endDate: '',
+      keyPersonnel: '',
+      description: '',
+    });
+    setUseAIPlanning(false);
+    setShowAIWizard(false);
+    setCreatedTransitionId(null);
+    setError(null);
+
+    // Call success callback
+    onSuccess();
+  };
+
+  const handleAIPlanningCancel = () => {
+    // User cancelled AI planning, but transition was still created
+    setFormData({
+      contractName: '',
+      contractNumber: '',
+      startDate: '',
+      endDate: '',
+      keyPersonnel: '',
+      description: '',
+    });
+    setUseAIPlanning(false);
+    setShowAIWizard(false);
+    setCreatedTransitionId(null);
+    setError(null);
+
+    // Call success callback (transition was created, just no AI planning)
+    onSuccess();
+  };
+
+  // If showing AI wizard, render it instead of the form
+  if (showAIWizard && createdTransitionId) {
+    return (
+      <Dialog open={isOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+          <AIPlanningWizard
+            transitionId={createdTransitionId}
+            transitionType={TransitionType.CONTRACT}
+            onComplete={handleAIPlanningComplete}
+            onCancel={handleAIPlanningCancel}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -177,6 +252,27 @@ export function CreateTransitionDialog({
                 {error}
               </div>
             )}
+
+            {/* AI Planning Toggle */}
+            <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <Bot className="w-5 h-5 text-blue-600" />
+                <div>
+                  <Label htmlFor="ai-planning-toggle" className="text-sm font-semibold text-blue-900">
+                    Use AI Planning Assistant
+                  </Label>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Let AI generate tasks and milestones after creating the transition
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="ai-planning-toggle"
+                checked={useAIPlanning}
+                onCheckedChange={setUseAIPlanning}
+                disabled={loading}
+              />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -267,7 +363,16 @@ export function CreateTransitionDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Transition'}
+              {loading ? (
+                'Creating...'
+              ) : useAIPlanning ? (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Create & Plan with AI
+                </>
+              ) : (
+                'Create Transition'
+              )}
             </Button>
           </DialogFooter>
         </form>

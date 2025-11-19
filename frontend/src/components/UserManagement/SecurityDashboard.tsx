@@ -39,7 +39,7 @@ export function SecurityDashboard({ data }: SecurityDashboardProps) {
     expiringSecurity,
     // pivStatusCounts, // TODO: Use for detailed PIV status breakdown
     // clearanceLevelCounts, // TODO: Use for detailed clearance level breakdown
-    recentActivity,
+    recentActivity = [], // Defensive null check - default to empty array
   } = data;
 
   // Legacy compatibility - map new data to old structure

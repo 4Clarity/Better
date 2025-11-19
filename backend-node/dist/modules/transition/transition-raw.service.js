@@ -8,6 +8,9 @@ exports.getTransitionById = getTransitionById;
 exports.updateTransition = updateTransition;
 exports.updateTransitionStatus = updateTransitionStatus;
 exports.deleteTransition = deleteTransition;
+exports.assignToProductProgram = assignToProductProgram;
+exports.removeFromProductProgram = removeFromProductProgram;
+exports.getTransitionsByProductProgram = getTransitionsByProductProgram;
 const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
 const fastify_zod_1 = require("fastify-zod");
@@ -28,6 +31,7 @@ const updateTransitionSchema = zod_1.z.object({
     contractNumber: zod_1.z.string().min(1).max(100).optional(),
     startDate: zod_1.z.string().datetime().optional(),
     endDate: zod_1.z.string().datetime().optional(),
+    description: zod_1.z.string().optional(),
 });
 const updateTransitionStatusSchema = zod_1.z.object({
     status: zod_1.z.string(),
@@ -41,11 +45,13 @@ const getTransitionsQuerySchema = zod_1.z.object({
 });
 const transitionResponseSchema = zod_1.z.object({
     id: zod_1.z.string(),
+    name: zod_1.z.string(),
     contractName: zod_1.z.string(),
     contractNumber: zod_1.z.string(),
     startDate: zod_1.z.string(),
     endDate: zod_1.z.string(),
     status: zod_1.z.string(),
+    description: zod_1.z.string().nullable().optional(),
     createdAt: zod_1.z.string(),
     updatedAt: zod_1.z.string(),
 });
@@ -101,15 +107,33 @@ async function createTransition(data) {
         }
         const id = `clz${generateCuid()}`;
         const now = new Date();
+        // Use contract name as transition name
+        const name = `Transition for ${contractName}`;
+        // Get the first available organization ID (TODO: Should derive from user context or business operation)
+        const org = await prisma.organizations.findFirst({
+            select: { id: true },
+        });
+        if (!org) {
+            throw new Error('No organizations found in the system');
+        }
+        const organizationId = org.id;
+        // Use a system user ID for createdBy
+        const createdBy = 'system'; // TODO: Get from auth context
+        // Set default values for required fields
+        const priority = 'Medium'; // Default priority
+        const progressPercentage = 0; // Default progress
+        const riskLevel = 'Low'; // Default risk level
+        const trainingRequired = false; // Default training requirement
+        const certificationRequired = false; // Default certification requirement
         const result = await prisma.$executeRaw `
-      INSERT INTO "transitions" 
-      (id, "contractName", "contractNumber", "contractId", "startDate", "endDate", status, "createdAt", "updatedAt")
-      VALUES (${id}, ${contractName}, ${contractNumber}, ${contractId}, ${startDate}, ${endDate}, 'NOT_STARTED', ${now}, ${now})
+      INSERT INTO "transitions"
+      (id, name, "contractName", "contractNumber", "organizationId", "startDate", "endDate", status, priority, "progressPercentage", "riskLevel", "trainingRequired", "certificationRequired", "createdBy", "createdAt", "updatedAt")
+      VALUES (${id}, ${name}, ${contractName}, ${contractNumber}, ${organizationId}, ${startDate}, ${endDate}, 'Planning'::"TransitionStatus", 'Medium'::"Priority", ${progressPercentage}, 'Low'::"RiskLevel", ${trainingRequired}, ${certificationRequired}, ${createdBy}, ${now}, ${now})
     `;
         // Fetch the created transition
         const transition = await prisma.$queryRaw `
-      SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-      FROM "transitions" 
+      SELECT id, name, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
+      FROM "transitions"
       WHERE id = ${id}
     `;
         return transition[0];
@@ -132,8 +156,8 @@ async function getTransitions(query) {
     }
     // Get data with pagination
     const dataQuery = `
-    SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "transitions" 
+    SELECT id, name, "contractName", "contractNumber", "startDate", "endDate", status, description, "createdAt", "updatedAt"
+    FROM "transitions"
     ${whereClause}
     ORDER BY "${sortBy}" ${sortOrder.toUpperCase()}
     LIMIT $${searchValues.length + 1} OFFSET $${searchValues.length + 2}
@@ -155,8 +179,8 @@ async function getTransitions(query) {
 }
 async function getTransitionById(id) {
     const transition = await prisma.$queryRaw `
-    SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "transitions" 
+    SELECT id, name, "contractName", "contractNumber", "startDate", "endDate", status, description, "createdAt", "updatedAt"
+    FROM "transitions"
     WHERE id = ${id}
   `;
     if (!Array.isArray(transition) || transition.length === 0) {
@@ -194,6 +218,10 @@ async function updateTransition(id, data) {
         updateFields.push(`"endDate" = $${valueIndex++}`);
         updateValues.push(new Date(data.endDate));
     }
+    if (data.description !== undefined) {
+        updateFields.push(`description = $${valueIndex++}`);
+        updateValues.push(data.description || null);
+    }
     if (updateFields.length === 0) {
         return existing; // No updates to make
     }
@@ -230,8 +258,107 @@ async function deleteTransition(id) {
     // Check if transition exists
     await getTransitionById(id);
     await prisma.$executeRaw `
-    DELETE FROM "transitions" 
+    DELETE FROM "transitions"
     WHERE id = ${id}
   `;
     return { message: 'Transition deleted successfully' };
+}
+// ============================================
+// Product/Program Categorization Functions
+// Story 4.2 - Phase 2
+// ============================================
+/**
+ * Assigns a transition to a Product/Program
+ * @param transitionId - The ID of the transition to assign
+ * @param productProgramId - The ID of the product/program to assign to
+ * @returns The updated transition with product/program data
+ */
+async function assignToProductProgram(transitionId, productProgramId) {
+    // Validate transition exists
+    const transition = await prisma.transitions.findUnique({
+        where: { id: transitionId },
+    });
+    if (!transition) {
+        throw new Error('Transition not found');
+    }
+    // Validate product/program exists
+    const productProgram = await prisma.product_programs.findUnique({
+        where: { id: productProgramId },
+    });
+    if (!productProgram) {
+        throw new Error('Product/Program not found');
+    }
+    // Update transition with product/program assignment
+    const updatedTransition = await prisma.transitions.update({
+        where: { id: transitionId },
+        data: { productProgramId: productProgramId },
+        include: {
+            product_programs: {
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                },
+            },
+        },
+    });
+    console.log(`Transition ${transitionId} assigned to Product/Program ${productProgramId}`);
+    return updatedTransition;
+}
+/**
+ * Removes the Product/Program assignment from a transition
+ * @param transitionId - The ID of the transition to unassign
+ * @returns The updated transition
+ */
+async function removeFromProductProgram(transitionId) {
+    // Validate transition exists
+    const transition = await prisma.transitions.findUnique({
+        where: { id: transitionId },
+    });
+    if (!transition) {
+        throw new Error('Transition not found');
+    }
+    if (!transition.productProgramId) {
+        throw new Error('Transition is not assigned to any Product/Program');
+    }
+    // Remove product/program assignment
+    const updatedTransition = await prisma.transitions.update({
+        where: { id: transitionId },
+        data: { productProgramId: null },
+    });
+    console.log(`Transition ${transitionId} unassigned from Product/Program`);
+    return updatedTransition;
+}
+/**
+ * Gets all transitions assigned to a specific Product/Program
+ * @param productProgramId - The ID of the product/program
+ * @returns Array of transitions with basic details
+ */
+async function getTransitionsByProductProgram(productProgramId) {
+    // Validate product/program exists
+    const productProgram = await prisma.product_programs.findUnique({
+        where: { id: productProgramId },
+    });
+    if (!productProgram) {
+        throw new Error('Product/Program not found');
+    }
+    // Get all transitions assigned to this product/program
+    const transitions = await prisma.transitions.findMany({
+        where: { productProgramId: productProgramId },
+        select: {
+            id: true,
+            name: true,
+            contractName: true,
+            contractNumber: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            description: true,
+            priority: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+        orderBy: { startDate: 'desc' },
+    });
+    return transitions;
 }

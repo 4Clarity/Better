@@ -1,11 +1,12 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { TransitionUserManagement } from '@/components/UserManagement/TransitionUserManagement';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function TransitionUserPage() {
   const { transitionId } = useParams<{ transitionId: string }>();
-  
+  const navigate = useNavigate();
+
   if (!transitionId) {
     return (
       <div className="p-6">
@@ -21,7 +22,12 @@ export function TransitionUserPage() {
     <div className="p-6 space-y-6">
       {/* Header with back navigation */}
       <div className="flex items-center space-x-4">
-        <Button variant="outline" size="sm" className="flex items-center space-x-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center space-x-2"
+          onClick={() => navigate('/transitions')}
+        >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Transitions</span>
         </Button>

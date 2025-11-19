@@ -3,6 +3,37 @@ import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
+// Map enhanced status to database status
+function mapStatusToDb(status?: string): string {
+  const statusMap: Record<string, string> = {
+    'NOT_STARTED': 'Planning',
+    'ON_TRACK': 'Active',
+    'AT_RISK': 'Active',
+    'BLOCKED': 'On_Hold',
+    'COMPLETED': 'Completed',
+  };
+  return status ? (statusMap[status] || 'Planning') : 'Planning';
+}
+
+// Map database status to frontend status
+function mapStatusFromDb(status: string): string {
+  const statusMap: Record<string, string> = {
+    'Planning': 'NOT_STARTED',
+    'Active': 'ON_TRACK',
+    'On_Hold': 'BLOCKED',
+    'Completed': 'COMPLETED',
+  };
+  return statusMap[status] || 'NOT_STARTED';
+}
+
+// Transform database transition to API response format
+function transformTransition(transition: any) {
+  return {
+    ...transition,
+    status: mapStatusFromDb(transition.status)
+  };
+}
+
 // Enhanced schemas for the new hierarchy
 export const createEnhancedTransitionSchema = z.object({
   contractName: z.string().min(1, "Contract name is required").max(255),
@@ -51,22 +82,48 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
 
   try {
     // Remove contractId from data since it's not a valid field in the schema
-    const { contractId, ...transitionData } = data;
+    const { contractId, duration, requiresContinuousService, ...transitionData } = data;
 
     // Create cleaned data object and explicitly omit problematic fields
+    // duration and requiresContinuousService are not in the database schema
     const cleanedData: any = { ...transitionData };
 
     // Always remove createdBy field to avoid foreign key constraint issues
     // The field should be set by authentication middleware, not by client
     delete cleanedData.createdBy;
 
+    // Get or create default organization if not provided
+    let organizationId = cleanedData.organizationId;
+    if (!organizationId) {
+      let defaultOrg = await prisma.organizations.findFirst({
+        where: { type: 'Government_Agency' },
+      });
+      if (!defaultOrg) {
+        defaultOrg = await prisma.organizations.create({
+          data: {
+            id: 'default-org-' + Date.now(),
+            name: 'Default Organization',
+            type: 'Government_Agency',
+            isActive: true,
+            updatedAt: new Date(),
+          },
+        });
+      }
+      organizationId = defaultOrg.id;
+    }
+
     console.log('Final cleaned data for Prisma:', JSON.stringify(cleanedData, null, 2));
 
     const transition = await prisma.transitions.create({
       data: {
         ...cleanedData,
+        id: 'trans-' + Date.now() + '-' + Math.random().toString(36).substring(7),
+        organizationId,
         startDate,
         endDate,
+        status: mapStatusToDb(cleanedData.status),
+        updatedAt: new Date(),
+        createdBy: 'system', // Default createdBy since auth middleware not always available
       },
       include: {
         // contract: {
@@ -86,7 +143,7 @@ export async function createEnhancedTransition(data: CreateEnhancedTransitionInp
       }
     });
 
-    return transition;
+    return transformTransition(transition);
   } catch (error: any) {
     console.error('Create enhanced transition error:', error);
     throw error; // Re-throw the original error instead of masking it
@@ -183,7 +240,7 @@ export async function getEnhancedTransitions(query: GetEnhancedTransitionsQuery)
   ]);
 
   return {
-    data,
+    data: data.map(transformTransition),
     pagination: {
       page,
       limit,
@@ -233,17 +290,21 @@ export async function getEnhancedTransitionById(id: string) {
       milestones: {
         orderBy: { dueDate: 'asc' }
       },
+      tasks: {
+        orderBy: { dueDate: 'asc' }
+      },
       // Note: No direct user relation - transitions use transition_users for many-to-many
-      transition_users: {
-        include: {
-          users: {
-            select: {
-              id: true,
-              username: true
-            }
-          }
-        }
-      }
+      // transition_users relation disabled due to complex nested relation names
+      // transition_users: {
+      //   include: {
+      //     users_transition_users_userIdTousers: {
+      //       select: {
+      //         id: true,
+      //         username: true
+      //       }
+      //     }
+      //   }
+      // }
     }
   });
 
@@ -251,7 +312,7 @@ export async function getEnhancedTransitionById(id: string) {
     throw new Error('Transition not found');
   }
 
-  return transition;
+  return transformTransition(transition);
 }
 
 export async function updateEnhancedTransition(id: string, data: UpdateEnhancedTransitionInput) {
@@ -284,10 +345,18 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
   }
 
   try {
-    const updateData: any = { ...data };
-    
+    // Remove unsupported fields and contractId
+    const { contractId, duration, requiresContinuousService, ...cleanData } = data;
+
+    const updateData: any = { ...cleanData };
+
     if (data.startDate) updateData.startDate = new Date(data.startDate);
     if (data.endDate) updateData.endDate = new Date(data.endDate);
+
+    // Map status from frontend format to database format
+    if (data.status) {
+      updateData.status = mapStatusToDb(data.status);
+    }
 
     const transition = await prisma.transitions.update({
       where: { id },
@@ -310,7 +379,7 @@ export async function updateEnhancedTransition(id: string, data: UpdateEnhancedT
       }
     });
 
-    return transition;
+    return transformTransition(transition);
   } catch (error: any) {
     console.error('Update enhanced transition error:', error);
     throw new Error('Failed to update transition');
@@ -343,7 +412,7 @@ export async function createMilestone(transitionId: string, data: {
     throw new Error('Transition not found');
   }
 
-  const milestone = await prisma.milestone.create({
+  const milestone = await prisma.milestones.create({
     data: {
       ...data,
       dueDate: new Date(data.dueDate),
@@ -355,7 +424,7 @@ export async function createMilestone(transitionId: string, data: {
 }
 
 export async function updateMilestoneStatus(milestoneId: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' | 'OVERDUE') {
-  const milestone = await prisma.milestone.update({
+  const milestone = await prisma.milestones.update({
     where: { id: milestoneId },
     data: { status }
   });

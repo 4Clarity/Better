@@ -3,6 +3,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.userManagementRoutes = userManagementRoutes;
 const user_management_service_1 = require("./user-management.service");
 const userService = new user_management_service_1.UserManagementService();
+// Helper function to convert API accountStatus format to Prisma enum
+function convertAccountStatus(status) {
+    if (!status)
+        return undefined;
+    const mapping = {
+        'PENDING': 'Pending',
+        'ACTIVE': 'Active',
+        'INACTIVE': 'Inactive',
+        'SUSPENDED': 'Suspended',
+        'LOCKED': 'Locked',
+        'EXPIRED': 'Expired',
+        'DEACTIVATED': 'Deactivated',
+    };
+    return mapping[status.toUpperCase()] || status;
+}
 async function userManagementRoutes(fastify) {
     // Get all users with filtering and pagination
     fastify.get('/users', async (request, reply) => {
@@ -10,6 +25,7 @@ async function userManagementRoutes(fastify) {
             const query = request.query;
             const filters = {
                 ...query,
+                accountStatus: convertAccountStatus(query.accountStatus),
                 page: query.page ? parseInt(query.page) : undefined,
                 pageSize: query.pageSize ? parseInt(query.pageSize) : undefined,
             };
@@ -96,7 +112,10 @@ async function userManagementRoutes(fastify) {
         try {
             const { id } = request.params;
             const { accountStatus, statusReason, reasonCode } = request.body;
-            const adminId = 'current-user-id'; // This should come from JWT token
+            // TODO: Get adminId from JWT token when auth is enabled
+            // For now, we'll get the first user as a fallback for the foreign key
+            const adminUser = await userService.getUserById(id);
+            const adminId = adminUser ? id : undefined; // Use the user's own ID as admin for now
             // Validate and update user status (includes user existence check)
             const user = await userService.updateUserStatusWithValidation({
                 userId: id,
@@ -104,7 +123,7 @@ async function userManagementRoutes(fastify) {
                 statusReason,
                 reasonCode,
                 adminId,
-                deactivatedBy: accountStatus === 'DEACTIVATED' ? adminId : undefined,
+                deactivatedBy: (accountStatus === 'DEACTIVATED' || accountStatus === 'Deactivated') && adminId ? adminId : undefined,
             });
             return reply.code(200).send({
                 message: 'User status updated successfully',
@@ -164,29 +183,33 @@ async function userManagementRoutes(fastify) {
             return reply.code(500).send({ error: 'Failed to process status approval' });
         }
     });
-    // Reactivate suspended user account
+    // Reactivate suspended or deactivated user account
     fastify.post('/users/:id/reactivate', async (request, reply) => {
         try {
             const { id } = request.params;
             const { reason } = request.body;
-            const reactivatedBy = 'current-user-id'; // This should come from JWT token
-            // First check if user exists and is suspended
+            // Get the user doing the reactivation (for now, use the user's own ID)
+            const adminUser = await userService.getUserById(id);
+            const reactivatedBy = adminUser ? id : undefined;
+            // First check if user exists
             const existingUser = await userService.getUserById(id);
             if (!existingUser) {
                 return reply.code(404).send({ error: 'User not found' });
             }
-            if (existingUser.accountStatus !== 'SUSPENDED') {
+            // Check if user can be reactivated (must be Suspended, Deactivated, or Inactive)
+            const reactivatableStatuses = ['Suspended', 'Deactivated', 'Inactive', 'SUSPENDED', 'DEACTIVATED', 'INACTIVE'];
+            if (!reactivatableStatuses.includes(existingUser.accountStatus)) {
                 return reply.code(400).send({
                     error: 'Invalid operation',
-                    message: `Cannot reactivate user with status: ${existingUser.accountStatus}. Only SUSPENDED users can be reactivated.`
+                    message: `Cannot reactivate user with status: ${existingUser.accountStatus}. Only Suspended, Deactivated, or Inactive users can be reactivated.`
                 });
             }
             const user = await userService.updateUserStatus({
                 userId: id,
-                accountStatus: 'ACTIVE',
-                statusReason: reason || 'Account reactivated',
+                accountStatus: 'Active',
+                statusReason: reason || 'Account reactivated by administrator',
                 adminId: reactivatedBy,
-                deactivatedBy: undefined, // Clear the deactivation info
+                deactivatedBy: undefined, // Don't change this - will be handled by service
             });
             return reply.code(200).send({
                 message: 'User account reactivated successfully',
@@ -280,6 +303,27 @@ async function userManagementRoutes(fastify) {
             return reply.code(500).send({ error: 'Failed to update person information' });
         }
     });
+    // Helper function to convert frontend role format to Prisma enum
+    function convertTransitionRole(role) {
+        const mapping = {
+            'PROGRAM_MANAGER': 'Program_Manager',
+            'DEPARTING_CONTRACTOR': 'Departing_Contractor',
+            'INCOMING_CONTRACTOR': 'Incoming_Contractor',
+            'SECURITY_OFFICER': 'Security_Officer',
+            'OBSERVER': 'Observer',
+        };
+        return mapping[role] || role;
+    }
+    // Helper function to convert frontend platform access format to Prisma enum
+    function convertPlatformAccess(access) {
+        const mapping = {
+            'DISABLED': 'Disabled',
+            'READ_ONLY': 'Read_Only',
+            'STANDARD': 'Standard',
+            'FULL_ACCESS': 'Full_Access',
+        };
+        return mapping[access] || access;
+    }
     // Transition user management
     fastify.post('/transitions/:transitionId/users', async (request, reply) => {
         try {
@@ -289,6 +333,8 @@ async function userManagementRoutes(fastify) {
             const transitionUser = await userService.inviteUserToTransition({
                 transitionId,
                 ...invitationData,
+                role: convertTransitionRole(invitationData.role),
+                platformAccess: convertPlatformAccess(invitationData.platformAccess),
                 invitedBy,
             });
             return reply.code(201).send({
@@ -321,7 +367,13 @@ async function userManagementRoutes(fastify) {
         try {
             const { transitionId, userId } = request.params;
             const updates = request.body;
-            const transitionUser = await userService.updateTransitionUserAccess(transitionId, userId, updates);
+            // Convert enum values if present
+            const convertedUpdates = {
+                ...updates,
+                ...(updates.role && { role: convertTransitionRole(updates.role) }),
+                ...(updates.platformAccess && { platformAccess: convertPlatformAccess(updates.platformAccess) }),
+            };
+            const transitionUser = await userService.updateTransitionUserAccess(transitionId, userId, convertedUpdates);
             return reply.code(200).send({
                 message: 'Transition user access updated successfully',
                 transitionUser,

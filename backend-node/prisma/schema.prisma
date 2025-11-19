@@ -441,11 +441,21 @@ model knowledge_documents {
   mime_type                   String                         @db.VarChar(100) @map("mime_type")
   storage_path                String                         @map("storage_path")
   upload_status               KnowledgeDocumentStatus        @default(UPLOADED) @map("upload_status")
+  curation_status             String?                        @default("pending") @db.VarChar(50) @map("curation_status")
   processing_error            String?                        @map("processing_error")
   chunk_count                 Int                            @default(0) @map("chunk_count")
   chunking_strategy           Json?                          @map("chunking_strategy")
   chunking_analysis_time_ms   Int?                           @map("chunking_analysis_time_ms")
   n8n_workflow_id             String?                        @db.VarChar(255) @map("n8n_workflow_id")
+  n8n_execution_status        String?                        @default("NONE") @db.VarChar(50) @map("n8n_execution_status")
+  n8n_execution_error         String?                        @map("n8n_execution_error")
+  n8n_triggered_at            DateTime?                      @map("n8n_triggered_at")
+  n8n_completed_at            DateTime?                      @map("n8n_completed_at")
+  content_hash                String?                        @db.VarChar(64) @map("content_hash")
+  version_number              Int                            @default(1) @map("version_number")
+  parent_document_id          String?                        @map("parent_document_id")
+  is_latest_version           Boolean                        @default(true) @map("is_latest_version")
+  revision_notes              String?                        @map("revision_notes")
   uploaded_by                 String                         @map("uploaded_by")
   security_classification     String                         @default("UNCLASSIFIED") @db.VarChar(50) @map("security_classification")
   created_at                  DateTime                       @default(now()) @map("created_at")
@@ -453,14 +463,71 @@ model knowledge_documents {
   // Relations
   user                        User                           @relation(fields: [uploaded_by], references: [id], onDelete: SetNull, map: "fk_knowledge_documents_uploaded_by")
   knowledge_chunks            knowledge_chunks[]
+  parent_document             knowledge_documents?           @relation("document_revisions", fields: [parent_document_id], references: [id], onDelete: SetNull, map: "fk_knowledge_documents_parent_document_id")
+  child_revisions             knowledge_documents[]          @relation("document_revisions")
+  document_versions           document_versions[]            @relation("document_version_history")
 
   @@index([upload_status], map: "idx_knowledge_documents_upload_status")
+  @@index([curation_status], map: "idx_knowledge_documents_curation_status")
   @@index([uploaded_by], map: "idx_knowledge_documents_uploaded_by")
   @@index([security_classification], map: "idx_knowledge_documents_security_classification")
   @@index([created_at(sort: Desc)], map: "idx_knowledge_documents_created_at")
   // Note: idx_knowledge_documents_n8n_workflow_id is a partial index (WHERE n8n_workflow_id IS NOT NULL)
   // Created via SQL migration. Prisma doesn't support partial indexes, so we manage it externally.
   @@index([mime_type], map: "idx_knowledge_documents_mime_type")
+  @@index([n8n_execution_status], map: "idx_knowledge_documents_n8n_execution_status")
+  @@index([content_hash], map: "idx_knowledge_documents_content_hash")
+  @@index([parent_document_id], map: "idx_knowledge_documents_parent_document_id")
+  // Note: idx_knowledge_documents_content_hash_unique and idx_knowledge_documents_parent_latest are partial indexes
+  // Created via SQL migration. Prisma doesn't support partial indexes or composite WHERE clauses, so we manage externally.
+}
+
+model document_versions {
+  id                String              @id @default(dbgenerated("gen_random_uuid()::TEXT"))
+  document_id       String              @map("document_id")
+  version_number    Int                 @default(1) @map("version_number")
+  content_hash      String?             @map("content_hash")
+  docling_metadata  Json?               @map("docling_metadata")
+  created_at        DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  knowledge_document knowledge_documents @relation("document_version_history", fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@index([document_id], map: "idx_document_versions_document_id")
+  @@index([created_at(sort: Desc)], map: "idx_document_versions_created_at")
+}
+
+model curation_queue {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_type     String    @db.VarChar(50) @map("item_type")
+  item_id       String    @db.Uuid @map("item_id")
+  status        String    @default("pending") @db.VarChar(50)
+  priority      String?   @default("normal") @db.VarChar(50)
+  quality_score Decimal?  @db.Decimal(3, 2) @map("quality_score")
+  metadata      Json?
+  assigned_to   String?   @db.Uuid @map("assigned_to")
+  reviewed_at   DateTime? @db.Timestamptz @map("reviewed_at")
+  review_notes  String?   @map("review_notes")
+  created_at    DateTime  @default(now()) @db.Timestamptz @map("created_at")
+  updated_at    DateTime  @default(now()) @db.Timestamptz @map("updated_at")
+
+  @@index([status], map: "idx_curation_queue_status")
+  @@index([item_type, item_id], map: "idx_curation_queue_item")
+  @@index([priority], map: "idx_curation_queue_priority")
+  @@index([created_at], map: "idx_curation_queue_created_at")
+}
+
+model n8n_chat_histories {
+  id         Int    @id @default(autoincrement())
+  session_id String @db.VarChar(255) @map("session_id")
+  message    Json
+}
+
+model n8n_vectors {
+  id        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  text      String?
+  metadata  Json?
+  embedding Unsupported("vector")?
 }
 
 model milestones {

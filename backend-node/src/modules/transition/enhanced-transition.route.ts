@@ -16,6 +16,7 @@ import {
   getOperationalChangesHandler,
   getTransitionCountsHandler,
 } from './enhanced-transition.controller';
+import { authenticate, requireRoles, optionalAuth } from '../auth/auth.middleware';
 
 const errorSchema = {
   type: 'object',
@@ -163,6 +164,7 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
             businessOperationId: { type: 'string' },
             search: { type: 'string' },
             status: { type: 'string', enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] },
+            transitionLevel: { type: 'string', enum: ['MAJOR', 'PERSONNEL', 'OPERATIONAL'] },
             page: { type: 'number', minimum: 1, default: 1 },
             limit: { type: 'number', minimum: 1, maximum: 100, default: 10 },
             sortBy: { type: 'string', enum: ['name', 'startDate', 'endDate', 'status', 'createdAt'], default: 'createdAt' },
@@ -222,6 +224,27 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
     getLegacyTransitionsHandler
   );
 
+  // GET /api/enhanced-transitions/counts - Get transition counts by level
+  server.get(
+    '/counts',
+    {
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              major: { type: 'number' },
+              personnel: { type: 'number' },
+              operational: { type: 'number' },
+              total: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+    getTransitionCountsHandler
+  );
+
   // GET /api/enhanced-transitions/:id - Get specific enhanced transition
   server.get(
     '/:id',
@@ -247,6 +270,7 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
   server.put(
     '/:id',
     {
+      onRequest: [authenticate],
       schema: {
         params: {
           type: 'object',
@@ -265,14 +289,14 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
             description: { type: 'string' },
             startDate: { type: 'string', format: 'date' },
             endDate: { type: 'string', format: 'date' },
-            duration: { 
-              type: 'string', 
-              enum: ['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS'] 
+            duration: {
+              type: 'string',
+              enum: ['IMMEDIATE', 'THIRTY_DAYS', 'FORTY_FIVE_DAYS', 'SIXTY_DAYS', 'NINETY_DAYS']
             },
             keyPersonnel: { type: 'string' },
-            status: { 
-              type: 'string', 
-              enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] 
+            status: {
+              type: 'string',
+              enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED']
             },
             requiresContinuousService: { type: 'boolean' },
             createdBy: { type: 'string' },
@@ -281,6 +305,7 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
         response: {
           200: transitionResponseSchema,
           400: errorSchema,
+          401: errorSchema,
           404: errorSchema,
         },
       },
@@ -374,27 +399,6 @@ async function enhancedTransitionRoutes(server: FastifyInstance) {
   );
 
   // Level-specific routes
-  
-  // GET /api/enhanced-transitions/counts - Get transition counts by level
-  server.get(
-    '/counts',
-    {
-      schema: {
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              major: { type: 'number' },
-              personnel: { type: 'number' },
-              operational: { type: 'number' },
-              total: { type: 'number' },
-            },
-          },
-        },
-      },
-    },
-    getTransitionCountsHandler
-  );
 
   // POST /api/enhanced-transitions/major - Create major transition
   server.post(

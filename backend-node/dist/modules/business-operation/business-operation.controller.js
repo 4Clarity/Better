@@ -5,6 +5,9 @@ exports.getBusinessOperationsHandler = getBusinessOperationsHandler;
 exports.getBusinessOperationByIdHandler = getBusinessOperationByIdHandler;
 exports.updateBusinessOperationHandler = updateBusinessOperationHandler;
 exports.deleteBusinessOperationHandler = deleteBusinessOperationHandler;
+exports.linkProgramProductToOperationHandler = linkProgramProductToOperationHandler;
+exports.unlinkProgramProductFromOperationHandler = unlinkProgramProductFromOperationHandler;
+exports.getProgramsAndProductsHandler = getProgramsAndProductsHandler;
 const business_operation_service_1 = require("./business-operation.service");
 async function createBusinessOperationHandler(request, reply) {
     try {
@@ -120,6 +123,120 @@ async function deleteBusinessOperationHandler(request, reply) {
             statusCode: 500,
             error: 'Internal Server Error',
             message: 'Failed to delete business operation'
+        });
+    }
+}
+// ============================================
+// Business Operation Linking Handlers
+// Story 4.2 - Phase 3
+// ============================================
+/**
+ * Link a Program or Product to a Business Operation
+ * PUT /api/product-programs/:id/business-operation
+ */
+async function linkProgramProductToOperationHandler(request, reply) {
+    try {
+        const { id } = request.params;
+        const { businessOperationId } = request.body;
+        const updated = await (0, business_operation_service_1.linkToBusinessOperation)(id, businessOperationId);
+        return reply.code(200).send({
+            success: true,
+            data: updated
+        });
+    }
+    catch (error) {
+        console.error('Link to business operation error:', error);
+        if (error.message.includes('not found')) {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        if (error.message.includes('Cannot link') || error.message.includes('Can only link')) {
+            return reply.code(400).send({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: error.message
+            });
+        }
+        return reply.code(500).send({
+            statusCode: 500,
+            error: 'Internal Server Error',
+            message: 'Failed to link to business operation'
+        });
+    }
+}
+/**
+ * Unlink a Program or Product from its Business Operation
+ * DELETE /api/product-programs/:id/business-operation
+ */
+async function unlinkProgramProductFromOperationHandler(request, reply) {
+    try {
+        const { id } = request.params;
+        const updated = await (0, business_operation_service_1.unlinkFromBusinessOperation)(id);
+        return reply.code(200).send({
+            success: true,
+            message: 'Program/Product unlinked from Business Operation',
+            data: updated
+        });
+    }
+    catch (error) {
+        console.error('Unlink from business operation error:', error);
+        if (error.message.includes('not found')) {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        if (error.message.includes('not currently linked') || error.message.includes('Cannot unlink')) {
+            return reply.code(400).send({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: error.message
+            });
+        }
+        return reply.code(500).send({
+            statusCode: 500,
+            error: 'Internal Server Error',
+            message: 'Failed to unlink from business operation'
+        });
+    }
+}
+/**
+ * Get all Programs and Products for a Business Operation
+ * GET /api/business-operations/:id/programs-products
+ */
+async function getProgramsAndProductsHandler(request, reply) {
+    try {
+        const { id } = request.params;
+        const programsAndProducts = await (0, business_operation_service_1.getProgramsAndProductsByOperation)(id);
+        return reply.code(200).send({
+            success: true,
+            data: programsAndProducts
+        });
+    }
+    catch (error) {
+        console.error('Get programs and products error:', error);
+        if (error.message.includes('not found')) {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        if (error.message.includes('Can only query')) {
+            return reply.code(400).send({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: error.message
+            });
+        }
+        return reply.code(500).send({
+            statusCode: 500,
+            error: 'Internal Server Error',
+            message: 'Failed to fetch programs and products'
         });
     }
 }

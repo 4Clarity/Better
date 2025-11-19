@@ -11,18 +11,19 @@ import { AdvancedSearchDialog } from '@/components/UserManagement/AdvancedSearch
 import { SecurityDashboard } from '@/components/UserManagement/SecurityDashboard';
 import { UserManagementApi, type User, type SecurityDashboard as SecurityDashboardType, type UserInvitationData } from '@/services/userManagementApi';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  Users, 
-  UserPlus, 
-  Search, 
-  Filter, 
+import {
+  Users,
+  UserPlus,
+  Search,
+  Filter,
   Download,
   AlertTriangle,
   Shield,
   Clock,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Building
 } from 'lucide-react';
 
 
@@ -43,6 +44,11 @@ export function UserManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 20;
+  const [activeTransitions, setActiveTransitions] = useState<any[]>([]);
+  const [businessOperations, setBusinessOperations] = useState<any[]>([]);
+  const [selectedBusinessOp, setSelectedBusinessOp] = useState<string>('all');
+  const [stakeholders, setStakeholders] = useState<User[]>([]);
+  const [stakeholdersLoading, setStakeholdersLoading] = useState(false);
 
   // Load users from API
   useEffect(() => {
@@ -53,6 +59,91 @@ export function UserManagementPage() {
   useEffect(() => {
     loadSecurityData();
   }, []);
+
+  // Load active transitions
+  useEffect(() => {
+    loadActiveTransitions();
+  }, []);
+
+  // Load business operations
+  useEffect(() => {
+    loadBusinessOperations();
+  }, []);
+
+  // Load stakeholders when business operation filter changes
+  useEffect(() => {
+    if (selectedBusinessOp) {
+      loadStakeholders();
+    }
+  }, [selectedBusinessOp]);
+
+  const loadActiveTransitions = async () => {
+    try {
+      const response = await fetch('http://api.tip.localhost/api/enhanced-transitions?status=ACTIVE&limit=10');
+      if (response.ok) {
+        const data = await response.json();
+        // Ensure we always set an array
+        const transitions = Array.isArray(data.transitions)
+          ? data.transitions
+          : Array.isArray(data)
+            ? data
+            : [];
+        setActiveTransitions(transitions);
+      }
+    } catch (err) {
+      console.error('Error loading transitions:', err);
+      setActiveTransitions([]);
+    }
+  };
+
+  const loadBusinessOperations = async () => {
+    try {
+      const response = await fetch('http://api.tip.localhost/api/business-operations');
+      if (response.ok) {
+        const data = await response.json();
+        // Ensure we always set an array
+        const bizOps = Array.isArray(data.businessOperations)
+          ? data.businessOperations
+          : Array.isArray(data)
+            ? data
+            : [];
+        setBusinessOperations(bizOps);
+
+        // Set default to current user's business operation if available
+        if (currentUser && bizOps.length > 0) {
+          // Try to find user's business operation from their organization affiliations
+          const userBusinessOp = bizOps[0]?.id; // Default to first for now
+          setSelectedBusinessOp(userBusinessOp || 'all');
+        }
+      }
+    } catch (err) {
+      console.error('Error loading business operations:', err);
+      setBusinessOperations([]);
+    }
+  };
+
+  const loadStakeholders = async () => {
+    try {
+      setStakeholdersLoading(true);
+      const params: any = {
+        page: 1,
+        pageSize: 100,
+      };
+
+      // Filter by business operation if not "all"
+      if (selectedBusinessOp && selectedBusinessOp !== 'all') {
+        params.organizationId = selectedBusinessOp;
+      }
+
+      const response = await UserManagementApi.getUsers(params);
+      setStakeholders(response.users);
+    } catch (err) {
+      console.error('Error loading stakeholders:', err);
+      setStakeholders([]);
+    } finally {
+      setStakeholdersLoading(false);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -178,10 +269,11 @@ export function UserManagementPage() {
     // Open access management modal
   };
 
-  const handleUpdateStatus = async (userId: string, status: string, reason?: string) => {
+  const handleUpdateStatus = async (userId: string, status: string, reasonCode?: string, reason?: string) => {
     try {
       await UserManagementApi.updateUserStatus(userId, {
         accountStatus: status as any,
+        reasonCode: reasonCode,
         statusReason: reason,
       });
       loadUsers(); // Reload users to show the updated status
@@ -262,6 +354,7 @@ export function UserManagementPage() {
             isOpen={isInviteDialogOpen}
             onOpenChange={setIsInviteDialogOpen}
             onInvite={handleInviteUser}
+            currentUserId={currentUser?.id || null}
             trigger={
               <Button className="flex items-center space-x-2">
                 <UserPlus className="w-4 h-4" />
@@ -273,10 +366,14 @@ export function UserManagementPage() {
       </div>
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="users" className="flex items-center space-x-2">
             <Users className="w-4 h-4" />
             <span>Users</span>
+          </TabsTrigger>
+          <TabsTrigger value="stakeholders" className="flex items-center space-x-2">
+            <Building className="w-4 h-4" />
+            <span>Stakeholders</span>
           </TabsTrigger>
           <TabsTrigger value="security" className="flex items-center space-x-2">
             <Shield className="w-4 h-4" />
@@ -298,7 +395,7 @@ export function UserManagementPage() {
             <StatusFilterButton status="all" label="All Users" icon={Users} />
             <StatusFilterButton status="ACTIVE" label="Active" icon={CheckCircle} />
             <StatusFilterButton status="PENDING" label="Pending" icon={Clock} />
-            <StatusFilterButton status="SUSPENDED" label="Suspended" icon={XCircle} />
+            <StatusFilterButton status="INACTIVE" label="Inactive" icon={XCircle} />
             <StatusFilterButton status="DEACTIVATED" label="Deactivated" icon={XCircle} />
           </div>
 
@@ -421,6 +518,102 @@ export function UserManagementPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="stakeholders" className="space-y-6">
+          {/* Business Operation Selector */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Stakeholders by Business Operation</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">View and manage stakeholders for each business operation</p>
+            </div>
+            <div className="w-64">
+              <Select value={selectedBusinessOp} onValueChange={setSelectedBusinessOp}>
+                <SelectTrigger>
+                  <Building className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Select Business Operation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stakeholders</SelectItem>
+                  {businessOperations.map((bizOp) => (
+                    <SelectItem key={bizOp.id} value={bizOp.id}>
+                      {bizOp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Stakeholders Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Stakeholders</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stakeholders.length}</p>
+                </div>
+                <Users className="w-8 h-8 text-blue-500" />
+              </div>
+            </div>
+            <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Users</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stakeholders.filter(u => u.accountStatus === 'ACTIVE').length}
+                  </p>
+                </div>
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              </div>
+            </div>
+            <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Business Operations</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{businessOperations.length}</p>
+                </div>
+                <Building className="w-8 h-8 text-purple-500" />
+              </div>
+            </div>
+          </div>
+
+          {/* Loading State */}
+          {stakeholdersLoading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+              <span className="ml-2 text-gray-600 dark:text-gray-400">Loading stakeholders...</span>
+            </div>
+          )}
+
+          {/* Stakeholders Grid */}
+          {!stakeholdersLoading && stakeholders.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {stakeholders.map(user => (
+                <UserCard
+                  key={user.id}
+                  user={user}
+                  onViewDetails={handleViewDetails}
+                  onManageAccess={handleManageAccess}
+                  onUpdateStatus={handleUpdateStatus}
+                  onReactivateUser={handleReactivateUser}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!stakeholdersLoading && stakeholders.length === 0 && (
+            <div className="text-center py-12">
+              <Building className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No stakeholders found</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {selectedBusinessOp === 'all'
+                  ? 'There are no stakeholders in the system.'
+                  : 'No stakeholders found for this business operation.'}
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="security" className="space-y-6">
           {securityData ? (
             <SecurityDashboard data={securityData} />
@@ -441,44 +634,50 @@ export function UserManagementPage() {
               </div>
             </div>
             
-            {/* Sample transitions list */}
+            {/* Active transitions list */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map((id) => (
-                <div key={id} className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Transition TIP-00{id}</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Defense Contract {id}</p>
-                    </div>
-                    <Badge variant="success">Active</Badge>
-                  </div>
-                  
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Team Members:</span>
-                      <span className="font-medium">{3 + id}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Pending Access:</span>
-                      <span className="font-medium">{Math.floor(Math.random() * 3)}</span>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full flex items-center justify-center space-x-2"
-                    onClick={() => window.open(`/transitions/transition-${id}/users`, '_blank')}
-                  >
-                    <Users className="w-4 h-4" />
-                    <span>Manage Users</span>
-                  </Button>
+              {activeTransitions.length === 0 ? (
+                <div className="col-span-3 text-center py-12">
+                  <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No Active Transitions</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    There are no active transitions at this time.
+                  </p>
                 </div>
-              ))}
-            </div>
-            
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <p className="text-sm">This is a demonstration of transition user management. In production, this would show actual active transitions.</p>
+              ) : (
+                activeTransitions.slice(0, 6).map((transition) => (
+                  <div key={transition.id} className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h4 className="font-medium text-gray-900 dark:text-white">{transition.name || 'Unnamed Transition'}</h4>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{transition.contract?.contractNumber || 'N/A'}</p>
+                      </div>
+                      <Badge variant="success">{transition.status}</Badge>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">Start Date:</span>
+                        <span className="font-medium">{new Date(transition.startDate).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">End Date:</span>
+                        <span className="font-medium">{new Date(transition.endDate).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-center space-x-2"
+                      onClick={() => window.open(`/transitions/${transition.id}/users`, '_blank')}
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>Manage Users</span>
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </TabsContent>

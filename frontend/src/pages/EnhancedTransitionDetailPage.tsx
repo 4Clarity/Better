@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { EditTransitionDialog } from "@/components/EditTransitionDialog";
 import { ProductProgramCategorization } from "@/components/transitions/ProductProgramCategorization";
+import { TaskMilestoneManagement } from "@/components/transitions/TaskMilestoneManagement";
 import {
   ArrowLeft,
   Calendar,
@@ -16,7 +18,8 @@ import {
   FileText,
   CheckCircle,
   AlertCircle,
-  Users
+  Users,
+  Edit
 } from "lucide-react";
 
 export function EnhancedTransitionDetailPage() {
@@ -50,29 +53,10 @@ export function EnhancedTransitionDetailPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editStatus, setEditStatus] = useState<'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE'>('PENDING');
 
-  // Tasks state
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [taskOpen, setTaskOpen] = useState(false);
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDue, setTaskDue] = useState("");
-  const [taskPriority, setTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
-  const [taskDesc, setTaskDesc] = useState("");
-  const [taskSaving, setTaskSaving] = useState(false);
-  const [taskMilestoneId, setTaskMilestoneId] = useState<string>("");
-  const [subtaskParentId, setSubtaskParentId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTaskTitle, setEditTaskTitle] = useState("");
-  const [editTaskDue, setEditTaskDue] = useState("");
-  const [editTaskPriority, setEditTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
-  const [editTaskDesc, setEditTaskDesc] = useState("");
-  const [editTaskStatus, setEditTaskStatus] = useState<'NOT_STARTED'|'ASSIGNED'|'IN_PROGRESS'|'ON_HOLD'|'BLOCKED'|'UNDER_REVIEW'|'COMPLETED'|'CANCELLED'|'OVERDUE'>('NOT_STARTED');
-  const [editTaskMilestoneId, setEditTaskMilestoneId] = useState<string>("");
-
   useEffect(() => {
     if (id) {
       fetchTransitionDetails();
       fetchMilestones();
-      fetchTasks();
     }
   }, [id]);
 
@@ -91,64 +75,6 @@ export function EnhancedTransitionDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchTasks = async () => {
-    if (!id) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks?limit=100`);
-      if (!res.ok) throw new Error('Failed to load tasks');
-      const data = await res.json(); setTasks(data.data || []);
-    } catch (e) { console.error(e); }
-  };
-
-  const addTask = async () => {
-    if (!id || !taskTitle || !taskDue) return;
-    setTaskSaving(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' },
-        body: JSON.stringify({ title: taskTitle, dueDate: new Date(`${taskDue}T12:00:00`).toISOString(), priority: taskPriority, description: taskDesc || undefined, parentTaskId: subtaskParentId || undefined, milestoneId: taskMilestoneId || undefined }),
-      });
-      if (!res.ok) { let m='Failed to create task'; try{const e=await res.json(); if(e?.message)m=e.message;}catch{} throw new Error(m);} 
-      await fetchTasks(); setTaskTitle(""); setTaskDue(""); setTaskPriority('MEDIUM'); setTaskDesc(""); setTaskMilestoneId(""); setSubtaskParentId(null); setTaskOpen(false);
-    } catch (e:any) { alert(e.message || 'Failed to create task'); } finally { setTaskSaving(false); }
-  };
-
-  const startEditTask = (t: Task) => {
-    setEditingTaskId(t.id);
-    setEditTaskTitle(t.title);
-    setEditTaskDue(t.dueDate.split('T')[0]);
-    setEditTaskPriority(t.priority);
-    setEditTaskDesc(t.description || '');
-    setEditTaskStatus(t.status);
-    setEditTaskMilestoneId(t.milestoneId || '');
-  };
-
-  const cancelEditTask = () => { setEditingTaskId(null); setEditTaskTitle(""); setEditTaskDue(""); setEditTaskDesc(""); };
-
-  const saveTask = async () => {
-    if (!id || !editingTaskId) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${editingTaskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' },
-        body: JSON.stringify({ title: editTaskTitle, dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(), priority: editTaskPriority, description: editTaskDesc || undefined, status: editTaskStatus, milestoneId: editTaskMilestoneId === '' ? null : editTaskMilestoneId }),
-      });
-      if (!res.ok) { await fetchTasks(); cancelEditTask(); return; }
-      try { const updated = await res.json(); if (updated && (updated as any).id) setTasks(prev=>prev.map(t=>t.id===updated.id?updated:t)); } catch {}
-      fetchTasks().catch(()=>{}); cancelEditTask();
-    } catch (e:any) { alert(e.message || 'Failed to update task'); }
-  };
-
-  const deleteTask = async (taskId: string) => {
-    if (!id) return; if (!confirm('Delete this task?')) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${taskId}`, { method: 'DELETE', headers: { 'x-user-role': 'program_manager', 'x-auth-bypass': localStorage.getItem('authBypass')==='true'?'true':'false' } });
-      if (!res.ok) { await fetchTasks(); return; }
-      setTasks(prev=>prev.filter(t=>t.id!==taskId)); fetchTasks().catch(()=>{});
-    } catch (e:any) { alert(e.message || 'Failed to delete task'); }
   };
 
   const handleTransitionUpdated = (updatedTransition: EnhancedTransition) => {
@@ -173,6 +99,15 @@ export function EnhancedTransitionDetailPage() {
     if (!id || !msTitle || !msDue) return;
     setMsSaving(true);
     try {
+      // Convert priority from UPPERCASE to PascalCase for backend
+      const priorityMap: Record<string, string> = {
+        'LOW': 'Low',
+        'MEDIUM': 'Medium',
+        'HIGH': 'High',
+        'CRITICAL': 'Critical'
+      };
+      const backendPriority = priorityMap[msPriority] || msPriority;
+
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones`, {
         method: 'POST',
         headers: {
@@ -183,7 +118,7 @@ export function EnhancedTransitionDetailPage() {
         body: JSON.stringify({
           title: msTitle,
           dueDate: new Date(`${msDue}T12:00:00`).toISOString(),
-          priority: msPriority,
+          priority: backendPriority,
           description: msDesc || undefined,
         }),
       });
@@ -211,9 +146,13 @@ export function EnhancedTransitionDetailPage() {
     setEditingId(m.id);
     setEditTitle(m.title);
     setEditDue(m.dueDate.split('T')[0]);
-    setEditPriority(m.priority);
+    // Normalize priority to uppercase format
+    const normalizedPriority = m.priority?.toString().toUpperCase() as 'LOW'|'MEDIUM'|'HIGH'|'CRITICAL';
+    setEditPriority(normalizedPriority || 'MEDIUM');
     setEditDesc(m.description || '');
-    setEditStatus(m.status);
+    // Normalize status to uppercase format
+    const normalizedStatus = m.status?.toString().toUpperCase() as 'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE';
+    setEditStatus(normalizedStatus || 'PENDING');
   };
 
   const cancelEdit = () => {
@@ -226,6 +165,25 @@ export function EnhancedTransitionDetailPage() {
   const saveMilestone = async () => {
     if (!id || !editingId) return;
     try {
+      // Convert priority from UPPERCASE to PascalCase for backend
+      const priorityMap: Record<string, string> = {
+        'LOW': 'Low',
+        'MEDIUM': 'Medium',
+        'HIGH': 'High',
+        'CRITICAL': 'Critical'
+      };
+      const backendPriority = priorityMap[editPriority] || editPriority;
+
+      // Convert status from UPPERCASE to Snake_Case for backend
+      const statusMap: Record<string, string> = {
+        'PENDING': 'Pending',
+        'IN_PROGRESS': 'In_Progress',
+        'COMPLETED': 'Completed',
+        'BLOCKED': 'Blocked',
+        'OVERDUE': 'Overdue'
+      };
+      const backendStatus = statusMap[editStatus] || editStatus;
+
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones/${editingId}`, {
         method: 'PUT',
         headers: {
@@ -236,12 +194,18 @@ export function EnhancedTransitionDetailPage() {
         body: JSON.stringify({
           title: editTitle,
           dueDate: new Date(`${editDue}T12:00:00`).toISOString(),
-          priority: editPriority,
+          priority: backendPriority,
           description: editDesc || undefined,
-          status: editStatus,
+          status: backendStatus,
         }),
       });
-      if (!res.ok) { await fetchMilestones(); cancelEdit(); return; }
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('Failed to update milestone:', errorData);
+        await fetchMilestones();
+        cancelEdit();
+        return;
+      }
       try { const updated = await res.json(); if (updated && (updated as any).id) setMilestones(prev=>prev.map(m=>m.id===updated.id?updated:m)); } catch {}
       fetchMilestones().catch(()=>{}); cancelEdit();
     } catch (e) {
@@ -378,50 +342,48 @@ export function EnhancedTransitionDetailPage() {
         </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Contract & Business Operation */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" />
-                Contract & Business Operation
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {transition.contract && (
-                <>
-                  <div>
-                    <div className="text-sm font-medium">Contract</div>
-                    <Link
-                      to={`/contracts/${transition.contract.id}`}
-                      className="text-primary hover:underline"
-                    >
-                      {transition.contract.contractName}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">
-                      {transition.contract.contractNumber}
-                    </div>
+          {/* Contract & Business Operation - Only show if contract exists */}
+          {transition.contract && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="h-5 w-5" />
+                  Contract & Business Operation
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium">Contract</div>
+                  <Link
+                    to={`/contracts/${transition.contract.id}`}
+                    className="text-primary hover:underline"
+                  >
+                    {transition.contract.contractName}
+                  </Link>
+                  <div className="text-xs text-muted-foreground">
+                    {transition.contract.contractNumber}
                   </div>
-                  {transition.contract.businessOperation && (
-                    <>
-                      <Separator />
-                      <div>
-                        <div className="text-sm font-medium">Business Operation</div>
-                        <Link
-                          to={`/business-operations/${transition.contract.businessOperation.id}`}
-                          className="text-primary hover:underline"
-                        >
-                          {transition.contract.businessOperation.name}
-                        </Link>
-                        <div className="text-xs text-muted-foreground">
-                          {transition.contract.businessOperation.businessFunction}
-                        </div>
+                </div>
+                {transition.contract.businessOperation && (
+                  <>
+                    <Separator />
+                    <div>
+                      <div className="text-sm font-medium">Business Operation</div>
+                      <Link
+                        to={`/business-operations/${transition.contract.businessOperation.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {transition.contract.businessOperation.name}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">
+                        {transition.contract.businessOperation.businessFunction}
                       </div>
-                    </>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Timeline */}
           <Card>
@@ -449,7 +411,13 @@ export function EnhancedTransitionDetailPage() {
               <div>
                 <div className="text-sm font-medium">Duration</div>
                 <div className="text-muted-foreground">
-                  {transition.duration.replace('_', ' ').toLowerCase()}
+                  {(() => {
+                    const start = new Date(transition.startDate);
+                    const end = new Date(transition.endDate);
+                    const diffTime = Math.abs(end.getTime() - start.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    return `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+                  })()}
                 </div>
               </div>
             </CardContent>
@@ -481,12 +449,14 @@ export function EnhancedTransitionDetailPage() {
                 </div>
               )}
               {transition.keyPersonnel && <Separator />}
-              <div>
-                <div className="text-sm font-medium">Requires Continuous Service</div>
-                <div className="text-muted-foreground">
-                  {transition.requiresContinuousService ? 'Yes' : 'No'}
+              {transition.requiresContinuousService !== undefined && (
+                <div>
+                  <div className="text-sm font-medium">Requires Continuous Service</div>
+                  <div className="text-muted-foreground">
+                    {transition.requiresContinuousService ? 'Yes' : 'No'}
+                  </div>
                 </div>
-              </div>
+              )}
               {transition.creator && (
                 <>
                   <Separator />
@@ -507,24 +477,72 @@ export function EnhancedTransitionDetailPage() {
           {/* Milestones */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5" />
-                Milestones
-                {transition._count?.milestones && (
-                  <Badge variant="secondary">{transition._count.milestones}</Badge>
-                )}
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5" />
+                  Milestones
+                  {milestones.length > 0 && (
+                    <Badge variant="secondary">{milestones.length}</Badge>
+                  )}
+                </CardTitle>
+                <Button data-testid="milestones-add-btn" variant="outline" size="sm" onClick={() => setMsOpen(true)}>
+                  Add Milestone
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              {transition.milestones && transition.milestones.length > 0 ? (
-                <div className="space-y-2">
-                  {transition.milestones.map((milestone, index) => (
-                    <div key={milestone.id || index} className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span>{milestone.title}</span>
-                    </div>
-                  ))}
-                </div>
+              {milestones.length > 0 ? (
+                <TooltipProvider>
+                  <div className="space-y-2">
+                    {milestones.map((milestone) => (
+                      <Tooltip key={milestone.id}>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-md transition-colors">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span>{milestone.title}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-sm">
+                          <div className="space-y-3">
+                            <div>
+                              <div className="font-semibold">{milestone.title}</div>
+                            </div>
+                            <div className="text-xs space-y-1">
+                              <div>
+                                <span className="font-medium">Due:</span> {new Date(milestone.dueDate).toLocaleDateString()}
+                              </div>
+                              <div>
+                                <span className="font-medium">Status:</span> {milestone.status}
+                              </div>
+                              <div>
+                                <span className="font-medium">Priority:</span> {milestone.priority}
+                              </div>
+                              {milestone.description && (
+                                <div>
+                                  <span className="font-medium">Description:</span> {milestone.description}
+                                </div>
+                              )}
+                            </div>
+                            <div className="pt-2 border-t">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  startEdit(milestone);
+                                }}
+                              >
+                                <Edit className="h-3 w-3 mr-2" />
+                                Edit Milestone
+                              </Button>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </TooltipProvider>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No milestones defined for this transition.
@@ -534,165 +552,10 @@ export function EnhancedTransitionDetailPage() {
           </Card>
         </div>
 
-        {/* Milestones CRUD */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Milestones</CardTitle>
-              <Button data-testid="milestones-add-btn" variant="outline" onClick={() => setMsOpen(true)}>Add Milestone</Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {milestones.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No milestones yet.</div>
-            ) : (
-              <div className="border rounded-md divide-y">
-                {milestones.map(m => (
-                  <div key={m.id} className="p-3">
-                    {editingId === m.id ? (
-                      <div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                          <input data-testid="milestone-edit-title" className="border rounded-md p-2" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
-                          <input data-testid="milestone-edit-date" className="border rounded-md p-2" type="date" value={editDue} onChange={e=>setEditDue(e.target.value)} />
-                          <div className="flex justify-end gap-2">
-                            <Button data-testid="milestone-cancel-edit" variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
-                            <Button data-testid="milestone-save-edit" size="sm" onClick={saveMilestone}>Save</Button>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
-                          <div>
-                            <div className="text-xs font-medium mb-1">Priority</div>
-                            <select data-testid="milestone-edit-priority" className="border rounded-md p-2 w-full" value={editPriority} onChange={e=>setEditPriority(e.target.value as any)}>
-                              <option value="LOW">Low</option>
-                              <option value="MEDIUM">Medium</option>
-                              <option value="HIGH">High</option>
-                              <option value="CRITICAL">Critical</option>
-                            </select>
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium mb-1">Status</div>
-                            <select data-testid="milestone-edit-status" className="border rounded-md p-2 w-full" value={editStatus} onChange={e=>setEditStatus(e.target.value as any)}>
-                              <option value="PENDING">Not Started</option>
-                              <option value="IN_PROGRESS">In Progress</option>
-                              <option value="BLOCKED">Blocked</option>
-                              <option value="COMPLETED">Completed</option>
-                              <option value="OVERDUE">Overdue</option>
-                            </select>
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium mb-1">Description</div>
-                            <textarea data-testid="milestone-edit-desc" className="border rounded-md p-2 w-full" rows={2} value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{m.title}</div>
-                          <div className="text-xs text-muted-foreground">Due {new Date(m.dueDate).toLocaleDateString()} • {m.status} • Priority {m.priority}</div>
-                          {m.description && (
-                            <div className="text-xs text-muted-foreground mt-1">{m.description}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button data-testid="edit-milestone-btn" variant="outline" size="sm" onClick={() => startEdit(m)}>Edit</Button>
-                          <Button data-testid="delete-milestone-btn" variant="outline" size="sm" onClick={() => deleteMilestone(m.id)}>Delete</Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Tasks CRUD */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Tasks</CardTitle>
-              <Button data-testid="tasks-add-btn" variant="outline" onClick={() => setTaskOpen(true)}>Add Task</Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {tasks.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No tasks yet.</div>
-            ) : (
-              <div className="border rounded-md divide-y">
-                {tasks.map(t => (
-                  <div key={t.id} className="p-3">
-                    {editingTaskId === t.id ? (
-                      <div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                          <input data-testid="edit-task-title" className="border rounded-md p-2" value={editTaskTitle} onChange={e=>setEditTaskTitle(e.target.value)} />
-                          <input data-testid="edit-task-date" className="border rounded-md p-2" type="date" value={editTaskDue} onChange={e=>setEditTaskDue(e.target.value)} />
-                          <div className="flex justify-end gap-2">
-                            <Button data-testid="cancel-task-btn" variant="outline" size="sm" onClick={cancelEditTask}>Cancel</Button>
-                            <Button data-testid="save-task-btn" size="sm" onClick={saveTask}>Save</Button>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
-                          <div>
-                            <div className="text-xs font-medium mb-1">Priority</div>
-                            <select data-testid="edit-task-priority" className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={e=>setEditTaskPriority(e.target.value as any)}>
-                              <option value="LOW">Low</option>
-                              <option value="MEDIUM">Medium</option>
-                              <option value="HIGH">High</option>
-                              <option value="CRITICAL">Critical</option>
-                            </select>
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium mb-1">Status</div>
-                            <select data-testid="edit-task-status" className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={e=>setEditTaskStatus(e.target.value as any)}>
-                              <option value="NOT_STARTED">Not Started</option>
-                              <option value="ASSIGNED">Assigned</option>
-                              <option value="IN_PROGRESS">In Progress</option>
-                              <option value="ON_HOLD">On Hold</option>
-                              <option value="BLOCKED">Blocked</option>
-                              <option value="UNDER_REVIEW">Under Review</option>
-                              <option value="COMPLETED">Completed</option>
-                              <option value="CANCELLED">Cancelled</option>
-                              <option value="OVERDUE">Overdue</option>
-                            </select>
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium mb-1">Milestone</div>
-                            <select className="border rounded-md p-2 w-full" value={editTaskMilestoneId} onChange={e=>setEditTaskMilestoneId(e.target.value)}>
-                              <option value="">Unassigned</option>
-                              {milestones.map(m => (
-                                <option key={m.id} value={m.id}>{m.title}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <div className="text-xs font-medium mb-1">Description</div>
-                            <textarea data-testid="edit-task-desc" className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={e=>setEditTaskDesc(e.target.value)} />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{t.title}</div>
-                          <div className="text-xs text-muted-foreground">Due {new Date(t.dueDate).toLocaleDateString()} • {t.status} • Priority {t.priority}</div>
-                          {t.description && (
-                            <div className="text-xs text-muted-foreground mt-1">{t.description}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button data-testid="edit-task-btn" variant="outline" size="sm" onClick={() => startEditTask(t)}>Edit</Button>
-                          <Button data-testid="add-subtask-btn" variant="outline" size="sm" onClick={() => { setSubtaskParentId(t.id); setTaskOpen(true); }}>Add Subtask</Button>
-                          <Button data-testid="delete-task-btn" variant="outline" size="sm" onClick={() => deleteTask(t.id)}>Delete</Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Tasks & Milestones Management */}
+        {transition && id && (
+          <TaskMilestoneManagement transitionId={id} />
+        )}
 
         {/* Additional Details */}
         <Card>
@@ -746,15 +609,6 @@ export function EnhancedTransitionDetailPage() {
                 <option value="CRITICAL">Critical</option>
               </select>
             </div>
-            <div>
-              <div className="text-xs font-medium mb-1">Milestone</div>
-              <select className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={e=>setTaskMilestoneId(e.target.value)}>
-                <option value="">Unassigned</option>
-                {milestones.map(m => (
-                  <option key={m.id} value={m.id}>{m.title}</option>
-                ))}
-              </select>
-            </div>
             <div className="md:col-span-2">
               <div className="text-xs font-medium mb-1">Description</div>
               <textarea data-testid="milestone-desc" className="border rounded-md p-2 w-full" rows={3} value={msDesc} onChange={e=>setMsDesc(e.target.value)} />
@@ -768,26 +622,23 @@ export function EnhancedTransitionDetailPage() {
       </div>
     )}
 
-    {/* Simple Add Task Dialog (portal-like) */}
-    {taskOpen && (
+    {/* Edit Milestone Dialog */}
+    {editingId && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-md p-4 w-full max-w-lg">
-          <div className="text-lg font-semibold mb-2">{subtaskParentId ? 'Add Subtask' : 'Add Task'}</div>
-          {subtaskParentId && (
-            <div className="text-xs text-muted-foreground mb-2">This task will be created as a subtask of the selected task.</div>
-          )}
+        <div className="bg-white dark:bg-gray-800 rounded-md p-4 w-full max-w-lg">
+          <div className="text-lg font-semibold mb-2">Edit Milestone</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
               <div className="text-xs font-medium mb-1">Title</div>
-              <input data-testid="task-title" className="border rounded-md p-2 w-full" value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} />
+              <input data-testid="milestone-edit-title" className="border rounded-md p-2 w-full" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
             </div>
             <div>
               <div className="text-xs font-medium mb-1">Due Date</div>
-              <input data-testid="task-date" className="border rounded-md p-2 w-full" type="date" value={taskDue} onChange={e=>setTaskDue(e.target.value)} />
+              <input data-testid="milestone-edit-date" className="border rounded-md p-2 w-full" type="date" value={editDue} onChange={e=>setEditDue(e.target.value)} />
             </div>
             <div>
               <div className="text-xs font-medium mb-1">Priority</div>
-              <select data-testid="task-priority" className="border rounded-md p-2 w-full" value={taskPriority} onChange={e=>setTaskPriority(e.target.value as any)}>
+              <select data-testid="milestone-edit-priority" className="border rounded-md p-2 w-full" value={editPriority} onChange={e=>setEditPriority(e.target.value as any)}>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
@@ -795,22 +646,23 @@ export function EnhancedTransitionDetailPage() {
               </select>
             </div>
             <div>
-              <div className="text-xs font-medium mb-1">Milestone</div>
-              <select data-testid="task-milestone" className="border rounded-md p-2 w-full" value={taskMilestoneId} onChange={e=>setTaskMilestoneId(e.target.value)}>
-                <option value="">Unassigned</option>
-                {milestones.map(m => (
-                  <option key={m.id} value={m.id}>{m.title}</option>
-                ))}
+              <div className="text-xs font-medium mb-1">Status</div>
+              <select data-testid="milestone-edit-status" className="border rounded-md p-2 w-full" value={editStatus} onChange={e=>setEditStatus(e.target.value as any)}>
+                <option value="PENDING">Not Started</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="BLOCKED">Blocked</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="OVERDUE">Overdue</option>
               </select>
             </div>
             <div className="md:col-span-2">
               <div className="text-xs font-medium mb-1">Description</div>
-              <textarea data-testid="task-desc" className="border rounded-md p-2 w-full" rows={3} value={taskDesc} onChange={e=>setTaskDesc(e.target.value)} />
+              <textarea data-testid="milestone-edit-desc" className="border rounded-md p-2 w-full" rows={3} value={editDesc} onChange={e=>setEditDesc(e.target.value)} />
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button data-testid="task-cancel" variant="outline" onClick={()=>{ setTaskOpen(false); setSubtaskParentId(null); }}>Cancel</Button>
-            <Button data-testid="task-create" onClick={addTask} disabled={taskSaving || !taskTitle || !taskDue}>{taskSaving ? 'Adding...' : 'Create Task'}</Button>
+            <Button data-testid="milestone-cancel-edit" variant="outline" onClick={cancelEdit}>Cancel</Button>
+            <Button data-testid="milestone-save-edit" onClick={saveMilestone} disabled={!editTitle || !editDue}>Save Changes</Button>
           </div>
         </div>
       </div>

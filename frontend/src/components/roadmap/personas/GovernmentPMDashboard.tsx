@@ -57,11 +57,41 @@ export function GovernmentPMDashboard() {
   }
 
   // Transform API data to component format with defensive checks
-  const platformSetupSteps = (dashboardData.platformSetup || []).map(step => ({
-    title: step.title,
-    description: '',
-    status: step.status
-  }));
+  // Check localStorage for completion status
+  const businessOpsCompleted = localStorage.getItem('businessOperationsSetupCompleted') === 'true';
+  const knowledgeCompleted = localStorage.getItem('knowledgeSetupCompleted') === 'true';
+  const stakeholdersCompleted = localStorage.getItem('stakeholdersSetupCompleted') === 'true';
+
+  // Add the 3 required setup wizard links as the first items
+  const platformSetupSteps = [
+    {
+      title: 'Business Operations',
+      description: 'Configure organization structure and contracts',
+      status: (businessOpsCompleted ? 'complete' : 'not-started') as const,
+      link: businessOpsCompleted ? undefined : '/setup/business-operations'
+    },
+    {
+      title: 'Knowledge',
+      description: 'Set up knowledge repository and AI search',
+      status: (knowledgeCompleted ? 'complete' : 'not-started') as const,
+      link: knowledgeCompleted ? undefined : '/setup/knowledge'
+    },
+    {
+      title: 'Stakeholders',
+      description: 'Define roles and invite team members',
+      status: (stakeholdersCompleted ? 'complete' : 'not-started') as const,
+      link: stakeholdersCompleted ? undefined : '/setup/stakeholders'
+    },
+    // Add any additional steps from the API data
+    ...(dashboardData.platformSetup || []).map(step => ({
+      title: step.title,
+      description: '',
+      status: step.status
+    }))
+  ];
+
+  // Count completed setup steps
+  const completedCount = [businessOpsCompleted, knowledgeCompleted, stakeholdersCompleted].filter(Boolean).length;
 
   const curationQueue = (dashboardData.curationQueue || []).map(item => ({
     title: item.title,
@@ -119,7 +149,7 @@ export function GovernmentPMDashboard() {
         <RoadmapWidget
           title="Platform Setup"
           icon={<SettingsIcon className="w-5 h-5" />}
-          badge="3 of 5"
+          badge={`${completedCount} of ${platformSetupSteps.length}`}
         >
           <ProcessFlow steps={platformSetupSteps} orientation="vertical" />
         </RoadmapWidget>

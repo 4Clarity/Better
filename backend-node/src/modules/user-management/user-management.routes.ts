@@ -1,7 +1,25 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { UserManagementService } from './user-management.service';
+import { AccountStatus } from '@prisma/client';
 
 const userService = new UserManagementService();
+
+// Helper function to convert API accountStatus format to Prisma enum
+function convertAccountStatus(status?: string): AccountStatus | undefined {
+  if (!status) return undefined;
+
+  const mapping: Record<string, AccountStatus> = {
+    'PENDING': 'Pending',
+    'ACTIVE': 'Active',
+    'INACTIVE': 'Inactive',
+    'SUSPENDED': 'Suspended',
+    'LOCKED': 'Locked',
+    'EXPIRED': 'Expired',
+    'DEACTIVATED': 'Deactivated',
+  };
+
+  return mapping[status.toUpperCase()] || status as AccountStatus;
+}
 
 export async function userManagementRoutes(fastify: FastifyInstance) {
   // Get all users with filtering and pagination
@@ -10,6 +28,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
       const query = request.query as any;
       const filters = {
         ...query,
+        accountStatus: convertAccountStatus(query.accountStatus),
         page: query.page ? parseInt(query.page) : undefined,
         pageSize: query.pageSize ? parseInt(query.pageSize) : undefined,
       };
@@ -106,7 +125,10 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     try {
       const { id } = request.params;
       const { accountStatus, statusReason, reasonCode } = request.body as any;
-      const adminId = 'current-user-id'; // This should come from JWT token
+      // TODO: Get adminId from JWT token when auth is enabled
+      // For now, we'll get the first user as a fallback for the foreign key
+      const adminUser = await userService.getUserById(id);
+      const adminId = adminUser ? id : undefined; // Use the user's own ID as admin for now
 
       // Validate and update user status (includes user existence check)
       const user = await userService.updateUserStatusWithValidation({
@@ -115,7 +137,7 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
         statusReason,
         reasonCode,
         adminId,
-        deactivatedBy: accountStatus === 'DEACTIVATED' ? adminId : undefined,
+        deactivatedBy: (accountStatus === 'DEACTIVATED' || accountStatus === 'Deactivated') && adminId ? adminId : undefined,
       });
 
       return reply.code(200).send({
@@ -181,32 +203,37 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Reactivate suspended user account
+  // Reactivate suspended or deactivated user account
   fastify.post('/users/:id/reactivate', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       const { reason } = request.body as any;
-      const reactivatedBy = 'current-user-id'; // This should come from JWT token
 
-      // First check if user exists and is suspended
+      // Get the user doing the reactivation (for now, use the user's own ID)
+      const adminUser = await userService.getUserById(id);
+      const reactivatedBy = adminUser ? id : undefined;
+
+      // First check if user exists
       const existingUser = await userService.getUserById(id);
       if (!existingUser) {
         return reply.code(404).send({ error: 'User not found' });
       }
 
-      if (existingUser.accountStatus !== 'SUSPENDED') {
+      // Check if user can be reactivated (must be Suspended, Deactivated, or Inactive)
+      const reactivatableStatuses = ['Suspended', 'Deactivated', 'Inactive', 'SUSPENDED', 'DEACTIVATED', 'INACTIVE'];
+      if (!reactivatableStatuses.includes(existingUser.accountStatus)) {
         return reply.code(400).send({
           error: 'Invalid operation',
-          message: `Cannot reactivate user with status: ${existingUser.accountStatus}. Only SUSPENDED users can be reactivated.`
+          message: `Cannot reactivate user with status: ${existingUser.accountStatus}. Only Suspended, Deactivated, or Inactive users can be reactivated.`
         });
       }
 
       const user = await userService.updateUserStatus({
         userId: id,
-        accountStatus: 'ACTIVE',
-        statusReason: reason || 'Account reactivated',
+        accountStatus: 'Active',
+        statusReason: reason || 'Account reactivated by administrator',
         adminId: reactivatedBy,
-        deactivatedBy: undefined, // Clear the deactivation info
+        deactivatedBy: undefined, // Don't change this - will be handled by service
       });
 
       return reply.code(200).send({
@@ -309,19 +336,44 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Helper function to convert frontend role format to Prisma enum
+  function convertTransitionRole(role: string): string {
+    const mapping: Record<string, string> = {
+      'PROGRAM_MANAGER': 'Program_Manager',
+      'DEPARTING_CONTRACTOR': 'Departing_Contractor',
+      'INCOMING_CONTRACTOR': 'Incoming_Contractor',
+      'SECURITY_OFFICER': 'Security_Officer',
+      'OBSERVER': 'Observer',
+    };
+    return mapping[role] || role;
+  }
+
+  // Helper function to convert frontend platform access format to Prisma enum
+  function convertPlatformAccess(access: string): string {
+    const mapping: Record<string, string> = {
+      'DISABLED': 'Disabled',
+      'READ_ONLY': 'Read_Only',
+      'STANDARD': 'Standard',
+      'FULL_ACCESS': 'Full_Access',
+    };
+    return mapping[access] || access;
+  }
+
   // Transition user management
   fastify.post('/transitions/:transitionId/users', async (request: FastifyRequest<{ Params: { transitionId: string } }>, reply: FastifyReply) => {
     try {
       const { transitionId } = request.params;
       const invitationData = request.body as any;
       const invitedBy = 'current-user-id'; // This should come from JWT token
-      
+
       const transitionUser = await userService.inviteUserToTransition({
         transitionId,
         ...invitationData,
+        role: convertTransitionRole(invitationData.role),
+        platformAccess: convertPlatformAccess(invitationData.platformAccess),
         invitedBy,
       });
-      
+
       return reply.code(201).send({
         message: 'User invited to transition successfully',
         transitionUser,
@@ -353,9 +405,16 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
     try {
       const { transitionId, userId } = request.params;
       const updates = request.body as any;
-      
-      const transitionUser = await userService.updateTransitionUserAccess(transitionId, userId, updates);
-      
+
+      // Convert enum values if present
+      const convertedUpdates = {
+        ...updates,
+        ...(updates.role && { role: convertTransitionRole(updates.role) }),
+        ...(updates.platformAccess && { platformAccess: convertPlatformAccess(updates.platformAccess) }),
+      };
+
+      const transitionUser = await userService.updateTransitionUserAccess(transitionId, userId, convertedUpdates);
+
       return reply.code(200).send({
         message: 'Transition user access updated successfully',
         transitionUser,

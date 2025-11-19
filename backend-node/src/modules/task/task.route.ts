@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { $ref } from './task.service';
-import { createTaskHandler, getTasksHandler, updateTaskHandler, deleteTaskHandler, getTaskTreeHandler, moveTaskHandler } from './task.controller';
+import { createTaskHandler, getTasksHandler, updateTaskHandler, deleteTaskHandler, getTaskTreeHandler, moveTaskHandler, getCombinedTasksHandler } from './task.controller';
 
 async function taskRoutes(server: FastifyInstance) {
   const pmOnly = async (request: any, reply: any) => {
@@ -19,6 +19,9 @@ async function taskRoutes(server: FastifyInstance) {
 
   // GET /api/transitions/:transitionId/tasks/tree
   server.get('/tree', { schema: { response: { 200: { type:'object', properties: { data: { type:'array' } } } } } }, getTaskTreeHandler);
+
+  // GET /api/transitions/:transitionId/tasks/combined
+  server.get('/combined', { schema: { response: { 200: { type:'object', properties: { transitionTasks: { type:'array' }, productProgramTasks: { type:'array' }, all: { type:'array' } } } } } }, getCombinedTasksHandler);
 
   // PUT /api/transitions/:transitionId/tasks/:taskId
   server.put('/:taskId', { schema: { params: { type:'object', properties:{ transitionId:{type:'string'}, taskId:{type:'string'} }, required: ['taskId','transitionId'] }, body: $ref('updateTaskSchema'), response: { 200: $ref('taskResponseSchema'), 400: { type:'object', properties:{ statusCode:{type:'number'}, error:{type:'string'}, message:{type:'string'} } } } }, preHandler: pmOnly }, updateTaskHandler);

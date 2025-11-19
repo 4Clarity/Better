@@ -55,6 +55,7 @@ export const api = {
 
   async post(path: string, data?: any, options?: RequestInit) {
     const token = localStorage.getItem('authToken');
+    const { headers: _, ...restOptions } = options || {};
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: {
@@ -64,7 +65,7 @@ export const api = {
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
-      ...options,
+      ...restOptions,
     });
 
     if (!response.ok) {
@@ -77,6 +78,7 @@ export const api = {
 
   async put(path: string, data?: any, options?: RequestInit) {
     const token = localStorage.getItem('authToken');
+    const { headers: _, ...restOptions } = options || {};
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'PUT',
       headers: {
@@ -86,7 +88,7 @@ export const api = {
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
-      ...options,
+      ...restOptions,
     });
 
     if (!response.ok) {
@@ -99,6 +101,7 @@ export const api = {
 
   async patch(path: string, data?: any, options?: RequestInit) {
     const token = localStorage.getItem('authToken');
+    const { headers: _, ...restOptions } = options || {};
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'PATCH',
       headers: {
@@ -108,7 +111,7 @@ export const api = {
         ...options?.headers,
       },
       body: data ? JSON.stringify(data) : undefined,
-      ...options,
+      ...restOptions,
     });
 
     if (!response.ok) {
@@ -300,82 +303,48 @@ export const taskApi = {
     priority?: Task['priority'];
     page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc'|'desc';
   }): Promise<PaginatedResponse<Task>> {
-    const url = createApiUrl(`/transitions/${transitionId}/tasks`);
+    let queryString = '';
     if (params) {
-      Object.entries(params).forEach(([k,v])=>{ if (v!==undefined && v!==null) url.searchParams.append(k, v.toString()); });
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([k,v])=>{ if (v!==undefined && v!==null) searchParams.append(k, v.toString()); });
+      queryString = `?${searchParams.toString()}`;
     }
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.statusText}`);
+    const res = await api.get(`/transitions/${transitionId}/tasks${queryString}`);
     return res.json();
   },
   async create(transitionId: string, data: Omit<Task,'id'|'createdAt'|'updatedAt'|'transitionId'>): Promise<Task> {
-    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks`, {
-      method: 'POST',
+    const res = await api.post(`/transitions/${transitionId}/tasks`, data, {
       headers: {
-        'Content-Type': 'application/json',
         'x-user-role': 'program_manager',
-        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
-      body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      let message = 'Failed to create task';
-      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-      throw new Error(message);
-    }
     return res.json();
   },
   async update(transitionId: string, taskId: string, data: Partial<Omit<Task,'id'|'createdAt'|'updatedAt'|'transitionId'>>): Promise<Task> {
-    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/${taskId}`, {
-      method: 'PUT',
+    const res = await api.put(`/transitions/${transitionId}/tasks/${taskId}`, data, {
       headers: {
-        'Content-Type': 'application/json',
         'x-user-role': 'program_manager',
-        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
-      body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      let message = 'Failed to update task';
-      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-      throw new Error(message);
-    }
     return res.json();
   },
   async delete(transitionId: string, taskId: string): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/${taskId}`, {
-      method: 'DELETE',
+    await api.delete(`/transitions/${transitionId}/tasks/${taskId}`, {
       headers: {
         'x-user-role': 'program_manager',
-        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
     });
-    if (!res.ok) {
-      let message = 'Failed to delete task';
-      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-      throw new Error(message);
-    }
   },
   async getTree(transitionId: string): Promise<{ data: Task[] }> {
-    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/tree`);
-    if (!res.ok) throw new Error(`Failed to fetch task tree: ${res.statusText}`);
+    const res = await api.get(`/transitions/${transitionId}/tasks/tree`);
     return res.json();
   },
   async move(transitionId: string, taskId: string, body: { parentTaskId?: string | null; milestoneId?: string | null; beforeTaskId?: string; afterTaskId?: string; position?: number; }): Promise<Task> {
-    const res = await fetch(`${API_BASE_URL}/transitions/${transitionId}/tasks/${taskId}/move`, {
-      method: 'PATCH',
+    const res = await api.patch(`/transitions/${transitionId}/tasks/${taskId}/move`, body, {
       headers: {
-        'Content-Type': 'application/json',
         'x-user-role': 'program_manager',
-        'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
       },
-      body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      let message = 'Failed to move task';
-      try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
-      throw new Error(message);
-    }
     return res.json();
   },
 };
@@ -600,59 +569,17 @@ export const enhancedTransitionApi = {
 
   async create(data: Omit<EnhancedTransition, 'id' | 'createdAt' | 'updatedAt' | 'contract' | 'creator' | 'milestones' | '_count'>): Promise<EnhancedTransition> {
     console.log('Creating enhanced transition with data:', data);
-
-    const response = await fetch(`${API_BASE_URL}/enhanced-transitions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const responseText = await response.text();
-      console.log('Error response body:', responseText);
-
-      let errorMessage = `Failed to create enhanced transition: ${response.statusText}`;
-      try {
-        const error = JSON.parse(responseText);
-        errorMessage = error.message || errorMessage;
-      } catch (parseError) {
-        errorMessage = `HTTP ${response.status}: ${responseText}`;
-      }
-      throw new Error(errorMessage);
-    }
+    const response = await api.post(`/enhanced-transitions`, data);
     return response.json();
   },
 
   async update(id: string, data: Partial<Omit<EnhancedTransition, 'id' | 'createdAt' | 'updatedAt' | 'contract' | 'creator' | 'milestones' | '_count'> & { contractId?: string }>): Promise<EnhancedTransition> {
-    const response = await fetch(`${API_BASE_URL}/enhanced-transitions/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `Failed to update enhanced transition: ${response.statusText}`);
-    }
+    const response = await api.put(`/enhanced-transitions/${id}`, data);
     return response.json();
   },
 
   async delete(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/enhanced-transitions/${id}`, {
-      method: 'DELETE',
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `Failed to delete enhanced transition: ${response.statusText}`);
-    }
+    await api.delete(`/enhanced-transitions/${id}`);
   },
 };
 

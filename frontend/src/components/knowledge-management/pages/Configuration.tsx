@@ -5,7 +5,7 @@ import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Alert, AlertDescription } from '../../ui/alert';
-import { Loader2, Plus, Database, AlertTriangle, Save, FolderOpen, Workflow, Network, Mail, ExternalLink, Server } from 'lucide-react';
+import { Loader2, Plus, Database, AlertTriangle, Save, FolderOpen, Workflow, Network, Mail, ExternalLink, Server, HardDrive } from 'lucide-react';
 import { knowledgeSourceApi, type KnowledgeSource } from '../../../services/knowledgeSourceApi';
 import { settingsApi } from '../../../services/settingsApi';
 import { KnowledgeSourceConfigModal } from '../../KnowledgeManagement/KnowledgeSourceConfigModal';
@@ -320,6 +320,26 @@ export function Configuration() {
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Open pgAdmin
+                </Button>
+              </div>
+
+              {/* MinIO Storage */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5 text-primary" />
+                  <h4 className="font-medium">MinIO Storage</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  S3-compatible object storage for document and knowledge management files
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open('http://minio.tip.localhost', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open MinIO
                 </Button>
               </div>
             </div>

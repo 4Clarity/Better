@@ -205,8 +205,7 @@ export function BusinessOperationDetailPage() {
                     <p className="text-sm text-gray-600 mb-2">Contractor: {contract.contractorName}</p>
                     <div className="text-sm text-gray-500">
                       <p>Duration: {new Date(contract.startDate).toLocaleDateString()} - {new Date(contract.endDate).toLocaleDateString()}</p>
-                      <p className="flex justify-between">
-                        <span>{contract._count?.transitions || 0} transition(s)</span>
+                      <div className="flex justify-end mt-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -214,7 +213,7 @@ export function BusinessOperationDetailPage() {
                         >
                           View Details
                         </Button>
-                      </p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -318,20 +317,27 @@ export function BusinessOperationDetailPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Total Contracts</span>
-                <span className="font-medium">{operation._count?.contracts || 0}</span>
+                <span className="font-medium">{contracts.length}</span>
               </div>
               <div className="flex justify-between">
                 <span>Programs & Products</span>
                 <span className="font-medium">{programsProducts.length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Total Stakeholders</span>
-                <span className="font-medium">{operation._count?.stakeholders || 0}</span>
+                <span>Key Personnel</span>
+                <span className="font-medium">
+                  {/* Count assigned key personnel (Government PM, Director, Current Manager) */}
+                  {
+                    (operation.governmentPM ? 1 : 0) +
+                    (operation.director ? 1 : 0) +
+                    (operation.currentManager ? 1 : 0)
+                  }
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Active Transitions</span>
                 <span className="font-medium">
-                  {contracts.reduce((sum, contract) => sum + (contract._count?.transitions || 0), 0)}
+                  {programsProducts.reduce((sum, pp) => sum + (pp._count?.transitions || 0), 0)}
                 </span>
               </div>
             </div>

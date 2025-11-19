@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { API_BASE_URL, Task } from "@/services/api";
+import { API_BASE_URL, Task, User, userApi, api } from "@/services/api";
+import { getStakeholders } from "@/services/productProgramApi";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, FileText, User, Edit2, Save, X } from "lucide-react";
+import { ArrowLeft, Calendar, FileText, User as UserIcon, Edit2, Save, X, Wand2 } from "lucide-react";
 import { 
   Select, 
   SelectTrigger, 
@@ -25,9 +26,12 @@ interface Transition {
   id: string;
   contractName: string;
   contractNumber: string;
+  productProgramId?: string | null;
   startDate: string;
   endDate: string;
   status: string;
+  description?: string | null;
+  transitionLevel?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,8 +41,9 @@ interface Milestone {
   title: string;
   description?: string | null;
   dueDate: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' | 'OVERDUE';
+  priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  status: 'Not_Started' | 'In_Progress' | 'Completed' | 'Blocked' | 'Overdue';
+  assignedTo?: string | null;
 }
 
 interface EditFormData {
@@ -48,6 +53,8 @@ interface EditFormData {
   endDate: string;
   keyPersonnel: string;
   description: string;
+  migrationType?: string;
+  transitionLevel?: string;
 }
 
 interface FormErrors {
@@ -74,6 +81,7 @@ export function ProjectHubPage() {
     endDate: "",
     keyPersonnel: "",
     description: "",
+    migrationType: "",
   });
   const [editErrors, setEditErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -84,32 +92,39 @@ export function ProjectHubPage() {
   const [msDue, setMsDue] = useState('');
   const [msSaving, setMsSaving] = useState(false);
   const [msDialogOpen, setMsDialogOpen] = useState(false);
-  const [msPriority, setMsPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [msPriority, setMsPriority] = useState<'Low'|'Medium'|'High'|'Critical'>('Medium');
   const [msDesc, setMsDesc] = useState('');
 
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const [editMsTitle, setEditMsTitle] = useState('');
   const [editMsDue, setEditMsDue] = useState('');
-  const [editMsPriority, setEditMsPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [editMsPriority, setEditMsPriority] = useState<'Low'|'Medium'|'High'|'Critical'>('Medium');
   const [editMsDesc, setEditMsDesc] = useState('');
-  const [editMsStatus, setEditMsStatus] = useState<'PENDING'|'IN_PROGRESS'|'COMPLETED'|'BLOCKED'|'OVERDUE'>('PENDING');
+  const [editMsStatus, setEditMsStatus] = useState<'Not_Started'|'In_Progress'|'Completed'|'Blocked'|'Overdue'>('Not_Started');
 
   // Tasks state
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskOpen, setTaskOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDue, setTaskDue] = useState('');
-  const [taskPriority, setTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [taskPriority, setTaskPriority] = useState<'Low'|'Medium'|'High'|'Critical'>('Medium');
   const [taskDesc, setTaskDesc] = useState('');
   const [taskSaving, setTaskSaving] = useState(false);
   const [taskMilestoneId, setTaskMilestoneId] = useState<string>('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
   const [editTaskDue, setEditTaskDue] = useState('');
-  const [editTaskPriority, setEditTaskPriority] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+  const [editTaskPriority, setEditTaskPriority] = useState<'Low'|'Medium'|'High'|'Critical'>('Medium');
   const [editTaskDesc, setEditTaskDesc] = useState('');
-  const [editTaskStatus, setEditTaskStatus] = useState<'NOT_STARTED'|'ASSIGNED'|'IN_PROGRESS'|'ON_HOLD'|'BLOCKED'|'UNDER_REVIEW'|'COMPLETED'|'CANCELLED'|'OVERDUE'>('NOT_STARTED');
+  const [editTaskStatus, setEditTaskStatus] = useState<'Not_Started'|'Assigned'|'In_Progress'|'On_Hold'|'Blocked'|'Under_Review'|'Completed'|'Cancelled'|'Overdue'>('Not_Started');
   const [editTaskMilestoneId, setEditTaskMilestoneId] = useState<string>('');
+
+  // User assignment state
+  const [users, setUsers] = useState<User[]>([]);
+  const [msAssignedTo, setMsAssignedTo] = useState<string>('');
+  const [editMsAssignedTo, setEditMsAssignedTo] = useState<string>('');
+  const [taskAssignedTo, setTaskAssignedTo] = useState<string>('');
+  const [editTaskAssignedTo, setEditTaskAssignedTo] = useState<string>('');
 
   const fetchTransition = async () => {
     if (!id) {
@@ -120,15 +135,7 @@ export function ProjectHubPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/transitions/${id}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("Transition not found");
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
+      const response = await api.get(`/transitions/${id}`);
       const data = await response.json();
       setTransition(data);
       setError(null);
@@ -150,6 +157,38 @@ export function ProjectHubPage() {
       fetchTasks();
     }
   }, [id]);
+
+  // Fetch users when transition loads (to get productProgramId)
+  useEffect(() => {
+    if (transition) {
+      fetchUsers();
+    }
+  }, [transition]);
+
+  const fetchUsers = async () => {
+    try {
+      // If transition has a productProgramId, fetch stakeholders only
+      if (transition?.productProgramId) {
+        const stakeholders = await getStakeholders(transition.productProgramId);
+        // Transform stakeholders to User format
+        const stakeholderUsers: User[] = stakeholders.map(s => ({
+          id: s.user.id,
+          firstName: s.user.firstName,
+          lastName: s.user.lastName,
+          email: s.user.email,
+          role: s.role || 'Stakeholder',
+        }));
+        setUsers(stakeholderUsers);
+      } else {
+        // Fallback to all users if no productProgramId
+        const response = await userApi.getAll({ pageSize: 100 });
+        setUsers(response.data || []);
+      }
+    } catch (e) {
+      console.error('Failed to load users:', e);
+      // Don't show error to user, just log it
+    }
+  };
 
   const fetchMilestones = async () => {
     if (!id) return;
@@ -179,14 +218,6 @@ export function ProjectHubPage() {
     if (!id || !taskTitle || !taskDue) return;
     setTaskSaving(true);
     try {
-      // Convert priority from frontend format (LOW, MEDIUM) to Prisma format (Low, Medium)
-      const priorityMap: Record<string, string> = {
-        'LOW': 'Low',
-        'MEDIUM': 'Medium',
-        'HIGH': 'High',
-        'CRITICAL': 'Critical'
-      };
-
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks`, {
         method: 'POST',
         headers: {
@@ -197,9 +228,10 @@ export function ProjectHubPage() {
         body: JSON.stringify({
           title: taskTitle,
           dueDate: new Date(`${taskDue}T12:00:00`).toISOString(),
-          priority: priorityMap[taskPriority] || 'Medium',
+          priority: taskPriority,
           description: taskDesc || undefined,
           milestoneId: taskMilestoneId || undefined,
+          assignedTo: taskAssignedTo || undefined,
         }),
       });
       if (!res.ok) {
@@ -208,7 +240,7 @@ export function ProjectHubPage() {
         throw new Error(message);
       }
       await fetchTasks();
-      setTaskTitle(''); setTaskDue(''); setTaskPriority('MEDIUM'); setTaskDesc(''); setTaskMilestoneId(''); setTaskOpen(false);
+      setTaskTitle(''); setTaskDue(''); setTaskPriority('Medium'); setTaskDesc(''); setTaskMilestoneId(''); setTaskAssignedTo(''); setTaskOpen(false);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to create task');
     } finally {
@@ -224,6 +256,7 @@ export function ProjectHubPage() {
     setEditTaskDesc(t.description || '');
     setEditTaskStatus(t.status);
     setEditTaskMilestoneId(t.milestoneId || '');
+    setEditTaskAssignedTo(t.assignedTo || '');
   };
 
   const cancelEditTask = () => {
@@ -234,14 +267,6 @@ export function ProjectHubPage() {
   const saveTask = async () => {
     if (!id || !editingTaskId) return;
     try {
-      // Convert priority from frontend format (LOW, MEDIUM) to Prisma format (Low, Medium)
-      const priorityMap: Record<string, string> = {
-        'LOW': 'Low',
-        'MEDIUM': 'Medium',
-        'HIGH': 'High',
-        'CRITICAL': 'Critical'
-      };
-
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/tasks/${editingTaskId}`, {
         method: 'PUT',
         headers: {
@@ -252,10 +277,11 @@ export function ProjectHubPage() {
         body: JSON.stringify({
           title: editTaskTitle,
           dueDate: new Date(`${editTaskDue}T12:00:00`).toISOString(),
-          priority: priorityMap[editTaskPriority] || 'Medium',
+          priority: editTaskPriority,
           description: editTaskDesc || undefined,
           status: editTaskStatus,
           milestoneId: editTaskMilestoneId === '' ? null : editTaskMilestoneId,
+          assignedTo: editTaskAssignedTo === '' ? null : editTaskAssignedTo,
         }),
       });
       if (!res.ok) {
@@ -286,9 +312,13 @@ export function ProjectHubPage() {
         try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
         throw new Error(message);
       }
+      // Deletion succeeded, refresh the list
       await fetchTasks();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to delete task');
+    } finally {
+      // Always refresh to sync state, even if deletion failed or refresh threw error
+      fetchTasks().catch(() => {});
     }
   };
 
@@ -298,8 +328,8 @@ export function ProjectHubPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
+        headers: {
+          'Content-Type': 'application/json',
           'x-user-role': 'program_manager',
           'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
@@ -309,6 +339,7 @@ export function ProjectHubPage() {
           dueDate: new Date(`${msDue}T12:00:00`).toISOString(),
           priority: msPriority,
           description: msDesc || undefined,
+          assignedTo: msAssignedTo || undefined,
         }),
       });
       if (!res.ok) {
@@ -329,8 +360,9 @@ export function ProjectHubPage() {
       fetchMilestones().catch(() => {});
       setMsTitle('');
       setMsDue('');
-      setMsPriority('MEDIUM');
+      setMsPriority('Medium');
       setMsDesc('');
+      setMsAssignedTo('');
       setMsDialogOpen(false);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to add milestone');
@@ -345,19 +377,23 @@ export function ProjectHubPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/transitions/${id}/milestones/${milestoneId}`, {
         method: 'DELETE',
-        headers: { 
+        headers: {
           'x-user-role': 'program_manager',
           'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
       });
       if (!res.ok) {
-        await fetchMilestones();
-        return;
+        let message = 'Failed to delete milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
       }
-      setMilestones(prev => prev.filter(m => m.id !== milestoneId));
-      fetchMilestones().catch(()=>{});
+      // Deletion succeeded, refresh the list from backend
+      await fetchMilestones();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to delete milestone');
+    } finally {
+      // Always refresh to sync state, even if deletion failed or refresh threw error
+      fetchMilestones().catch(() => {});
     }
   };
 
@@ -368,6 +404,7 @@ export function ProjectHubPage() {
     setEditMsPriority(m.priority);
     setEditMsDesc(m.description || '');
     setEditMsStatus(m.status);
+    setEditMsAssignedTo(m.assignedTo || '');
   };
 
   const cancelEditMilestone = () => {
@@ -392,18 +429,15 @@ export function ProjectHubPage() {
           priority: editMsPriority,
           description: editMsDesc || undefined,
           status: editMsStatus,
+          assignedTo: editMsAssignedTo === '' ? null : editMsAssignedTo,
         }),
       });
       if (!res.ok) {
-        await fetchMilestones();
-        cancelEditMilestone();
-        return;
+        let message = 'Failed to update milestone';
+        try { const err = await res.json(); if (err?.message) message = err.message; } catch {}
+        throw new Error(message);
       }
-      try {
-        const updated = await res.json();
-        if (updated && updated.id) setMilestones(prev => prev.map(m => m.id === updated.id ? updated : m));
-      } catch {}
-      fetchMilestones().catch(()=>{});
+      await fetchMilestones();
       cancelEditMilestone();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to update milestone');
@@ -419,7 +453,9 @@ export function ProjectHubPage() {
         startDate: transition.startDate.split('T')[0], // Convert to YYYY-MM-DD format
         endDate: transition.endDate.split('T')[0],
         keyPersonnel: "",
-        description: "",
+        description: transition.description || "",
+        migrationType: "", // Will be loaded from backend when field is added to schema
+        transitionLevel: transition.transitionLevel || "OPERATIONAL",
       });
     }
   }, [transition]);
@@ -441,7 +477,9 @@ export function ProjectHubPage() {
         startDate: transition.startDate.split('T')[0],
         endDate: transition.endDate.split('T')[0],
         keyPersonnel: "",
-        description: "",
+        description: transition.description || "",
+        migrationType: "", // Will be loaded from backend when field is added to schema
+        transitionLevel: transition.transitionLevel || "OPERATIONAL",
       });
     }
   };
@@ -512,32 +550,25 @@ export function ProjectHubPage() {
         contractNumber: editFormData.contractNumber,
         startDate: new Date(editFormData.startDate).toISOString(),
         endDate: new Date(editFormData.endDate).toISOString(),
+        description: editFormData.description || undefined,
+        transitionLevel: editFormData.transitionLevel,
       };
 
-      const response = await fetch(`${API_BASE_URL}/transitions/${id}`, {
-        method: 'PUT',
+      const response = await api.put(`/transitions/${id}`, updateData, {
         headers: {
-          'Content-Type': 'application/json',
           'x-user-role': 'program_manager',
-          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
-        body: JSON.stringify(updateData),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update transition');
-      }
 
       const updatedTransition = await response.json();
       setTransition(updatedTransition);
       setIsEditing(false);
       setShowConfirmation(false);
       setEditErrors({});
-      
+
       // Show success message (in a real app, you'd use a toast notification)
       alert('Transition updated successfully!');
-      
+
     } catch (error) {
       console.error('Failed to update transition:', error);
       alert('Failed to update transition: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -551,25 +582,17 @@ export function ProjectHubPage() {
     if (!transition || !id || newStatus === transition.status) return;
     setIsUpdatingStatus(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/transitions/${id}/status`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json', 
+      const response = await api.patch(`/transitions/${id}/status`, { status: newStatus }, {
+        headers: {
           'x-user-role': 'program_manager',
-          'x-auth-bypass': localStorage.getItem('authBypass') === 'true' ? 'true' : 'false',
         },
-        body: JSON.stringify({ status: newStatus }),
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to update status');
-      }
       const updated = await response.json();
       setTransition(updated);
       alert('Status updated');
     } catch (e) {
       console.error('Failed to update status', e);
-      alert('Failed to update status');
+      alert('Failed to update status: ' + (e instanceof Error ? e.message : 'Unknown error'));
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -586,6 +609,23 @@ export function ProjectHubPage() {
   // Format status for display
   const formatStatus = (status: string) => {
     return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  // Format priority for display (Low, Medium, High, Critical remain as-is)
+  const formatPriority = (priority: string) => {
+    return priority;
+  };
+
+  // Format milestone/task status for display (converts Not_Started -> Not Started, etc.)
+  const formatItemStatus = (status: string) => {
+    return status.replace(/_/g, ' ');
+  };
+
+  // Get user display name from userId
+  const getUserDisplayName = (userId: string | null | undefined) => {
+    if (!userId) return 'Unassigned';
+    const user = users.find(u => u.id === userId);
+    return user ? `${user.firstName} ${user.lastName}` : 'Unknown User';
   };
 
   // Get status color
@@ -857,19 +897,89 @@ export function ProjectHubPage() {
               <p className="text-gray-900 font-medium">{formatStatus(transition.status)}</p>
             </div>
             <div>
-              <Label htmlFor="description" className="text-sm font-medium text-gray-500">Description</Label>
+              <Label htmlFor="migrationType" className="text-sm font-medium text-gray-500">Migration Type</Label>
               {isEditing ? (
-                <div className="mt-1 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-sm text-blue-700">
-                    📝 Description editing will be available after database migration is complete.
-                  </p>
+                <div className="mt-1">
+                  <Select
+                    value={editFormData.migrationType || ""}
+                    onValueChange={(value) => handleEditInputChange('migrationType', value)}
+                  >
+                    <SelectTrigger id="migrationType">
+                      <SelectValue placeholder="Select migration type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new_service">New Service - Starting a new capability or service</SelectItem>
+                      <SelectItem value="integration">Integration - Connecting or merging systems/services</SelectItem>
+                      <SelectItem value="contract_transition">Contract Transition - Contract award, renewal, or closeout</SelectItem>
+                      <SelectItem value="resource_transition">Resource Transition - Personnel or resource changes</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : (
-                <div className="mt-1 p-3 bg-gray-50 rounded-md border">
-                  <p className="text-sm text-gray-500 italic">
-                    Description field will be available in the next version after database migration.
-                  </p>
+                <p className="text-gray-900 font-medium mt-1">
+                  {editFormData.migrationType ?
+                    (() => {
+                      const typeLabels: Record<string, string> = {
+                        'new_service': 'New Service',
+                        'integration': 'Integration',
+                        'contract_transition': 'Contract Transition',
+                        'resource_transition': 'Resource Transition'
+                      };
+                      return typeLabels[editFormData.migrationType] || editFormData.migrationType;
+                    })()
+                    : <span className="text-gray-500 italic">Not specified</span>
+                  }
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="transitionLevel" className="text-sm font-medium text-gray-500">Transition Type</Label>
+              {isEditing ? (
+                <div className="mt-1">
+                  <Select
+                    value={editFormData.transitionLevel || "OPERATIONAL"}
+                    onValueChange={(value) => handleEditInputChange('transitionLevel', value)}
+                  >
+                    <SelectTrigger id="transitionLevel">
+                      <SelectValue placeholder="Select transition type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MAJOR">Major Transition</SelectItem>
+                      <SelectItem value="PERSONNEL">Personnel Transition</SelectItem>
+                      <SelectItem value="OPERATIONAL">Operational Change</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              ) : (
+                <p className="text-gray-900 font-medium mt-1">
+                  {editFormData.transitionLevel === 'MAJOR' ? 'Major Transition' :
+                   editFormData.transitionLevel === 'PERSONNEL' ? 'Personnel Transition' :
+                   editFormData.transitionLevel === 'OPERATIONAL' ? 'Operational Change' :
+                   <span className="text-gray-500 italic">Not specified</span>
+                  }
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="description" className="text-sm font-medium text-gray-500">Description</Label>
+              {isEditing ? (
+                <div className="mt-1">
+                  <textarea
+                    id="description"
+                    value={editFormData.description}
+                    onChange={(e) => handleEditInputChange('description', e.target.value)}
+                    placeholder="Enter transition description (optional)"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {editErrors.description && (
+                    <p className="text-sm text-red-500 mt-1">{editErrors.description}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-900 font-medium mt-1">
+                  {transition.description || <span className="text-gray-500 italic">No description provided</span>}
+                </p>
               )}
             </div>
             {/* Key Personnel temporarily disabled due to database schema mismatch */}
@@ -995,10 +1105,22 @@ export function ProjectHubPage() {
                     <Select value={msPriority} onValueChange={(v)=>setMsPriority(v as any)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="LOW">Low</SelectItem>
-                        <SelectItem value="MEDIUM">Medium</SelectItem>
-                        <SelectItem value="HIGH">High</SelectItem>
-                        <SelectItem value="CRITICAL">Critical</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Assigned To</Label>
+                    <Select value={msAssignedTo || "unassigned"} onValueChange={(v)=>setMsAssignedTo(v === "unassigned" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {users.map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1035,10 +1157,10 @@ export function ProjectHubPage() {
                             <Select value={editMsPriority} onValueChange={(v)=>setEditMsPriority(v as any)}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="LOW">Low</SelectItem>
-                                <SelectItem value="MEDIUM">Medium</SelectItem>
-                                <SelectItem value="HIGH">High</SelectItem>
-                                <SelectItem value="CRITICAL">Critical</SelectItem>
+                                <SelectItem value="Low">Low</SelectItem>
+                                <SelectItem value="Medium">Medium</SelectItem>
+                                <SelectItem value="High">High</SelectItem>
+                                <SelectItem value="Critical">Critical</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1047,15 +1169,27 @@ export function ProjectHubPage() {
                             <Select value={editMsStatus} onValueChange={(v)=>setEditMsStatus(v as any)}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="PENDING">Not Started</SelectItem>
-                                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                                <SelectItem value="BLOCKED">Blocked</SelectItem>
-                                <SelectItem value="COMPLETED">Completed</SelectItem>
-                                <SelectItem value="OVERDUE">Overdue</SelectItem>
+                                <SelectItem value="Not_Started">Not Started</SelectItem>
+                                <SelectItem value="In_Progress">In Progress</SelectItem>
+                                <SelectItem value="Blocked">Blocked</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                                <SelectItem value="Overdue">Overdue</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div>
+                            <Label>Assigned To</Label>
+                            <Select value={editMsAssignedTo || "unassigned"} onValueChange={(v)=>setEditMsAssignedTo(v === "unassigned" ? "" : v)}>
+                              <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                                {users.map(u => (
+                                  <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="md:col-span-3">
                             <Label>Description</Label>
                             <textarea className="w-full border rounded-md p-2" rows={2} value={editMsDesc} onChange={(e)=>setEditMsDesc(e.target.value)} />
                           </div>
@@ -1065,7 +1199,9 @@ export function ProjectHubPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">{m.title}</div>
-                          <div className="text-xs text-muted-foreground">Due {formatDate(m.dueDate)} • {m.status} • Priority {m.priority}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Due {formatDate(m.dueDate)} • {formatItemStatus(m.status)} • Priority {formatPriority(m.priority)} • {getUserDisplayName(m.assignedTo)}
+                          </div>
                           {m.description && (
                             <div className="text-xs text-muted-foreground mt-1">{m.description}</div>
                           )}
@@ -1086,7 +1222,7 @@ export function ProjectHubPage() {
         {/* Project Management Card */}
         <div className="bg-white border rounded-lg p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <User className="h-5 w-5 mr-2" />
+            <UserIcon className="h-5 w-5 mr-2" />
             Project Management
           </h2>
           <div className="space-y-4">
@@ -1111,13 +1247,20 @@ export function ProjectHubPage() {
             Quick Actions
           </h2>
           <div className="space-y-3">
-            <Button 
-              className="w-full" 
+            <Button
+              className="w-full"
               onClick={handleEditClick}
               disabled={isEditing}
             >
               <Edit2 className="h-4 w-4 mr-2" />
               Edit Project Details
+            </Button>
+            <Button
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+              onClick={() => navigate(`/transitions/${id}/ai-planning`)}
+            >
+              <Wand2 className="h-4 w-4 mr-2" />
+              AI Planning Wizard
             </Button>
             <Button className="w-full" variant="outline" onClick={() => setMsDialogOpen(true)}>
               Add Milestone Event
@@ -1170,24 +1313,24 @@ export function ProjectHubPage() {
                         <div>
                           <Label>Priority</Label>
                           <select data-testid="edit-task-priority" className="border rounded-md p-2 w-full" value={editTaskPriority} onChange={(e)=>setEditTaskPriority(e.target.value as any)}>
-                            <option value="LOW">Low</option>
-                            <option value="MEDIUM">Medium</option>
-                            <option value="HIGH">High</option>
-                            <option value="CRITICAL">Critical</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Critical">Critical</option>
                           </select>
                         </div>
                         <div>
                           <Label>Status</Label>
                           <select data-testid="edit-task-status" className="border rounded-md p-2 w-full" value={editTaskStatus} onChange={(e)=>setEditTaskStatus(e.target.value as any)}>
-                            <option value="NOT_STARTED">Not Started</option>
-                            <option value="ASSIGNED">Assigned</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="ON_HOLD">On Hold</option>
-                            <option value="BLOCKED">Blocked</option>
-                            <option value="UNDER_REVIEW">Under Review</option>
-                            <option value="COMPLETED">Completed</option>
-                            <option value="CANCELLED">Cancelled</option>
-                            <option value="OVERDUE">Overdue</option>
+                            <option value="Not_Started">Not Started</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="In_Progress">In Progress</option>
+                            <option value="On_Hold">On Hold</option>
+                            <option value="Blocked">Blocked</option>
+                            <option value="Under_Review">Under Review</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Overdue">Overdue</option>
                           </select>
                         </div>
                         <div>
@@ -1200,6 +1343,15 @@ export function ProjectHubPage() {
                           </select>
                         </div>
                         <div>
+                          <Label>Assigned To</Label>
+                          <select data-testid="edit-task-assigned-to" className="border rounded-md p-2 w-full" value={editTaskAssignedTo} onChange={(e)=>setEditTaskAssignedTo(e.target.value)}>
+                            <option value="">Unassigned</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="md:col-span-4">
                           <Label>Description</Label>
                           <textarea data-testid="edit-task-desc" className="border rounded-md p-2 w-full" rows={2} value={editTaskDesc} onChange={(e)=>setEditTaskDesc(e.target.value)} />
                         </div>
@@ -1209,7 +1361,9 @@ export function ProjectHubPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium">{t.title}</div>
-                        <div className="text-xs text-muted-foreground">Due {formatDate(t.dueDate)} • {t.status} • Priority {t.priority}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Due {formatDate(t.dueDate)} • {formatItemStatus(t.status)} • Priority {formatPriority(t.priority)} • {getUserDisplayName(t.assignedTo)}
+                        </div>
                         {t.description && (
                           <div className="text-xs text-muted-foreground mt-1">{t.description}</div>
                         )}
@@ -1288,10 +1442,10 @@ export function ProjectHubPage() {
             <div>
               <Label>Priority</Label>
               <select data-testid="task-priority" className="border rounded-md p-2 w-full" value={taskPriority} onChange={(e)=>setTaskPriority(e.target.value as any)}>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="CRITICAL">Critical</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
               </select>
             </div>
             <div>
@@ -1300,6 +1454,15 @@ export function ProjectHubPage() {
                 <option value="">Unassigned</option>
                 {milestones.map(m => (
                   <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Assigned To</Label>
+              <select data-testid="task-assigned-to" className="border rounded-md p-2 w-full" value={taskAssignedTo} onChange={(e)=>setTaskAssignedTo(e.target.value)}>
+                <option value="">Unassigned</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                 ))}
               </select>
             </div>

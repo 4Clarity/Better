@@ -80,7 +80,7 @@ export async function createTransition(data: CreateTransitionInput) {
   }
 
   try {
-    const transition = await prisma.transition.create({
+    const transition = await prisma.transitions.create({
       data: {
         contractName: data.contractName,
         contractNumber: data.contractNumber,
@@ -112,13 +112,13 @@ export async function getTransitions(query: GetTransitionsQuery) {
   }
 
   const [data, total] = await prisma.$transaction([
-    prisma.transition.findMany({
+    prisma.transitions.findMany({
       where,
       skip,
       take: limit,
       orderBy: { [sortBy]: sortOrder },
     }),
-    prisma.transition.count({ where }),
+    prisma.transitions.count({ where }),
   ]);
 
   return {
@@ -133,7 +133,7 @@ export async function getTransitions(query: GetTransitionsQuery) {
 }
 
 export async function getTransitionById(id: string) {
-  const transition = await prisma.transition.findUnique({
+  const transition = await prisma.transitions.findUnique({
     where: { id },
   });
 
@@ -145,7 +145,7 @@ export async function getTransitionById(id: string) {
 }
 
 export async function updateTransition(id: string, data: UpdateTransitionInput) {
-  const existingTransition = await prisma.transition.findUnique({
+  const existingTransition = await prisma.transitions.findUnique({
     where: { id },
   });
 
@@ -168,7 +168,7 @@ export async function updateTransition(id: string, data: UpdateTransitionInput) 
   if (data.endDate) updateData.endDate = new Date(data.endDate);
 
   try {
-    const updatedTransition = await prisma.transition.update({
+    const updatedTransition = await prisma.transitions.update({
       where: { id },
       data: updateData,
     });
@@ -183,7 +183,7 @@ export async function updateTransition(id: string, data: UpdateTransitionInput) 
 }
 
 export async function updateTransitionStatus(id: string, data: UpdateTransitionStatusInput) {
-  const existingTransition = await prisma.transition.findUnique({
+  const existingTransition = await prisma.transitions.findUnique({
     where: { id },
   });
 
@@ -191,7 +191,7 @@ export async function updateTransitionStatus(id: string, data: UpdateTransitionS
     throw new Error('Transition not found');
   }
 
-  const updatedTransition = await prisma.transition.update({
+  const updatedTransition = await prisma.transitions.update({
     where: { id },
     data: { status: data.status },
   });
@@ -200,7 +200,7 @@ export async function updateTransitionStatus(id: string, data: UpdateTransitionS
 }
 
 export async function deleteTransition(id: string) {
-  const existingTransition = await prisma.transition.findUnique({
+  const existingTransition = await prisma.transitions.findUnique({
     where: { id },
   });
 
@@ -208,7 +208,7 @@ export async function deleteTransition(id: string) {
     throw new Error('Transition not found');
   }
 
-  await prisma.transition.delete({
+  await prisma.transitions.delete({
     where: { id },
   });
 

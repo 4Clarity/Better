@@ -7,6 +7,7 @@ import { FactsCuration } from '../components/knowledge-management/pages/FactsCur
 import { ApprovalQueue } from '../components/knowledge-management/pages/ApprovalQueue';
 import { KnowledgeSearch } from '../components/knowledge-management/pages/KnowledgeSearch';
 import { Configuration } from '../components/knowledge-management/pages/Configuration';
+import { N8NMonitoring } from '../components/knowledge-management/N8NMonitoring';
 
 export function KnowledgeManagementPage() {
   return (
@@ -20,6 +21,7 @@ export function KnowledgeManagementPage() {
         <Route path="/approval-queue" element={<ApprovalQueue />} />
         <Route path="/knowledge-search" element={<KnowledgeSearch />} />
         <Route path="/configuration" element={<Configuration />} />
+        <Route path="/n8n-monitoring" element={<N8NMonitoring />} />
       </Routes>
     </KMLayout>
   );

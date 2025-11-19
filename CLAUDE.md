@@ -391,7 +391,7 @@ The project is designed to be run entirely within Docker containers.
     ```
 2.  **Update `/etc/hosts`:** Add the following entries to your local hosts file to enable the custom domains used by the reverse proxy.
     ```text
-    127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost mail.tip.localhost pgadmin.tip.localhost
+    127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost mail.tip.localhost pgadmin.tip.localhost minio.tip.localhost
     ```
 
 ### Core Commands:
@@ -428,6 +428,7 @@ Once running, the services are available at these local URLs:
 *   **Keycloak (Auth):** [http://auth.tip.localhost](http://auth.tip.localhost)
 *   **n8n Workflows:** [http://n8n.tip.localhost](http://n8n.tip.localhost)
 *   **MailHog:** [http://mail.tip.localhost](http://mail.tip.localhost)
+*   **MinIO Storage:** [http://minio.tip.localhost](http://minio.tip.localhost) - Login: miniouser / miniopassword
 *   **pgAdmin (Database):** [http://pgadmin.tip.localhost](http://pgadmin.tip.localhost) - Login: admin@admin.com / admin
 
 ### pgAdmin Configuration:

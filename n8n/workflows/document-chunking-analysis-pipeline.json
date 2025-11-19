@@ -1,0 +1,711 @@
+{
+  "name": "Document Chunking Analysis Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/document-processing",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger-001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "document-processing-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/check-duplicate",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $json.document_id }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $json.filename }}"
+            },
+            {
+              "name": "mime_type",
+              "value": "={{ $json.mime_type }}"
+            },
+            {
+              "name": "storage_path",
+              "value": "={{ $json.storage_path }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000,
+            "retryOnHttpStatusCodes": [
+              {
+                "values": "500..599"
+              }
+            ]
+          }
+        }
+      },
+      "id": "check-duplicate-002",
+      "name": "Check for Duplicates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_duplicate }}",
+              "value2": true
+            },
+            {
+              "value1": "={{ $json.strategy }}",
+              "value2": "SKIP"
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "if-duplicate-skip-003",
+      "name": "IF Duplicate SKIP",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/update-status",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $('Webhook Trigger').item.json.filename }}"
+            },
+            {
+              "name": "content_hash",
+              "value": "={{ $('Webhook Trigger').item.json.content_hash }}"
+            },
+            {
+              "name": "status",
+              "value": "DUPLICATE_SKIPPED"
+            },
+            {
+              "name": "duplicate_of_id",
+              "value": "={{ $('Check for Duplicates').item.json.duplicate_of_id || null }}"
+            },
+            {
+              "name": "n8n_workflow_id",
+              "value": "={{ $workflow.id }}"
+            },
+            {
+              "name": "n8n_execution_id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000
+          }
+        }
+      },
+      "id": "update-status-duplicate-004",
+      "name": "Update Status (Duplicate Skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/extract-text",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $('Webhook Trigger').item.json.filename }}"
+            },
+            {
+              "name": "mime_type",
+              "value": "={{ $('Webhook Trigger').item.json.mime_type }}"
+            },
+            {
+              "name": "storage_path",
+              "value": "={{ $('Webhook Trigger').item.json.storage_path }}"
+            },
+            {
+              "name": "file_content_base64",
+              "value": "={{ $('Webhook Trigger').item.json.file_content_base64 }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000,
+            "retryOnHttpStatusCodes": [
+              {
+                "values": "500..599"
+              }
+            ]
+          }
+        }
+      },
+      "id": "extract-text-005",
+      "name": "Extract Document Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/analyze-chunking",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "text_content",
+              "value": "={{ $json.text_content }}"
+            },
+            {
+              "name": "document_type",
+              "value": "={{ $('Webhook Trigger').item.json.mime_type }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000,
+            "retryOnHttpStatusCodes": [
+              {
+                "values": "500..599"
+              }
+            ]
+          }
+        }
+      },
+      "id": "analyze-chunking-006",
+      "name": "Analyze Chunking Strategy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "error"
+            }
+          ]
+        }
+      },
+      "id": "if-analyze-error-007",
+      "name": "IF Analyze Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonOutput",
+        "jsonOutput": "={{ {\n  \"chunk_size\": 600,\n  \"overlap_percentage\": 10,\n  \"strategy\": \"fallback\",\n  \"reason\": \"Analysis failed, using default strategy\"\n} }}"
+      },
+      "id": "fallback-strategy-008",
+      "name": "Use Fallback Strategy",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/chunk-document",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "text_content",
+              "value": "={{ $('Extract Document Text').item.json.text_content }}"
+            },
+            {
+              "name": "chunk_size",
+              "value": "={{ $json.chunk_size || 600 }}"
+            },
+            {
+              "name": "overlap_percentage",
+              "value": "={{ $json.overlap_percentage || 10 }}"
+            },
+            {
+              "name": "strategy",
+              "value": "={{ $json.strategy || 'semantic' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000,
+            "retryOnHttpStatusCodes": [
+              {
+                "values": "500..599"
+              }
+            ]
+          }
+        }
+      },
+      "id": "chunk-document-009",
+      "name": "Chunk Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/generate-embeddings",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "chunks",
+              "value": "={{ $json.chunks }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000,
+            "retryOnHttpStatusCodes": [
+              {
+                "values": "500..599"
+              }
+            ]
+          }
+        }
+      },
+      "id": "generate-embeddings-010",
+      "name": "Generate Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/store-chunks",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "chunks_with_embeddings",
+              "value": "={{ $json.chunks_with_embeddings }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000,
+            "retryOnHttpStatusCodes": [
+              {
+                "values": "500..599"
+              }
+            ]
+          }
+        }
+      },
+      "id": "store-chunks-011",
+      "name": "Store Chunks in Database",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2220,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/update-status",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "status",
+              "value": "COMPLETED"
+            },
+            {
+              "name": "chunk_count",
+              "value": "={{ $json.chunk_count }}"
+            },
+            {
+              "name": "n8n_workflow_id",
+              "value": "={{ $workflow.id }}"
+            },
+            {
+              "name": "n8n_execution_id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000
+          }
+        }
+      },
+      "id": "update-status-success-012",
+      "name": "Update Document Status (Success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2440,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend-python:8000/api/n8n/update-status",
+        "method": "POST",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "document_id",
+              "value": "={{ $('Webhook Trigger').item.json.document_id }}"
+            },
+            {
+              "name": "status",
+              "value": "FAILED"
+            },
+            {
+              "name": "error_message",
+              "value": "={{ $json.error || $json.message || 'Unknown error occurred' }}"
+            },
+            {
+              "name": "failed_node",
+              "value": "={{ $workflow.lastNode }}"
+            },
+            {
+              "name": "n8n_workflow_id",
+              "value": "={{ $workflow.id }}"
+            },
+            {
+              "name": "n8n_execution_id",
+              "value": "={{ $execution.id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000
+          }
+        }
+      },
+      "id": "error-handler-013",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2440,
+        660
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check for Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Duplicates": {
+      "main": [
+        [
+          {
+            "node": "IF Duplicate SKIP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Duplicate SKIP": {
+      "main": [
+        [
+          {
+            "node": "Update Status (Duplicate Skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Document Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Text": {
+      "main": [
+        [
+          {
+            "node": "Analyze Chunking Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Chunking Strategy": {
+      "main": [
+        [
+          {
+            "node": "IF Analyze Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Analyze Error": {
+      "main": [
+        [
+          {
+            "node": "Use Fallback Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chunk Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Fallback Strategy": {
+      "main": [
+        [
+          {
+            "node": "Chunk Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Document": {
+      "main": [
+        [
+          {
+            "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Store Chunks in Database",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Chunks in Database": {
+      "main": [
+        [
+          {
+            "node": "Update Document Status (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionTimeout": 600,
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "document-processing"
+    },
+    {
+      "name": "rag"
+    },
+    {
+      "name": "knowledge-base"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-23T00:00:00.000Z",
+  "versionId": "1.0.0"
+}

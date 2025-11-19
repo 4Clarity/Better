@@ -29,6 +29,7 @@ export const createProductProgramSchema = z.object({
   dependencies: z.string().optional(),
   securityClassification: z.enum(['UNCLASSIFIED', 'CUI', 'SECRET', 'TOP_SECRET']),
   criticalDates: z.array(criticalDateSchema).default([]),
+  knowledgeContext: z.string().optional(),
 });
 
 export const updateProductProgramSchema = createProductProgramSchema.partial();
@@ -71,6 +72,7 @@ export async function createProductProgram(
         dependencies: data.dependencies || null,
         security_classification: data.securityClassification as SecurityClassification,
         critical_dates: data.criticalDates || [],
+        knowledge_context: data.knowledgeContext || null,
         created_by: userId,
         updated_by: userId,
       },
@@ -228,7 +230,8 @@ export async function updateProductProgram(
     if (data.deliverables !== undefined) updateData.deliverables = data.deliverables;
     if (data.dependencies !== undefined) updateData.dependencies = data.dependencies;
     if (data.criticalDates !== undefined) updateData.critical_dates = data.criticalDates;
-    if (data.securityClassification) {
+    if (data.knowledgeContext !== undefined) updateData.knowledge_context = data.knowledgeContext || null;
+    if (data.securityClassification !== undefined) {
       updateData.security_classification = data.securityClassification as SecurityClassification;
     }
 

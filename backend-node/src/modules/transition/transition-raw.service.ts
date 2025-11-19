@@ -23,6 +23,7 @@ const updateTransitionSchema = z.object({
   contractNumber: z.string().min(1).max(100).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  description: z.string().optional(),
 });
 
 export type UpdateTransitionInput = z.infer<typeof updateTransitionSchema>;
@@ -45,11 +46,13 @@ export type GetTransitionsQuery = z.infer<typeof getTransitionsQuerySchema>;
 
 const transitionResponseSchema = z.object({
   id: z.string(),
+  name: z.string(),
   contractName: z.string(),
   contractNumber: z.string(),
   startDate: z.string(),
   endDate: z.string(),
   status: z.string(),
+  description: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -173,8 +176,8 @@ export async function getTransitions(query: GetTransitionsQuery) {
 
   // Get data with pagination
   const dataQuery = `
-    SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "transitions" 
+    SELECT id, name, "contractName", "contractNumber", "startDate", "endDate", status, description, "createdAt", "updatedAt"
+    FROM "transitions"
     ${whereClause}
     ORDER BY "${sortBy}" ${sortOrder.toUpperCase()}
     LIMIT $${searchValues.length + 1} OFFSET $${searchValues.length + 2}
@@ -200,8 +203,8 @@ export async function getTransitions(query: GetTransitionsQuery) {
 
 export async function getTransitionById(id: string) {
   const transition = await prisma.$queryRaw`
-    SELECT id, "contractName", "contractNumber", "startDate", "endDate", status, "createdAt", "updatedAt"
-    FROM "transitions" 
+    SELECT id, name, "contractName", "contractNumber", "startDate", "endDate", status, description, "createdAt", "updatedAt"
+    FROM "transitions"
     WHERE id = ${id}
   `;
 
@@ -245,6 +248,10 @@ export async function updateTransition(id: string, data: UpdateTransitionInput) 
   if (data.endDate) {
     updateFields.push(`"endDate" = $${valueIndex++}`);
     updateValues.push(new Date(data.endDate));
+  }
+  if (data.description !== undefined) {
+    updateFields.push(`description = $${valueIndex++}`);
+    updateValues.push(data.description || null);
   }
 
   if (updateFields.length === 0) {

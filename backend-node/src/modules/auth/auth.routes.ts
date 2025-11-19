@@ -301,63 +301,61 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/me', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       let user;
-      
-      // Check for development bypass
-      if (process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true') {
-        user = authService.createDemoUser();
-      } else {
-        // SECURITY FIX: Implement proper token validation
-        const authHeader = request.headers.authorization;
-        
-        if (!authHeader) {
-          return reply.code(401).send({
-            error: 'Authentication required',
-            message: 'Authorization header missing',
-          });
-        }
+      const authHeader = request.headers.authorization;
+      const authBypass = process.env.AUTH_BYPASS === 'true' || request.headers['x-auth-bypass'] === 'true';
 
-        // Validate Bearer token format
-        if (!authHeader.startsWith('Bearer ')) {
-          return reply.code(401).send({
-            error: 'Invalid token format',
-            message: 'Authorization header must use Bearer scheme',
-          });
-        }
-
+      // Try to validate token first (even in bypass mode, if token exists)
+      if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        
-        if (!token || token.trim().length === 0) {
+
+        if (token && token.trim().length > 0) {
+          try {
+            // Validate the access token and get real user
+            user = await authService.validateToken(token);
+
+            // Log successful token validation for security monitoring
+            fastify.log.info('Token validation successful', {
+              userId: user.id,
+              ip: request.ip,
+              userAgent: request.headers['user-agent']
+            });
+          } catch (tokenError) {
+            // In bypass mode, fall back to demo user if token validation fails
+            if (authBypass) {
+              user = authService.createDemoUser();
+            } else {
+              // Log failed token validation attempt
+              fastify.log.warn('Token validation failed', {
+                error: tokenError instanceof Error ? tokenError.message : 'Unknown error',
+                ip: request.ip,
+                userAgent: request.headers['user-agent'],
+                timestamp: new Date().toISOString()
+          });
+
+              return reply.code(401).send({
+                error: 'Invalid token',
+                message: 'Token expired or invalid',
+              });
+            }
+          }
+        } else if (authBypass) {
+          // Empty token in bypass mode - use demo user
+          user = authService.createDemoUser();
+        } else {
           return reply.code(401).send({
             error: 'Invalid token',
             message: 'Token is empty',
           });
         }
-
-        try {
-          // Validate the access token
-          user = await authService.validateToken(token);
-          
-          // Log successful token validation for security monitoring
-          fastify.log.info('Token validation successful', {
-            userId: user.id,
-            ip: request.ip,
-            userAgent: request.headers['user-agent']
-          });
-          
-        } catch (tokenError) {
-          // Log failed token validation attempt
-          fastify.log.warn('Token validation failed', {
-            error: tokenError instanceof Error ? tokenError.message : 'Unknown error',
-            ip: request.ip,
-            userAgent: request.headers['user-agent'],
-            timestamp: new Date().toISOString()
-          });
-          
-          return reply.code(401).send({
-            error: 'Invalid token',
-            message: 'Token expired or invalid',
-          });
-        }
+      } else if (authBypass) {
+        // No auth header in bypass mode - use demo user
+        user = authService.createDemoUser();
+      } else {
+        // No auth header and not in bypass mode
+        return reply.code(401).send({
+          error: 'Authentication required',
+          message: 'Authorization header missing',
+        });
       }
 
       return reply.code(200).send({

@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { enhancedTransitionApi, EnhancedTransition } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Wand2 } from "lucide-react";
 
 interface NewEnhancedTransitionDialogProps {
   contractId: string;
@@ -15,10 +17,12 @@ interface NewEnhancedTransitionDialogProps {
 }
 
 export function NewEnhancedTransitionDialog({ contractId, contractName, contractNumber, onTransitionCreated, userRole }: NewEnhancedTransitionDialogProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [useAiPlanning, setUseAiPlanning] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -52,7 +56,7 @@ export function NewEnhancedTransitionDialog({ contractId, contractName, contract
 
       onTransitionCreated(transition);
       setOpen(false);
-      
+
       // Reset form
       setFormData({
         name: '',
@@ -66,6 +70,11 @@ export function NewEnhancedTransitionDialog({ contractId, contractName, contract
         transitionLevel: 'OPERATIONAL',
         createdBy: 'default-user-id',
       });
+
+      // Navigate to AI Planning if option is selected
+      if (useAiPlanning) {
+        navigate(`/transitions/${transition.id}/ai-planning`);
+      }
     } catch (err) {
       console.error('Failed to create transition:', err);
       setError(err instanceof Error ? err.message : 'Failed to create transition');
@@ -215,6 +224,20 @@ export function NewEnhancedTransitionDialog({ contractId, contractName, contract
               className="rounded"
             />
             <Label htmlFor="requiresContinuousService">Requires continuous service</Label>
+          </div>
+
+          <div className="flex items-center space-x-2 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <input
+              id="useAiPlanning"
+              type="checkbox"
+              checked={useAiPlanning}
+              onChange={(e) => setUseAiPlanning(e.target.checked)}
+              className="rounded"
+            />
+            <Label htmlFor="useAiPlanning" className="flex items-center gap-2">
+              <Wand2 className="h-4 w-4 text-blue-600" />
+              Use AI Planning Wizard after creation
+            </Label>
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">

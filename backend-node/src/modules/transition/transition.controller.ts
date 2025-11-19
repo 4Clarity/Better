@@ -57,13 +57,18 @@ export async function getTransitionsHandler(
 ) {
   try {
     const transitions = await getTransitions(request.query, MOCK_USER_ID);
+
+    // Debug logging
+    request.log.info({ dataLength: transitions.data.length }, 'Fetched transitions');
+    request.log.info({ firstTransition: transitions.data[0] }, 'First transition object');
+
     return reply.code(200).send(transitions);
   } catch (error: any) {
     console.error('Get transitions error:', error);
-    return reply.code(500).send({ 
+    return reply.code(500).send({
       statusCode: 500,
       error: 'Internal Server Error',
-      message: 'Failed to fetch transitions' 
+      message: 'Failed to fetch transitions'
     });
   }
 }

@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ContractSelector } from "@/components/ContractSelector";
-import { Edit } from "lucide-react";
+import { Edit, XIcon } from "lucide-react";
+import UserManagementApi, { User } from "@/services/userManagementApi";
 
 interface EditTransitionDialogProps {
   transition: EnhancedTransition;
@@ -15,17 +16,24 @@ interface EditTransitionDialogProps {
   trigger?: React.ReactNode;
 }
 
-export function EditTransitionDialog({ 
-  transition, 
-  onTransitionUpdated, 
+export function EditTransitionDialog({
+  transition,
+  onTransitionUpdated,
   userRole,
-  trigger 
+  trigger
 }: EditTransitionDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  
+
+  // User search and selection
+  const [existingUsers, setExistingUsers] = useState<User[]>([]);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [showUserSearch, setShowUserSearch] = useState(false);
+
   const [formData, setFormData] = useState({
     name: transition.name || '',
     description: transition.description || '',
@@ -45,10 +53,49 @@ export function EditTransitionDialog({
     }
   }, [open, transition.contract]);
 
+  // Fetch existing users
+  useEffect(() => {
+    if (!showUserSearch) return;
+
+    const fetchUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const response = await UserManagementApi.getUsers({
+          page: 1,
+          pageSize: 100,
+          searchTerm: userSearchTerm || undefined,
+          accountStatus: 'ACTIVE'
+        });
+        setExistingUsers(response.users);
+      } catch (err) {
+        console.error('Failed to fetch users:', err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [userSearchTerm, showUserSearch]);
+
   const handleContractSelect = (contract: Contract) => {
     setSelectedContract(contract);
-    // Auto-populate any contract-related fields if needed
     console.log('Selected contract:', contract.contractName, contract.contractNumber);
+  };
+
+  const addUser = (user: User) => {
+    if (!selectedUsers.find(u => u.id === user.id)) {
+      setSelectedUsers([...selectedUsers, user]);
+    }
+    setUserSearchTerm("");
+    setShowUserSearch(false);
+  };
+
+  const removeUser = (userId: string) => {
+    setSelectedUsers(selectedUsers.filter(u => u.id !== userId));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,13 +104,18 @@ export function EditTransitionDialog({
     setError(null);
 
     try {
+      // Convert selected users to a string format for keyPersonnel
+      const keyPersonnelString = selectedUsers.length > 0
+        ? selectedUsers.map(u => `${u.firstName} ${u.lastName} (${u.email})`).join(', ')
+        : formData.keyPersonnel;
+
       // Prepare update data
       const updateData: any = {
         ...formData,
         contractId: selectedContract?.id || transition.contractId,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        keyPersonnel: formData.keyPersonnel || undefined,
+        keyPersonnel: keyPersonnelString || undefined,
         description: formData.description || undefined,
       };
 
@@ -103,7 +155,7 @@ export function EditTransitionDialog({
             Update the transition details and associated contract information.
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -158,7 +210,7 @@ export function EditTransitionDialog({
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="endDate">End Date *</Label>
                 <Input
@@ -220,15 +272,88 @@ export function EditTransitionDialog({
               </select>
             </div>
 
+            {/* Key Personnel - User Selection */}
             <div>
-              <Label htmlFor="keyPersonnel">Key Personnel</Label>
-              <Textarea
-                id="keyPersonnel"
-                value={formData.keyPersonnel}
-                onChange={(e) => setFormData({ ...formData, keyPersonnel: e.target.value })}
-                placeholder="List key personnel involved in this transition..."
-                rows={2}
-              />
+              <div className="flex justify-between items-center mb-2">
+                <Label htmlFor="keyPersonnel">Key Personnel</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowUserSearch(!showUserSearch)}
+                >
+                  {showUserSearch ? 'Cancel' : '+ Add from Users'}
+                </Button>
+              </div>
+
+              {/* Selected Users Display */}
+              {selectedUsers.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {selectedUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
+                    >
+                      <span>{user.firstName} {user.lastName}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeUser(user.id)}
+                        className="hover:bg-blue-200 rounded-full p-0.5"
+                      >
+                        <XIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* User Search */}
+              {showUserSearch && (
+                <div className="mb-3 p-3 border rounded-lg bg-gray-50">
+                  <Label htmlFor="userSearch" className="text-sm">Search System Users</Label>
+                  <Input
+                    id="userSearch"
+                    placeholder="Search by name or email..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    disabled={loadingUsers}
+                    className="mt-1"
+                  />
+                  {userSearchTerm && existingUsers.length > 0 && (
+                    <div className="mt-2 max-h-40 overflow-y-auto border rounded-md bg-white">
+                      {existingUsers.slice(0, 5).map((user) => (
+                        <div
+                          key={user.id}
+                          className="p-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+                          onClick={() => addUser(user)}
+                        >
+                          <div>
+                            <div className="font-medium text-sm">{user.firstName} {user.lastName}</div>
+                            <div className="text-xs text-gray-500">{user.email}</div>
+                          </div>
+                          <Button size="sm" variant="ghost" type="button">Add</Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {userSearchTerm && existingUsers.length === 0 && !loadingUsers && (
+                    <div className="mt-2 p-2 text-sm text-gray-500 text-center">
+                      No users found
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fallback text input for manual entry */}
+              {!showUserSearch && selectedUsers.length === 0 && (
+                <Textarea
+                  id="keyPersonnel"
+                  value={formData.keyPersonnel}
+                  onChange={(e) => setFormData({ ...formData, keyPersonnel: e.target.value })}
+                  placeholder="Or manually enter key personnel names..."
+                  rows={2}
+                />
+              )}
             </div>
 
             <div className="flex items-center space-x-2">
@@ -244,9 +369,9 @@ export function EditTransitionDialog({
           </div>
 
           <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setOpen(false)}
               disabled={loading}
             >

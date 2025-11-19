@@ -121,7 +121,6 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
       subItems: [
         { name: 'Products & Programs', path: '/business-operations/products-programs' },
         { name: 'Transitions', path: '/transitions' },
-        { name: 'Tasks & Milestones', path: '/tasks' },
       ]
     },
     {
@@ -161,6 +160,7 @@ export function Layout({ children, pageTitle = "Dashboard" }: LayoutProps) {
       subItems: [
         { name: 'User Management', path: '/security' },
         { name: 'Roles Capability Matrix', path: '/security/roles-matrix' },
+        { name: 'AI Planning Configuration', path: '/security/ai-planning-config' },
         { name: 'Knowledge Configuration', path: '/knowledge/configuration' },
       ]
     },

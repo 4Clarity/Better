@@ -23,6 +23,8 @@ async function taskRoutes(server) {
     server.get('/', { schema: { querystring: (0, task_service_1.$ref)('getTasksQuerySchema'), response: { 200: (0, task_service_1.$ref)('taskListResponseSchema') } } }, task_controller_1.getTasksHandler);
     // GET /api/transitions/:transitionId/tasks/tree
     server.get('/tree', { schema: { response: { 200: { type: 'object', properties: { data: { type: 'array' } } } } } }, task_controller_1.getTaskTreeHandler);
+    // GET /api/transitions/:transitionId/tasks/combined
+    server.get('/combined', { schema: { response: { 200: { type: 'object', properties: { transitionTasks: { type: 'array' }, productProgramTasks: { type: 'array' }, all: { type: 'array' } } } } } }, task_controller_1.getCombinedTasksHandler);
     // PUT /api/transitions/:transitionId/tasks/:taskId
     server.put('/:taskId', { schema: { params: { type: 'object', properties: { transitionId: { type: 'string' }, taskId: { type: 'string' } }, required: ['taskId', 'transitionId'] }, body: (0, task_service_1.$ref)('updateTaskSchema'), response: { 200: (0, task_service_1.$ref)('taskResponseSchema'), 400: { type: 'object', properties: { statusCode: { type: 'number' }, error: { type: 'string' }, message: { type: 'string' } } } } }, preHandler: pmOnly }, task_controller_1.updateTaskHandler);
     // DELETE /api/transitions/:transitionId/tasks/:taskId

@@ -8,10 +8,12 @@ exports.getTaskById = getTaskById;
 exports.updateTask = updateTask;
 exports.deleteTask = deleteTask;
 exports.getTaskTree = getTaskTree;
+exports.getCombinedTasks = getCombinedTasks;
 exports.moveTask = moveTask;
 const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
 const fastify_zod_1 = require("fastify-zod");
+const crypto_1 = require("crypto");
 const prisma = new client_1.PrismaClient();
 const PriorityEnum = zod_1.z.nativeEnum(client_1.Priority);
 const TaskStatusEnum = zod_1.z.nativeEnum(client_1.TaskStatus);
@@ -19,10 +21,11 @@ const createTaskSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).max(255),
     description: zod_1.z.string().optional(),
     dueDate: zod_1.z.string().datetime(),
-    priority: PriorityEnum.default('MEDIUM'),
-    status: TaskStatusEnum.default('NOT_STARTED'),
+    priority: PriorityEnum.default('Medium'),
+    status: TaskStatusEnum.default('Not_Started'),
     milestoneId: zod_1.z.string().nullable().optional(),
     parentTaskId: zod_1.z.string().nullable().optional(),
+    assignedTo: zod_1.z.string().optional(),
 });
 const updateTaskSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).max(255).optional(),
@@ -32,6 +35,7 @@ const updateTaskSchema = zod_1.z.object({
     status: TaskStatusEnum.optional(),
     milestoneId: zod_1.z.string().nullable().optional(),
     parentTaskId: zod_1.z.string().nullable().optional(),
+    assignedTo: zod_1.z.string().nullable().optional(),
 });
 const getTasksQuerySchema = zod_1.z.object({
     status: TaskStatusEnum.optional(),
@@ -54,6 +58,9 @@ const taskResponseSchema = zod_1.z.object({
     milestoneId: zod_1.z.string().nullable(),
     parentTaskId: zod_1.z.string().nullable(),
     orderIndex: zod_1.z.number().optional(),
+    assignedTo: zod_1.z.string().nullable(),
+    assignedBy: zod_1.z.string(),
+    createdBy: zod_1.z.string(),
     createdAt: zod_1.z.string(),
     updatedAt: zod_1.z.string(),
 });
@@ -77,8 +84,8 @@ _a = (0, fastify_zod_1.buildJsonSchemas)({
     taskListResponseSchema,
     moveTaskSchema: exports.moveTaskSchema,
 }, { $id: 'TaskSchema' }), exports.taskSchemas = _a.schemas, exports.$ref = _a.$ref;
-async function createTask(transitionId, data) {
-    const transition = await prisma.transition.findUnique({ where: { id: transitionId } });
+async function createTask(transitionId, data, userId) {
+    const transition = await prisma.transitions.findUnique({ where: { id: transitionId } });
     if (!transition)
         throw new Error('Transition not found');
     const dueDate = new Date(data.dueDate);
@@ -86,16 +93,25 @@ async function createTask(transitionId, data) {
     now.setHours(0, 0, 0, 0);
     if (dueDate < now)
         throw new Error('Due date cannot be in the past');
-    if (dueDate < transition.startDate || dueDate > transition.endDate)
-        throw new Error('Task due date must be within transition timeframe');
+    // Normalize dates for comparison (compare date-only, ignoring time)
+    const dueDateOnly = new Date(dueDate);
+    dueDateOnly.setHours(0, 0, 0, 0);
+    const startDateOnly = new Date(transition.startDate);
+    startDateOnly.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(transition.endDate);
+    endDateOnly.setHours(0, 0, 0, 0);
+    if (dueDateOnly < startDateOnly || dueDateOnly > endDateOnly) {
+        const formatDate = (date) => date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        throw new Error(`Task due date must be between ${formatDate(startDateOnly)} and ${formatDate(endDateOnly)} (transition timeframe)`);
+    }
     // Idempotency: same title + dueDate + transitionId returns existing
-    const existing = await prisma.task.findFirst({ where: { transitionId, title: data.title, dueDate } });
+    const existing = await prisma.tasks.findFirst({ where: { transitionId, title: data.title, dueDate } });
     if (existing)
         return existing;
     // Validate parent task if provided and compute orderIndex
     let parentTaskId = null;
     if (data.parentTaskId) {
-        const parent = await prisma.task.findUnique({ where: { id: data.parentTaskId } });
+        const parent = await prisma.tasks.findUnique({ where: { id: data.parentTaskId } });
         if (!parent || parent.transitionId !== transitionId)
             throw new Error('Parent task must belong to the same transition');
         parentTaskId = parent.id;
@@ -103,16 +119,35 @@ async function createTask(transitionId, data) {
     // Validate milestone if provided
     let milestoneId = null;
     if (data.milestoneId) {
-        const ms = await prisma.milestone.findUnique({ where: { id: data.milestoneId } });
+        const ms = await prisma.milestones.findUnique({ where: { id: data.milestoneId } });
         if (!ms)
             throw new Error('Milestone not found');
         if (ms.transitionId !== transitionId)
             throw new Error('Milestone must belong to the same transition');
         milestoneId = ms.id;
     }
-    const lastSibling = await prisma.task.findFirst({ where: { transitionId, parentTaskId }, orderBy: { orderIndex: 'desc' } });
+    const lastSibling = await prisma.tasks.findFirst({ where: { transitionId, parentTaskId }, orderBy: { orderIndex: 'desc' } });
     const orderIndex = lastSibling ? lastSibling.orderIndex + 1 : 0;
-    const task = await prisma.task.create({ data: { title: data.title, description: data.description, dueDate, priority: data.priority ?? 'MEDIUM', status: data.status ?? 'NOT_STARTED', transitionId, milestoneId, parentTaskId, orderIndex } });
+    const task = await prisma.tasks.create({
+        data: {
+            id: (0, crypto_1.randomUUID)(),
+            title: data.title,
+            description: data.description,
+            dueDate,
+            priority: data.priority ?? 'Medium',
+            status: data.status ?? 'Not_Started',
+            transitionId,
+            milestoneId,
+            parentTaskId,
+            orderIndex,
+            assignedTo: data.assignedTo || null,
+            assignedBy: userId,
+            createdBy: userId,
+            updatedAt: new Date(),
+            isRecurring: false,
+            percentComplete: 0,
+        }
+    });
     return task;
 }
 async function getTasks(transitionId, query) {
@@ -134,19 +169,19 @@ async function getTasks(transitionId, query) {
         where.status = { not: 'COMPLETED' };
     }
     const [data, total] = await prisma.$transaction([
-        prisma.task.findMany({ where, skip, take: limit, orderBy: { [sortBy]: sortOrder } }),
-        prisma.task.count({ where })
+        prisma.tasks.findMany({ where, skip, take: limit, orderBy: { [sortBy]: sortOrder } }),
+        prisma.tasks.count({ where })
     ]);
     return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 async function getTaskById(taskId) {
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await prisma.tasks.findUnique({ where: { id: taskId } });
     if (!task)
         throw new Error('Task not found');
     return task;
 }
 async function updateTask(taskId, data) {
-    const existing = await prisma.task.findUnique({ where: { id: taskId } });
+    const existing = await prisma.tasks.findUnique({ where: { id: taskId } });
     if (!existing)
         throw new Error('Task not found');
     if (data.dueDate) {
@@ -155,43 +190,69 @@ async function updateTask(taskId, data) {
         now.setHours(0, 0, 0, 0);
         if (dueDate < now)
             throw new Error('Due date cannot be in the past');
-        const transition = await prisma.transition.findUnique({ where: { id: existing.transitionId } });
-        if (transition && (dueDate < transition.startDate || dueDate > transition.endDate))
-            throw new Error('Task due date must be within transition timeframe');
+        const transition = await prisma.transitions.findUnique({ where: { id: existing.transitionId } });
+        if (transition) {
+            // Normalize dates for comparison (compare date-only, ignoring time)
+            const dueDateOnly = new Date(dueDate);
+            dueDateOnly.setHours(0, 0, 0, 0);
+            const startDateOnly = new Date(transition.startDate);
+            startDateOnly.setHours(0, 0, 0, 0);
+            const endDateOnly = new Date(transition.endDate);
+            endDateOnly.setHours(0, 0, 0, 0);
+            if (dueDateOnly < startDateOnly || dueDateOnly > endDateOnly) {
+                const formatDate = (date) => date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                throw new Error(`Task due date must be between ${formatDate(startDateOnly)} and ${formatDate(endDateOnly)} (transition timeframe)`);
+            }
+        }
     }
     // Validate parentTask changes if provided
     if (data.parentTaskId !== undefined && data.parentTaskId !== null) {
-        const parent = await prisma.task.findUnique({ where: { id: data.parentTaskId } });
+        const parent = await prisma.tasks.findUnique({ where: { id: data.parentTaskId } });
         if (!parent || parent.transitionId !== existing.transitionId)
             throw new Error('Parent task must belong to the same transition');
     }
     // Validate milestone changes if provided
     if (data.milestoneId !== undefined && data.milestoneId !== null) {
-        const ms = await prisma.milestone.findUnique({ where: { id: data.milestoneId } });
+        const ms = await prisma.milestones.findUnique({ where: { id: data.milestoneId } });
         if (!ms)
             throw new Error('Milestone not found');
         if (ms.transitionId !== existing.transitionId)
             throw new Error('Milestone must belong to the same transition');
     }
-    const updateData = { title: data.title, description: data.description, priority: data.priority, status: data.status, milestoneId: data.milestoneId ?? undefined, parentTaskId: data.parentTaskId ?? undefined };
+    const updateData = {};
+    if (data.title !== undefined)
+        updateData.title = data.title;
+    if (data.description !== undefined)
+        updateData.description = data.description;
+    if (data.priority !== undefined)
+        updateData.priority = data.priority;
+    if (data.status !== undefined)
+        updateData.status = data.status;
+    if (data.milestoneId !== undefined)
+        updateData.milestoneId = data.milestoneId || null;
+    if (data.parentTaskId !== undefined)
+        updateData.parentTaskId = data.parentTaskId || null;
+    if (data.assignedTo !== undefined)
+        updateData.assignedTo = data.assignedTo || null;
     if (data.dueDate)
         updateData.dueDate = new Date(data.dueDate);
-    return prisma.task.update({ where: { id: taskId }, data: updateData });
+    return prisma.tasks.update({ where: { id: taskId }, data: updateData });
 }
 async function deleteTask(taskId) {
-    const existing = await prisma.task.findUnique({ where: { id: taskId } });
+    const existing = await prisma.tasks.findUnique({ where: { id: taskId } });
     if (!existing)
         throw new Error('Task not found');
-    await prisma.auditLog.deleteMany({ where: { entityType: 'task', entityId: taskId } });
-    await prisma.task.delete({ where: { id: taskId } });
+    // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+    // await prisma.auditLog.deleteMany({ where: { entityType: 'task', entityId: taskId }});
+    await prisma.tasks.delete({ where: { id: taskId } });
     // Compact orderIndex for remaining siblings
-    const siblings = await prisma.task.findMany({ where: { transitionId: existing.transitionId, parentTaskId: existing.parentTaskId ?? null }, orderBy: { orderIndex: 'asc' } });
-    await Promise.all(siblings.map((s, i) => prisma.task.update({ where: { id: s.id }, data: { orderIndex: i } })));
+    const siblings = await prisma.tasks.findMany({ where: { transitionId: existing.transitionId, parentTaskId: existing.parentTaskId ?? null }, orderBy: { orderIndex: 'asc' } });
+    await Promise.all(siblings.map((s, i) => prisma.tasks.update({ where: { id: s.id }, data: { orderIndex: i } })));
     return { message: 'Task deleted' };
 }
 // Hierarchical tree and sequence numbers
 async function getTaskTree(transitionId) {
-    const tasks = await prisma.task.findMany({ where: { transitionId }, orderBy: [{ parentTaskId: 'asc' }, { orderIndex: 'asc' }] });
+    const tasks = await prisma.tasks.findMany({ where: { transitionId }, orderBy: [{ parentTaskId: 'asc' }, { orderIndex: 'asc' }] });
     const byParent = new Map();
     tasks.forEach(t => {
         const key = (t.parentTaskId ?? null);
@@ -216,21 +277,72 @@ async function getTaskTree(transitionId) {
     computeSeq(roots);
     return roots;
 }
+// Get combined tasks (transition + product program)
+async function getCombinedTasks(transitionId) {
+    // Get the transition to find its product program
+    const transition = await prisma.transitions.findUnique({
+        where: { id: transitionId },
+        select: { id: true, productProgramId: true }
+    });
+    if (!transition) {
+        throw new Error('Transition not found');
+    }
+    // Fetch transition-level tasks
+    const transitionTasks = await prisma.tasks.findMany({
+        where: { transitionId },
+        orderBy: [{ parentTaskId: 'asc' }, { orderIndex: 'asc' }]
+    });
+    // Transform transition tasks to include source type
+    const transitionTasksWithType = transitionTasks.map(task => ({
+        ...task,
+        sourceType: 'transition',
+        sourceName: 'Transition Tasks'
+    }));
+    // Fetch product program tasks if available
+    let productProgramTasks = [];
+    if (transition.productProgramId) {
+        const ppTasks = await prisma.product_program_tasks.findMany({
+            where: { product_program_id: transition.productProgramId },
+            orderBy: [{ status: 'asc' }, { due_date: 'asc' }]
+        });
+        // Transform product program tasks to match transition task structure
+        productProgramTasks = ppTasks.map(task => ({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status === 'TODO' ? 'Not_Started' : task.status === 'IN_PROGRESS' ? 'In_Progress' : task.status === 'COMPLETED' ? 'Completed' : 'Cancelled',
+            priority: 'Medium', // Product program tasks don't have priority, use default
+            dueDate: task.due_date,
+            assignedTo: task.assigned_to,
+            createdAt: task.created_at,
+            updatedAt: task.updated_at,
+            sourceType: 'product_program',
+            sourceName: 'Product/Program Tasks',
+            originalStatus: task.status, // Keep original for reference
+            completedAt: task.completed_at,
+        }));
+    }
+    return {
+        transitionTasks: transitionTasksWithType,
+        productProgramTasks,
+        all: [...productProgramTasks, ...transitionTasksWithType]
+    };
+}
 // Move/reorder task
 // (moveTaskSchema and MoveTaskInput declared above)
 async function moveTask(transitionId, taskId, body) {
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const task = await prisma.tasks.findUnique({ where: { id: taskId } });
     if (!task || task.transitionId !== transitionId)
         throw new Error('Task not found');
     const newParent = body.parentTaskId === undefined ? task.parentTaskId : (body.parentTaskId ?? null);
     const newMilestone = body.milestoneId === undefined ? task.milestoneId : (body.milestoneId ?? null);
     if (newParent) {
-        const parent = await prisma.task.findUnique({ where: { id: newParent } });
+        const parent = await prisma.tasks.findUnique({ where: { id: newParent } });
         if (!parent || parent.transitionId !== transitionId)
             throw new Error('Parent task must belong to the same transition');
     }
     // Compute target index in new sibling group
-    const siblings = await prisma.task.findMany({ where: { transitionId, parentTaskId: newParent ?? null, NOT: { id: taskId } }, orderBy: { orderIndex: 'asc' } });
+    const siblings = await prisma.tasks.findMany({ where: { transitionId, parentTaskId: newParent ?? null, NOT: { id: taskId } }, orderBy: { orderIndex: 'asc' } });
     let targetIndex = siblings.length;
     if (body.beforeTaskId) {
         const idx = siblings.findIndex(s => s.id === body.beforeTaskId);
@@ -251,20 +363,20 @@ async function moveTask(transitionId, taskId, body) {
         const s = siblings[i];
         const newIdx = i >= targetIndex ? i + 1 : i;
         if (s.orderIndex !== newIdx)
-            ops.push(prisma.task.update({ where: { id: s.id }, data: { orderIndex: newIdx } }));
+            ops.push(prisma.tasks.update({ where: { id: s.id }, data: { orderIndex: newIdx } }));
     }
     // Compact old group if parent changed
     if (task.parentTaskId !== newParent) {
-        const oldSiblings = await prisma.task.findMany({ where: { transitionId, parentTaskId: task.parentTaskId ?? null, NOT: { id: taskId } }, orderBy: { orderIndex: 'asc' } });
+        const oldSiblings = await prisma.tasks.findMany({ where: { transitionId, parentTaskId: task.parentTaskId ?? null, NOT: { id: taskId } }, orderBy: { orderIndex: 'asc' } });
         for (let i = 0; i < oldSiblings.length; i++) {
             const s = oldSiblings[i];
             if (s.orderIndex !== i)
-                ops.push(prisma.task.update({ where: { id: s.id }, data: { orderIndex: i } }));
+                ops.push(prisma.tasks.update({ where: { id: s.id }, data: { orderIndex: i } }));
         }
     }
     await prisma.$transaction([
         ...ops,
-        prisma.task.update({ where: { id: taskId }, data: { parentTaskId: newParent ?? null, orderIndex: targetIndex, milestoneId: newMilestone } })
+        prisma.tasks.update({ where: { id: taskId }, data: { parentTaskId: newParent ?? null, orderIndex: targetIndex, milestoneId: newMilestone } })
     ]);
-    return prisma.task.findUnique({ where: { id: taskId } });
+    return prisma.tasks.findUnique({ where: { id: taskId } });
 }

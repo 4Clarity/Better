@@ -6,6 +6,7 @@ import {
   updateMilestoneHandler,
   deleteMilestoneHandler,
   bulkDeleteMilestonesHandler,
+  getCombinedMilestonesHandler,
 } from './milestone.controller';
 import { $ref } from './milestone.service';
 
@@ -89,6 +90,41 @@ async function milestoneRoutes(server: FastifyInstance) {
       },
     },
     getMilestonesHandler
+  );
+
+  // GET /api/transitions/:transitionId/milestones/combined - Get combined milestones
+  server.get(
+    '/combined',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: {
+            transitionId: { type: 'string' },
+          },
+          required: ['transitionId'],
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              transitionMilestones: { type: 'array' },
+              productProgramMilestones: { type: 'array' },
+              all: { type: 'array' },
+            },
+          },
+          404: {
+            type: 'object',
+            properties: {
+              statusCode: { type: 'number' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    getCombinedMilestonesHandler
   );
 
   // GET /api/transitions/:transitionId/milestones/:milestoneId - Get specific milestone

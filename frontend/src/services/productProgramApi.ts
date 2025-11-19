@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios from '../lib/axios';
 import {
   ProductProgram,
   CreateProductProgramRequest,
@@ -22,8 +22,15 @@ import {
   LinkToBusinessOperationResponse,
   UnlinkFromBusinessOperationResponse,
 } from '../types/productProgram';
+import {
+  ProductProgramKnowledgeLink,
+  CreateKnowledgeLinkRequest,
+  KnowledgeLinkApiResponse,
+  KnowledgeLinkListApiResponse,
+  DeleteKnowledgeLinkResponse,
+} from '../types/knowledge-link';
 
-const API_BASE_URL = '/api/business-operations/products-programs';
+const API_BASE_URL = '/business-operations/products-programs';
 
 /**
  * Create a new Product/Program
@@ -236,7 +243,7 @@ export const assignTransitionToProductProgram = async (
 ): Promise<TransitionSummary> => {
   try {
     const response = await axios.put<AssignTransitionResponse>(
-      `/api/transitions/${transitionId}/product-program`,
+      `/transitions/${transitionId}/product-program`,
       data
     );
     return response.data.data;
@@ -259,7 +266,7 @@ export const removeTransitionFromProductProgram = async (
 ): Promise<void> => {
   try {
     await axios.delete<RemoveTransitionResponse>(
-      `/api/transitions/${transitionId}/product-program`
+      `/transitions/${transitionId}/product-program`
     );
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -350,13 +357,103 @@ export const getProgramsProductsByBusinessOperation = async (
 ): Promise<ProductProgram[]> => {
   try {
     const response = await axios.get<{ success: boolean; data: ProductProgram[] }>(
-      `/api/business-operations/${businessOperationId}/programs-products`
+      `/business-operations/${businessOperationId}/programs-products`
     );
     return response.data.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw new Error(
         error.response?.data?.message || 'Failed to fetch programs and products'
+      );
+    }
+    throw error;
+  }
+};
+
+// Knowledge Link Management API Methods (Story 4.3)
+
+/**
+ * Link a knowledge item to a Product/Program
+ * @param productProgramId - ID of the product/program
+ * @param data - Request body containing knowledgeItemId and linkType
+ */
+export const linkKnowledgeItem = async (
+  productProgramId: string,
+  data: CreateKnowledgeLinkRequest
+): Promise<ProductProgramKnowledgeLink> => {
+  try {
+    const response = await axios.post<KnowledgeLinkApiResponse>(
+      `${API_BASE_URL}/${productProgramId}/knowledge-links`,
+      data
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to link knowledge item'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get all knowledge links for a Product/Program
+ * @param productProgramId - ID of the product/program
+ */
+export const getKnowledgeLinks = async (
+  productProgramId: string
+): Promise<ProductProgramKnowledgeLink[]> => {
+  try {
+    const response = await axios.get<KnowledgeLinkListApiResponse>(
+      `${API_BASE_URL}/${productProgramId}/knowledge-links`
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to fetch knowledge links'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Search knowledge links by knowledge item ID
+ * @param knowledgeItemId - ID of the knowledge item
+ */
+export const searchKnowledgeLinksByItemId = async (
+  knowledgeItemId: string
+): Promise<ProductProgramKnowledgeLink[]> => {
+  try {
+    const response = await axios.get<KnowledgeLinkListApiResponse>(
+      `/business-operations/knowledge-links/search?knowledgeItemId=${knowledgeItemId}`
+    );
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to search knowledge links'
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Unlink a knowledge item from a Product/Program
+ * @param linkId - ID of the knowledge link
+ */
+export const unlinkKnowledgeItem = async (linkId: string): Promise<void> => {
+  try {
+    await axios.delete<DeleteKnowledgeLinkResponse>(
+      `/business-operations/knowledge-links/${linkId}`
+    );
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message || 'Failed to unlink knowledge item'
       );
     }
     throw error;

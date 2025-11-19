@@ -1,0 +1,683 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import MilestoneManager from '../MilestoneManager';
+import * as milestoneApi from '../../../services/milestoneApi';
+import { MilestoneStatus } from '../../../types/milestone';
+
+// Mock the milestone API
+vi.mock('../../../services/milestoneApi');
+
+const mockMilestoneApi = milestoneApi as any;
+
+describe('MilestoneManager', () => {
+  const defaultProps = {
+    productProgramId: 'test-product-id',
+    canEdit: true,
+  };
+
+  const mockMilestones = [
+    {
+      id: 'milestone-1',
+      productProgramId: 'test-product-id',
+      title: 'Phase 1 Completion',
+      description: 'Complete initial design phase',
+      targetDate: '2024-12-31T00:00:00Z',
+      status: MilestoneStatus.IN_PROGRESS,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    },
+    {
+      id: 'milestone-2',
+      productProgramId: 'test-product-id',
+      title: 'Project Launch',
+      description: 'Official project launch',
+      targetDate: '2025-03-15T00:00:00Z',
+      status: MilestoneStatus.ACHIEVED,
+      achievedAt: '2025-03-10T00:00:00Z',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2025-03-10T00:00:00Z',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMilestoneApi.getMilestones.mockResolvedValue(mockMilestones);
+    mockMilestoneApi.createMilestone.mockResolvedValue({
+      id: 'new-milestone-id',
+      productProgramId: 'test-product-id',
+      title: 'New Milestone',
+      description: 'New description',
+      targetDate: '2024-12-31T00:00:00Z',
+      status: MilestoneStatus.UPCOMING,
+      createdAt: '2024-01-15T00:00:00Z',
+      updatedAt: '2024-01-15T00:00:00Z',
+    });
+    mockMilestoneApi.updateMilestone.mockResolvedValue({
+      ...mockMilestones[0],
+      title: 'Updated Milestone',
+    });
+    mockMilestoneApi.deleteMilestone.mockResolvedValue(undefined);
+    mockMilestoneApi.markMilestoneAchieved.mockResolvedValue({
+      ...mockMilestones[0],
+      status: MilestoneStatus.ACHIEVED,
+      achievedAt: '2024-01-15T00:00:00Z',
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('Rendering', () => {
+    it('should render loading state initially', () => {
+      render(<MilestoneManager {...defaultProps} />);
+      expect(screen.getByRole('img', { hidden: true })).toBeInTheDocument();
+    });
+
+    it('should render milestones after loading', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Project Launch')).toBeInTheDocument();
+      expect(screen.getByText('1 of 2 milestones achieved')).toBeInTheDocument();
+    });
+
+    it('should show empty state when no milestones exist', async () => {
+      mockMilestoneApi.getMilestones.mockResolvedValue([]);
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/No milestones yet. Click "Add Milestone" to create one./i)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('should show Add Milestone button when canEdit is true', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+    });
+
+    it('should not show Add Milestone button when canEdit is false', async () => {
+      render(<MilestoneManager {...defaultProps} canEdit={false} />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Add Milestone')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should display milestone status badges', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('IN PROGRESS')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('ACHIEVED')).toBeInTheDocument();
+    });
+
+    it('should display target dates', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Dec 31, 2024/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/Mar 15, 2025/i)).toBeInTheDocument();
+    });
+
+    it('should display achieved date for achieved milestones', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Achieved on Mar 10, 2025/i)).toBeInTheDocument();
+      });
+    });
+
+    it('should sort milestones by target date', async () => {
+      const unsortedMilestones = [
+        {
+          ...mockMilestones[1],
+          targetDate: '2025-06-01T00:00:00Z',
+        },
+        {
+          ...mockMilestones[0],
+          targetDate: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      mockMilestoneApi.getMilestones.mockResolvedValue(unsortedMilestones);
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        const milestoneElements = screen.getAllByText(/Completion|Launch/);
+        expect(milestoneElements[0]).toHaveTextContent('Phase 1 Completion');
+        expect(milestoneElements[1]).toHaveTextContent('Project Launch');
+      });
+    });
+
+    it('should hide action buttons when canEdit is false', async () => {
+      render(<MilestoneManager {...defaultProps} canEdit={false} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const buttons = screen.queryAllByRole('button');
+      expect(buttons).toHaveLength(0);
+    });
+  });
+
+  describe('Milestone Creation', () => {
+    it('should open create dialog when Add Milestone is clicked', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Milestone');
+      await user.click(addButton);
+
+      expect(screen.getByText('Create New Milestone')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Milestone title')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Milestone description')
+      ).toBeInTheDocument();
+    });
+
+    it('should create a milestone successfully', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Milestone');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Milestone title');
+      const descriptionInput = screen.getByPlaceholderText(
+        'Milestone description'
+      );
+      const targetDateInput = screen.getByLabelText('Target Date');
+      const createButton = screen.getByText('Create Milestone');
+
+      await user.type(titleInput, 'New Milestone');
+      await user.type(descriptionInput, 'New description');
+      await user.type(targetDateInput, '2024-12-31');
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(mockMilestoneApi.createMilestone).toHaveBeenCalledWith(
+          'test-product-id',
+          {
+            title: 'New Milestone',
+            description: 'New description',
+            targetDate: '2024-12-31',
+            status: MilestoneStatus.UPCOMING,
+          }
+        );
+      });
+    });
+
+    it('should close dialog and reset form after successful creation', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Milestone');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Milestone title');
+      const createButton = screen.getByText('Create Milestone');
+
+      await user.type(titleInput, 'New Milestone');
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Create New Milestone')
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it('should handle create milestone error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      mockMilestoneApi.createMilestone.mockRejectedValue(
+        new Error('Creation failed')
+      );
+
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Milestone');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Milestone title');
+      const createButton = screen.getByText('Create Milestone');
+
+      await user.type(titleInput, 'New Milestone');
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to create milestone:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should cancel milestone creation and reset form', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Milestone');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Milestone title');
+      await user.type(titleInput, 'Test Input');
+
+      const cancelButton = screen.getByText('Cancel');
+      await user.click(cancelButton);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Create New Milestone')
+        ).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Milestone Editing', () => {
+    it('should open edit dialog when Edit button is clicked', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const editButton = within(milestoneCard!).getAllByRole('button')[1]; // Second button is Edit
+      await user.click(editButton);
+
+      expect(screen.getByText('Edit Milestone')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Phase 1 Completion')).toBeInTheDocument();
+      expect(
+        screen.getByDisplayValue('Complete initial design phase')
+      ).toBeInTheDocument();
+    });
+
+    it('should update milestone successfully', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const editButton = within(milestoneCard!).getAllByRole('button')[1];
+      await user.click(editButton);
+
+      const titleInput = screen.getByDisplayValue('Phase 1 Completion');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'Updated Milestone');
+
+      const saveButton = screen.getByText('Save Changes');
+      await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(mockMilestoneApi.updateMilestone).toHaveBeenCalledWith(
+          'milestone-1',
+          {
+            title: 'Updated Milestone',
+            description: 'Complete initial design phase',
+            targetDate: '2024-12-31',
+            status: MilestoneStatus.IN_PROGRESS,
+          }
+        );
+      });
+    });
+
+    it('should handle update milestone error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      mockMilestoneApi.updateMilestone.mockRejectedValue(
+        new Error('Update failed')
+      );
+
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const editButton = within(milestoneCard!).getAllByRole('button')[1];
+      await user.click(editButton);
+
+      const saveButton = screen.getByText('Save Changes');
+      await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to update milestone:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should cancel edit and reset form', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const editButton = within(milestoneCard!).getAllByRole('button')[1];
+      await user.click(editButton);
+
+      const titleInput = screen.getByDisplayValue('Phase 1 Completion');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'Changed Title');
+
+      const cancelButton = screen.getByText('Cancel');
+      await user.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Edit Milestone')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Milestone Achievement', () => {
+    it('should mark milestone as achieved', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const achievedButton = within(milestoneCard!).getAllByRole('button')[0]; // First button is Mark Achieved
+      await user.click(achievedButton);
+
+      await waitFor(() => {
+        expect(mockMilestoneApi.markMilestoneAchieved).toHaveBeenCalledWith(
+          'milestone-1'
+        );
+      });
+    });
+
+    it('should not show mark achieved button for already achieved milestones', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Launch')).toBeInTheDocument();
+      });
+
+      const achievedMilestoneCard = screen
+        .getByText('Project Launch')
+        .closest('div.flex-1.border.rounded-lg');
+      const buttons = within(achievedMilestoneCard!).getAllByRole('button');
+
+      // Should only have Edit and Delete buttons, not Mark Achieved button
+      expect(buttons).toHaveLength(2);
+    });
+
+    it('should handle mark achieved error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      mockMilestoneApi.markMilestoneAchieved.mockRejectedValue(
+        new Error('Mark achieved failed')
+      );
+
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const achievedButton = within(milestoneCard!).getAllByRole('button')[0];
+      await user.click(achievedButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to mark milestone achieved:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('Milestone Deletion', () => {
+    it('should delete milestone after confirmation', async () => {
+      const user = userEvent.setup();
+      window.confirm = vi.fn(() => true);
+
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const deleteButton = within(milestoneCard!).getAllByRole('button')[2]; // Third button is Delete
+      await user.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockMilestoneApi.deleteMilestone).toHaveBeenCalledWith(
+          'milestone-1'
+        );
+      });
+    });
+
+    it('should not delete milestone if confirmation is cancelled', async () => {
+      const user = userEvent.setup();
+      window.confirm = vi.fn(() => false);
+
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const deleteButton = within(milestoneCard!).getAllByRole('button')[2];
+      await user.click(deleteButton);
+
+      expect(mockMilestoneApi.deleteMilestone).not.toHaveBeenCalled();
+    });
+
+    it('should handle delete milestone error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      window.confirm = vi.fn(() => true);
+      mockMilestoneApi.deleteMilestone.mockRejectedValue(
+        new Error('Delete failed')
+      );
+
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Phase 1 Completion')).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const deleteButton = within(milestoneCard!).getAllByRole('button')[2];
+      await user.click(deleteButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to delete milestone:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('Milestone Status Selection', () => {
+    it('should allow selecting different milestone statuses', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Milestone')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Milestone');
+      await user.click(addButton);
+
+      const statusSelect = screen.getAllByRole('combobox')[0];
+      await user.click(statusSelect);
+
+      // Check that all status options are available
+      expect(screen.getByText('UPCOMING')).toBeInTheDocument();
+      expect(screen.getByText('IN PROGRESS')).toBeInTheDocument();
+      expect(screen.getByText('ACHIEVED')).toBeInTheDocument();
+      expect(screen.getByText('MISSED')).toBeInTheDocument();
+      expect(screen.getByText('CANCELLED')).toBeInTheDocument();
+    });
+  });
+
+  describe('Progress Counter', () => {
+    it('should calculate milestone achievement correctly', async () => {
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('1 of 2 milestones achieved')
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('should update progress counter after marking milestone achieved', async () => {
+      const user = userEvent.setup();
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('1 of 2 milestones achieved')
+        ).toBeInTheDocument();
+      });
+
+      const milestoneCard = screen
+        .getByText('Phase 1 Completion')
+        .closest('div.flex-1.border.rounded-lg');
+      const achievedButton = within(milestoneCard!).getAllByRole('button')[0];
+      await user.click(achievedButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('2 of 2 milestones achieved')
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('should show 0 of 0 when no milestones exist', async () => {
+      mockMilestoneApi.getMilestones.mockResolvedValue([]);
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('0 of 0 milestones achieved')
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Overdue Status', () => {
+    it('should show OVERDUE badge for past due milestones', async () => {
+      const overdueMilestone = {
+        ...mockMilestones[0],
+        targetDate: '2020-01-01T00:00:00Z', // Past date
+        status: MilestoneStatus.IN_PROGRESS,
+      };
+
+      mockMilestoneApi.getMilestones.mockResolvedValue([overdueMilestone]);
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('OVERDUE')).toBeInTheDocument();
+      });
+    });
+
+    it('should not show OVERDUE badge for achieved milestones regardless of date', async () => {
+      const achievedMilestone = {
+        ...mockMilestones[0],
+        targetDate: '2020-01-01T00:00:00Z', // Past date
+        status: MilestoneStatus.ACHIEVED,
+        achievedAt: '2020-01-01T00:00:00Z',
+      };
+
+      mockMilestoneApi.getMilestones.mockResolvedValue([achievedMilestone]);
+      render(<MilestoneManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('ACHIEVED')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText('OVERDUE')).not.toBeInTheDocument();
+    });
+  });
+});

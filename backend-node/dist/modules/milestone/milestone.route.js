@@ -76,6 +76,36 @@ async function milestoneRoutes(server) {
             },
         },
     }, milestone_controller_1.getMilestonesHandler);
+    // GET /api/transitions/:transitionId/milestones/combined - Get combined milestones
+    server.get('/combined', {
+        schema: {
+            params: {
+                type: 'object',
+                properties: {
+                    transitionId: { type: 'string' },
+                },
+                required: ['transitionId'],
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        transitionMilestones: { type: 'array' },
+                        productProgramMilestones: { type: 'array' },
+                        all: { type: 'array' },
+                    },
+                },
+                404: {
+                    type: 'object',
+                    properties: {
+                        statusCode: { type: 'number' },
+                        error: { type: 'string' },
+                        message: { type: 'string' },
+                    },
+                },
+            },
+        },
+    }, milestone_controller_1.getCombinedMilestonesHandler);
     // GET /api/transitions/:transitionId/milestones/:milestoneId - Get specific milestone
     server.get('/:milestoneId', {
         schema: {

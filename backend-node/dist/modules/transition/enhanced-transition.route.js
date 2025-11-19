@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const enhanced_transition_controller_1 = require("./enhanced-transition.controller");
+const auth_middleware_1 = require("../auth/auth.middleware");
 const errorSchema = {
     type: 'object',
     properties: {
@@ -137,6 +138,7 @@ async function enhancedTransitionRoutes(server) {
                     businessOperationId: { type: 'string' },
                     search: { type: 'string' },
                     status: { type: 'string', enum: ['NOT_STARTED', 'ON_TRACK', 'AT_RISK', 'BLOCKED', 'COMPLETED'] },
+                    transitionLevel: { type: 'string', enum: ['MAJOR', 'PERSONNEL', 'OPERATIONAL'] },
                     page: { type: 'number', minimum: 1, default: 1 },
                     limit: { type: 'number', minimum: 1, maximum: 100, default: 10 },
                     sortBy: { type: 'string', enum: ['name', 'startDate', 'endDate', 'status', 'createdAt'], default: 'createdAt' },
@@ -188,6 +190,22 @@ async function enhancedTransitionRoutes(server) {
             },
         },
     }, enhanced_transition_controller_1.getLegacyTransitionsHandler);
+    // GET /api/enhanced-transitions/counts - Get transition counts by level
+    server.get('/counts', {
+        schema: {
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        major: { type: 'number' },
+                        personnel: { type: 'number' },
+                        operational: { type: 'number' },
+                        total: { type: 'number' },
+                    },
+                },
+            },
+        },
+    }, enhanced_transition_controller_1.getTransitionCountsHandler);
     // GET /api/enhanced-transitions/:id - Get specific enhanced transition
     server.get('/:id', {
         schema: {
@@ -206,6 +224,7 @@ async function enhancedTransitionRoutes(server) {
     }, enhanced_transition_controller_1.getEnhancedTransitionByIdHandler);
     // PUT /api/enhanced-transitions/:id - Update enhanced transition
     server.put('/:id', {
+        onRequest: [auth_middleware_1.authenticate],
         schema: {
             params: {
                 type: 'object',
@@ -240,6 +259,7 @@ async function enhancedTransitionRoutes(server) {
             response: {
                 200: transitionResponseSchema,
                 400: errorSchema,
+                401: errorSchema,
                 404: errorSchema,
             },
         },
@@ -315,22 +335,6 @@ async function enhancedTransitionRoutes(server) {
         },
     }, enhanced_transition_controller_1.updateMilestoneStatusHandler);
     // Level-specific routes
-    // GET /api/enhanced-transitions/counts - Get transition counts by level
-    server.get('/counts', {
-        schema: {
-            response: {
-                200: {
-                    type: 'object',
-                    properties: {
-                        major: { type: 'number' },
-                        personnel: { type: 'number' },
-                        operational: { type: 'number' },
-                        total: { type: 'number' },
-                    },
-                },
-            },
-        },
-    }, enhanced_transition_controller_1.getTransitionCountsHandler);
     // POST /api/enhanced-transitions/major - Create major transition
     server.post('/major', {
         schema: {

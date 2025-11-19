@@ -25,17 +25,28 @@ export interface ProductProgram {
   objectives: string;
   deliverables: string;
   dependencies: string | null;
-  securityClassification: SecurityClassification;
-  criticalDates: CriticalDate[];
-  business_operation_type?: BusinessOperationType;
+  securityClassification?: SecurityClassification;
+  security_classification?: string; // Backend returns snake_case
+  criticalDates?: CriticalDate[];
+  critical_dates?: any[]; // Backend returns snake_case
+  knowledge_context?: string | null; // Story 4.3
+  business_operation_type?: BusinessOperationType | string;
   business_operation_id?: string | null;
   business_operation?: BusinessOperationSummary;
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string;
-  updatedBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+  created_at?: string; // Backend returns snake_case
+  updated_at?: string; // Backend returns snake_case
+  createdBy?: string;
+  updatedBy?: string;
+  created_by?: string; // Backend returns snake_case
+  updated_by?: string; // Backend returns snake_case
   createdByUser?: User;
   updatedByUser?: User;
+  _count?: {
+    transitions?: number;
+    product_program_stakeholders?: number;
+  };
 }
 
 export interface CreateProductProgramRequest {
@@ -56,6 +67,7 @@ export interface UpdateProductProgramRequest {
   dependencies?: string | null;
   securityClassification?: SecurityClassification;
   criticalDates?: CriticalDate[];
+  knowledgeContext?: string | null; // Story 4.3
 }
 
 export interface ProductProgramFilters {

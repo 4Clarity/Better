@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RoadmapWidget } from "../widgets/RoadmapWidget";
 import { MetricCard } from "../widgets/MetricCard";
 import { ProcessFlow } from "../widgets/ProcessFlowStep";
@@ -8,11 +8,13 @@ import {
   MessageCircleIcon,
   BookOpenIcon,
   SendIcon,
+  LoaderIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { dashboardApi, IncomingContractorDashboard as IncomingContractorDashboardData } from "@/services/dashboardApi";
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -21,6 +23,9 @@ interface ChatMessage {
 }
 
 export function IncomingContractorDashboard() {
+  const [dashboardData, setDashboardData] = useState<IncomingContractorDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
@@ -30,51 +35,62 @@ export function IncomingContractorDashboard() {
   ]);
   const [inputMessage, setInputMessage] = useState("");
 
-  // Placeholder data
-  const learningRoadmap = [
-    { title: "System Overview", description: "Architecture & components", status: 'complete' as const },
-    { title: "Network Ops", description: "Core procedures", status: 'complete' as const },
-    { title: "Security Protocols", description: "Access & compliance", status: 'in-progress' as const },
-    { title: "Incident Response", description: "Handling procedures", status: 'not-started' as const },
-    { title: "Advanced Topics", description: "Deep dive sessions", status: 'not-started' as const },
-  ];
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        const data = await dashboardApi.getIncomingContractorDashboard();
+        setDashboardData(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const elementsToMaster = [
-    { id: 1, label: "Network Infrastructure Fundamentals", progress: 100, category: "Core" },
-    { id: 2, label: "VPN Configuration & Management", progress: 100, category: "Core" },
-    { id: 3, label: "Firewall Rules & Security Policies", progress: 75, category: "Core" },
-    { id: 4, label: "Incident Detection & Response", progress: 45, category: "Security" },
-    { id: 5, label: "System Monitoring Tools", progress: 30, category: "Operations" },
-    { id: 6, label: "Compliance Documentation", progress: 20, category: "Security" },
-    { id: 7, label: "Advanced Troubleshooting", progress: 0, category: "Advanced" },
-  ];
+    fetchDashboardData();
+  }, []);
 
-  const learningResources = [
-    {
-      title: "Network Operations Manual",
-      description: "Complete guide to network procedures",
-      type: "Document",
-      updated: "2 days ago",
-    },
-    {
-      title: "Security Compliance Training",
-      description: "DOD security requirements overview",
-      type: "Video",
-      updated: "1 week ago",
-    },
-    {
-      title: "System Architecture Diagrams",
-      description: "Visual infrastructure documentation",
-      type: "Diagram",
-      updated: "3 days ago",
-    },
-    {
-      title: "Incident Response Playbook",
-      description: "Step-by-step response procedures",
-      type: "Document",
-      updated: "5 days ago",
-    },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoaderIcon className="w-8 h-8 animate-spin text-blue-600" />
+        <span className="ml-2 text-lg">Loading dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <p className="text-red-600 mb-4">{error || 'Failed to load dashboard'}</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Transform API data to component format
+  const learningRoadmap = dashboardData.learningRoadmap.map(module => ({
+    title: module.module,
+    description: '',
+    status: module.status
+  }));
+
+  const elementsToMaster = dashboardData.skillsToMaster.map((skill, idx) => ({
+    id: idx + 1,
+    label: skill.skill,
+    progress: skill.progress,
+    category: "Core"
+  }));
+
+  const learningResources = dashboardData.learningResources.map(resource => ({
+    title: resource.title,
+    description: '',
+    type: resource.type === 'video' ? 'Video' : 'Document',
+    updated: 'Recently',
+  }));
 
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
@@ -119,26 +135,24 @@ export function IncomingContractorDashboard() {
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard
-          value={`${totalProgress}%`}
+          value={`${dashboardData.metrics.overallProgress}%`}
           label="Overall Progress"
           gradient="from-blue-500 to-cyan-500"
-          trend={{ direction: 'up', percentage: 18 }}
         />
         <MetricCard
-          value="3"
+          value={dashboardData.metrics.modulesCompleted.toString()}
           label="Modules Completed"
           gradient="from-green-500 to-teal-500"
         />
         <MetricCard
-          value="15"
+          value={dashboardData.metrics.hoursLogged.toString()}
           label="Hours Logged"
           gradient="from-purple-500 to-pink-500"
         />
         <MetricCard
-          value="92%"
+          value={`${dashboardData.metrics.quizAverage}%`}
           label="Quiz Average"
           gradient="from-orange-500 to-amber-500"
-          trend={{ direction: 'up', percentage: 5 }}
         />
       </div>
 

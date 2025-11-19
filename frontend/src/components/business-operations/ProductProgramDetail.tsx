@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   getProductProgramById,
   deleteProductProgram,
+  updateProductProgram,
 } from '@/services/productProgramApi';
 import { ProductProgram, SecurityClassification } from '@/types/productProgram';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -10,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 import { StakeholderManager } from './StakeholderManager';
 import { TransitionManager } from './TransitionManager';
-import { BusinessOperationLink } from './BusinessOperationLink';
+import KnowledgeLinkManager from './KnowledgeLinkManager';
+import KnowledgeContextEditor from './KnowledgeContextEditor';
 
 interface ProductProgramDetailProps {
   id: string;
@@ -72,6 +74,20 @@ export function ProductProgramDetail({ id }: ProductProgramDetailProps) {
       setError(errorMessage);
       setDeleting(false);
       setShowDeleteDialog(false);
+    }
+  };
+
+  const handleSaveKnowledgeContext = async (context: string) => {
+    if (!productProgram) return;
+
+    try {
+      const updated = await updateProductProgram(productProgram.id, {
+        knowledgeContext: context,
+      });
+      setProductProgram(updated);
+    } catch (err) {
+      console.error('Failed to update knowledge context:', err);
+      throw err;
     }
   };
 
@@ -249,12 +265,16 @@ export function ProductProgramDetail({ id }: ProductProgramDetailProps) {
         {/* Transitions (Story 4.2 - Phase 2) */}
         <TransitionManager productProgramId={productProgram.id} />
 
-        {/* Business Operation Link (Story 4.2 - Phase 3) */}
-        <BusinessOperationLink
+        {/* Knowledge Context (Story 4.3) */}
+        <KnowledgeContextEditor
           productProgramId={productProgram.id}
-          currentBusinessOperation={productProgram.business_operation}
-          onUpdate={fetchProductProgram}
+          initialContext={productProgram.knowledge_context}
+          canEdit={canEdit}
+          onSave={handleSaveKnowledgeContext}
         />
+
+        {/* Knowledge Links (Story 4.3) */}
+        <KnowledgeLinkManager productProgramId={productProgram.id} canEdit={canEdit} />
 
         {/* Metadata */}
         <div className="border rounded-lg p-6 bg-card">

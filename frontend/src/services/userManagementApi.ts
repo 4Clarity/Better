@@ -29,6 +29,8 @@ export interface Person {
   professionalSummary?: string;
   securityClearanceLevel?: 'None' | 'Public_Trust' | 'Confidential' | 'Secret' | 'Top_Secret' | 'TS_SCI';
   clearanceExpirationDate?: string;
+  pivStatus?: 'None' | 'Active' | 'Expired' | 'Suspended' | 'Pending';
+  pivExpirationDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -126,6 +128,7 @@ export interface SecurityDashboard {
   activeUsers: number;
   pendingInvitations: number;
   expiringSecurity: number;
+  pivStatusCounts: Record<string, number>;
   clearanceLevelCounts: Record<string, number>;
   recentActivity: {
     id: string;
@@ -474,6 +477,47 @@ export class UserManagementApi {
     return this.request(`/transitions/${transitionId}/users/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  // Admin password reset functionality
+  static async resetUserPassword(userId: string, options: {
+    generateTemporary?: boolean;
+    customPassword?: string;
+    forceChangeOnLogin?: boolean;
+  } = {}): Promise<{
+    success: boolean;
+    temporaryPassword?: string;
+    message: string;
+  }> {
+    return this.request(`/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  }
+
+  // Force user to change password on next login
+  static async forcePasswordChange(userId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.request(`/admin/users/${userId}/force-password-change`, {
+      method: 'POST',
+    });
+  }
+
+  // Get password reset history
+  static async getPasswordResetHistory(userId: string): Promise<{
+    success: boolean;
+    history?: Array<{
+      resetAt: Date;
+      resetBy: string;
+      resetByUser?: { person: { firstName: string; lastName: string; primaryEmail: string } };
+    }>;
+    message: string;
+  }> {
+    return this.request(`/admin/users/${userId}/password-reset-history`, {
+      method: 'GET',
     });
   }
 }

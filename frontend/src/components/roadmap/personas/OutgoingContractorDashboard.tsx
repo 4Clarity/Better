@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { RoadmapWidget } from "../widgets/RoadmapWidget";
 import { MetricCard } from "../widgets/MetricCard";
 import { ProcessFlow } from "../widgets/ProcessFlowStep";
@@ -7,58 +8,79 @@ import {
   FileTextIcon,
   UploadIcon,
   CheckCircle2Icon,
+  LoaderIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { dashboardApi, OutgoingContractorDashboard as OutgoingContractorDashboardData } from "@/services/dashboardApi";
 
 export function OutgoingContractorDashboard() {
-  // Placeholder data
-  const taskTransitionTimeline = [
-    { title: "Network Infrastructure", description: "Complete documentation", status: 'complete' as const },
-    { title: "Security Procedures", description: "Knowledge transfer sessions", status: 'in-progress' as const },
-    { title: "Incident Response", description: "Handover protocols", status: 'in-progress' as const },
-    { title: "System Monitoring", description: "Tool training", status: 'not-started' as const },
-    { title: "Final Verification", description: "PM sign-off", status: 'not-started' as const },
-  ];
+  const [dashboardData, setDashboardData] = useState<OutgoingContractorDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const recentActivities = [
-    {
-      title: "Uploaded Network Topology Diagrams",
-      description: "Complete set of network diagrams with annotations for all production systems.",
-      timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 mins ago
-      status: 'completed' as const,
-      author: "Henry Hou",
-    },
-    {
-      title: "Knowledge Transfer Session - Security Protocols",
-      description: "Completed 2-hour training session with incoming team on security procedures.",
-      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
-      status: 'completed' as const,
-      author: "Henry Hou",
-    },
-    {
-      title: "Documentation Review Meeting",
-      description: "Reviewed documentation completeness with PM and identified 3 gaps.",
-      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-      status: 'completed' as const,
-      author: "System",
-    },
-  ];
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        const data = await dashboardApi.getOutgoingContractorDashboard();
+        setDashboardData(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const verificationChecklist = [
-    { id: 1, label: "All documentation uploaded to knowledge base", completed: true, required: true },
-    { id: 2, label: "Knowledge transfer sessions completed", completed: true, required: true },
-    { id: 3, label: "System access credentials documented", completed: true, required: true },
-    { id: 4, label: "Incident response procedures reviewed", completed: false, required: true },
-    { id: 5, label: "Tool training sessions conducted", completed: false, required: true },
-    { id: 6, label: "Outstanding issues documented", completed: false, required: false },
-    { id: 7, label: "Final handover meeting scheduled", completed: false, required: true },
-  ];
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoaderIcon className="w-8 h-8 animate-spin text-pink-600" />
+        <span className="ml-2 text-lg">Loading dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <p className="text-red-600 mb-4">{error || 'Failed to load dashboard'}</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Transform API data to component format
+  const taskTransitionTimeline = dashboardData.handoverTimeline.map(item => ({
+    title: item.title,
+    description: '',
+    status: item.status
+  }));
+
+  const recentActivities = dashboardData.activityLog.map(item => ({
+    title: item.title,
+    description: item.description,
+    timestamp: new Date(item.timestamp),
+    status: item.status as 'completed' | 'pending' | 'in-progress',
+    author: '',
+  }));
+
+  const verificationChecklist = dashboardData.verificationChecklist.map((item, idx) => ({
+    id: idx + 1,
+    label: item.text,
+    completed: item.completed,
+    required: true,
+  }));
 
   const completedItems = verificationChecklist.filter(item => item.completed).length;
   const totalItems = verificationChecklist.length;
-  const progressPercentage = Math.round((completedItems / totalItems) * 100);
+  const progressPercentage = dashboardData.metrics.handoverComplete;
 
   return (
     <div className="space-y-6">
@@ -79,13 +101,12 @@ export function OutgoingContractorDashboard() {
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard
-          value="28"
+          value={dashboardData.metrics.documentsUploaded.toString()}
           label="Documents Uploaded"
           gradient="from-pink-500 to-rose-500"
-          trend={{ direction: 'up', percentage: 15 }}
         />
         <MetricCard
-          value="6"
+          value={dashboardData.metrics.trainingSessions.toString()}
           label="Training Sessions"
           gradient="from-orange-500 to-amber-500"
         />
@@ -95,7 +116,7 @@ export function OutgoingContractorDashboard() {
           gradient="from-green-500 to-teal-500"
         />
         <MetricCard
-          value="12"
+          value={dashboardData.metrics.daysRemaining.toString()}
           label="Days Remaining"
           gradient="from-blue-500 to-cyan-500"
         />

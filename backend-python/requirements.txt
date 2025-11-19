@@ -5,3 +5,26 @@ pydantic-ai
 sqlalchemy
 sqlmodel
 psycopg2-binary
+google-generativeai
+requests
+
+# Document Processing
+docling
+PyPDF2
+python-docx
+beautifulsoup4
+lxml
+pillow
+
+# Vector Database & Embeddings
+pgvector
+tiktoken
+
+# Object Storage
+minio
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock

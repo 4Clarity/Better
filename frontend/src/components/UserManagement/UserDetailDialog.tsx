@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +47,14 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
   const [error, setError] = useState<string | null>(null);
   const [editingPersonal, setEditingPersonal] = useState(false);
   const [editingSecurity, setEditingSecurity] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
+  const [newTemporaryPassword, setNewTemporaryPassword] = useState<string | null>(null);
+  const [forcePasswordChange, setForcePasswordChange] = useState(true);
+  const [showReactivationDialog, setShowReactivationDialog] = useState(false);
+  const [reactivationNote, setReactivationNote] = useState('');
+  const [reactivating, setReactivating] = useState(false);
   const [personalFormData, setPersonalFormData] = useState<any>({});
   const [securityFormData, setSecurityFormData] = useState<any>({});
 
@@ -132,12 +141,113 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
 
   const handleResendInvitation = async () => {
     if (!user) return;
-    
+
     try {
       await UserManagementApi.resendInvitation(user.id);
       alert('Invitation resent successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resend invitation');
+    }
+  };
+
+  const handleToggleAccountStatus = async (isActive: boolean) => {
+    if (!user) return;
+
+    try {
+      setTogglingStatus(true);
+      setError(null);
+
+      // Determine new status based on toggle and current status
+      let newStatus: string;
+      let reason: string;
+
+      if (isActive) {
+        // Turning on - set to Active (regardless of previous state)
+        newStatus = 'Active';
+        reason = 'Account activated by administrator';
+      } else {
+        // Turning off - set to Deactivated
+        newStatus = 'Deactivated';
+        reason = 'Account deactivated by administrator';
+      }
+
+      await UserManagementApi.updateUserStatus(user.id, {
+        accountStatus: newStatus as any,
+        statusReason: reason,
+      });
+
+      // Reload user to get updated status
+      await loadUser();
+      onUserUpdate?.({ ...user, accountStatus: newStatus as any });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update account status');
+      // Reload to revert UI to actual state
+      await loadUser();
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!user) return;
+
+    try {
+      setResettingPassword(true);
+      setError(null);
+
+      const result = await UserManagementApi.resetUserPassword(user.id, {
+        generateTemporary: true,
+        forceChangeOnLogin: forcePasswordChange,
+      });
+
+      if (result.success && result.temporaryPassword) {
+        setNewTemporaryPassword(result.temporaryPassword);
+        setShowPasswordResetDialog(true);
+        await loadUser();
+      } else {
+        setError(result.message || 'Failed to reset password');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleReactivateAccount = async () => {
+    if (!user || !reactivationNote.trim()) {
+      setError('Please enter a reactivation note');
+      return;
+    }
+
+    try {
+      setReactivating(true);
+      setError(null);
+
+      await UserManagementApi.reactivateUser(user.id, reactivationNote);
+
+      // Close dialog and reload
+      setShowReactivationDialog(false);
+      setReactivationNote('');
+      await loadUser();
+      onUserUpdate?.({ ...user, accountStatus: 'Active' as any });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reactivate account');
+    } finally {
+      setReactivating(false);
+    }
+  };
+
+  const getToggleColorClass = (status: string) => {
+    switch (status) {
+      case 'Active':
+        return 'data-[state=checked]:bg-green-500';
+      case 'Pending':
+        return 'data-[state=checked]:bg-gray-400';
+      case 'Deactivated':
+        return 'data-[state=checked]:bg-black';
+      default:
+        return 'data-[state=checked]:bg-primary';
     }
   };
 
@@ -221,18 +331,121 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
                   </div>
                 </div>
               </div>
-              
-              <div className="flex flex-col space-y-2">
+
+              <div className="flex flex-col space-y-3">
+                {/* Account Status Toggle */}
+                {(user.accountStatus === 'Active' || user.accountStatus === 'Deactivated' || user.accountStatus === 'Pending') && (
+                  <div className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div className="flex flex-col">
+                      <Label htmlFor="account-status-toggle" className="text-sm font-medium cursor-pointer">
+                        Account Status
+                      </Label>
+                      <span className="text-xs text-gray-500">
+                        {user.accountStatus}
+                      </span>
+                    </div>
+                    <Switch
+                      id="account-status-toggle"
+                      checked={user.accountStatus === 'Active' || user.accountStatus === 'Pending'}
+                      onCheckedChange={handleToggleAccountStatus}
+                      disabled={togglingStatus}
+                      className={getToggleColorClass(user.accountStatus)}
+                    />
+                  </div>
+                )}
+
                 {user.accountStatus === 'PENDING' && (
                   <Button onClick={handleResendInvitation} variant="outline" size="sm">
                     Resend Invitation
                   </Button>
                 )}
-                <Badge variant={getPivStatusColor(user.person.pivStatus) as any}>
+
+                {/* Reactivation Button for Deactivated Accounts */}
+                {user.accountStatus === 'Deactivated' && (
+                  <Button
+                    onClick={() => setShowReactivationDialog(true)}
+                    variant="default"
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Reactivate Account
+                  </Button>
+                )}
+
+                <Badge variant={getPivStatusColor(user.person.pivStatus) as any} className="justify-center">
                   PIV: {user.person.pivStatus ? user.person.pivStatus.replace('PIV_', '').replace(/_/g, ' ') : 'Not Set'}
                 </Badge>
               </div>
             </div>
+
+            {/* Reactivation Dialog */}
+            {showReactivationDialog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <CheckCircle className="w-6 h-6 text-green-500" />
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Reactivate Account
+                    </h3>
+                  </div>
+
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    You are about to reactivate <strong>{user.person.firstName} {user.person.lastName}</strong>'s account.
+                    Please provide an administrative note explaining the reason for reactivation.
+                  </p>
+
+                  <div className="mb-4">
+                    <Label htmlFor="reactivation-note" className="text-sm font-medium mb-2 block">
+                      Administrative Note *
+                    </Label>
+                    <textarea
+                      id="reactivation-note"
+                      value={reactivationNote}
+                      onChange={(e) => setReactivationNote(e.target.value)}
+                      placeholder="e.g., User returned to active duty, clearance renewed, etc."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white min-h-[100px]"
+                      required
+                    />
+                    {!reactivationNote.trim() && (
+                      <p className="text-xs text-red-500 mt-1">This field is required</p>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleReactivateAccount}
+                      disabled={reactivating || !reactivationNote.trim()}
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      {reactivating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Reactivating...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Confirm Reactivation
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowReactivationDialog(false);
+                        setReactivationNote('');
+                      }}
+                      variant="outline"
+                      disabled={reactivating}
+                      className="flex-1"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <Tabs defaultValue="personal" className="w-full">
               <TabsList className="grid w-full grid-cols-4">
@@ -585,6 +798,91 @@ export function UserDetailDialog({ userId, isOpen, onOpenChange, onUserUpdate }:
                           <p>Last updated: {formatDate(user.updatedAt)}</p>
                           {user.lastLoginAt && (
                             <p>Last login: {formatDate(user.lastLoginAt)}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Password Reset Section */}
+                      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-orange-200 dark:border-orange-800">
+                        <h4 className="font-medium mb-3 flex items-center space-x-2">
+                          <Shield className="w-5 h-5 text-orange-500" />
+                          <span>Password Management</span>
+                        </h4>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="force-password-change"
+                              checked={forcePasswordChange}
+                              onChange={(e) => setForcePasswordChange(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <Label htmlFor="force-password-change" className="text-sm cursor-pointer">
+                              Require password change on next login
+                            </Label>
+                          </div>
+
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleResetPassword}
+                            disabled={resettingPassword}
+                            className="w-full"
+                          >
+                            {resettingPassword ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                Resetting Password...
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="w-4 h-4 mr-2" />
+                                Reset Password
+                              </>
+                            )}
+                          </Button>
+
+                          {showPasswordResetDialog && newTemporaryPassword && (
+                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                              <div className="flex items-start space-x-2 mb-2">
+                                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                  <h5 className="font-semibold text-yellow-800 dark:text-yellow-200">Temporary Password Generated</h5>
+                                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                                    Share this password with the user securely. They will be required to change it on next login.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-yellow-300 dark:border-yellow-700">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temporary Password:</p>
+                                <code className="text-lg font-mono font-bold text-gray-900 dark:text-white break-all">
+                                  {newTemporaryPassword}
+                                </code>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(newTemporaryPassword);
+                                  alert('Password copied to clipboard');
+                                }}
+                                className="w-full mt-2"
+                              >
+                                Copy to Clipboard
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setShowPasswordResetDialog(false);
+                                  setNewTemporaryPassword(null);
+                                }}
+                                className="w-full mt-1"
+                              >
+                                Close
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>

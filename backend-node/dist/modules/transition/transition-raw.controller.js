@@ -6,6 +6,8 @@ exports.getTransitionByIdHandler = getTransitionByIdHandler;
 exports.updateTransitionHandler = updateTransitionHandler;
 exports.updateTransitionStatusHandler = updateTransitionStatusHandler;
 exports.deleteTransitionHandler = deleteTransitionHandler;
+exports.assignTransitionToProductProgramHandler = assignTransitionToProductProgramHandler;
+exports.removeTransitionFromProductProgramHandler = removeTransitionFromProductProgramHandler;
 const transition_raw_service_1 = require("./transition-raw.service");
 async function createTransitionHandler(request, reply) {
     try {
@@ -148,6 +150,76 @@ async function deleteTransitionHandler(request, reply) {
             statusCode: 500,
             error: 'Internal Server Error',
             message: 'Failed to delete transition'
+        });
+    }
+}
+// ============================================
+// Product/Program Categorization Handlers
+// Story 4.2 - Phase 2
+// ============================================
+async function assignTransitionToProductProgramHandler(request, reply) {
+    try {
+        const { id } = request.params;
+        const { productProgramId } = request.body;
+        const transition = await (0, transition_raw_service_1.assignToProductProgram)(id, productProgramId);
+        return reply.code(200).send({
+            success: true,
+            data: transition,
+        });
+    }
+    catch (error) {
+        console.error('Assign transition to product/program error:', error);
+        if (error.message === 'Transition not found') {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        if (error.message === 'Product/Program not found') {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        return reply.code(500).send({
+            statusCode: 500,
+            error: 'Internal Server Error',
+            message: 'Failed to assign transition to product/program'
+        });
+    }
+}
+async function removeTransitionFromProductProgramHandler(request, reply) {
+    try {
+        const { id } = request.params;
+        const transition = await (0, transition_raw_service_1.removeFromProductProgram)(id);
+        return reply.code(200).send({
+            success: true,
+            message: 'Transition unassigned from product/program',
+            data: transition,
+        });
+    }
+    catch (error) {
+        console.error('Remove transition from product/program error:', error);
+        if (error.message === 'Transition not found') {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        if (error.message === 'Transition is not assigned to any Product/Program') {
+            return reply.code(400).send({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: error.message
+            });
+        }
+        return reply.code(500).send({
+            statusCode: 500,
+            error: 'Internal Server Error',
+            message: 'Failed to remove transition from product/program'
         });
     }
 }

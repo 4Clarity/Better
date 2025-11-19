@@ -71,7 +71,7 @@ async function createTransition(data) {
         throw new Error('End date must be after start date');
     }
     try {
-        const transition = await prisma.transition.create({
+        const transition = await prisma.transitions.create({
             data: {
                 contractName: data.contractName,
                 contractNumber: data.contractNumber,
@@ -99,13 +99,13 @@ async function getTransitions(query) {
         ];
     }
     const [data, total] = await prisma.$transaction([
-        prisma.transition.findMany({
+        prisma.transitions.findMany({
             where,
             skip,
             take: limit,
             orderBy: { [sortBy]: sortOrder },
         }),
-        prisma.transition.count({ where }),
+        prisma.transitions.count({ where }),
     ]);
     return {
         data,
@@ -118,7 +118,7 @@ async function getTransitions(query) {
     };
 }
 async function getTransitionById(id) {
-    const transition = await prisma.transition.findUnique({
+    const transition = await prisma.transitions.findUnique({
         where: { id },
     });
     if (!transition) {
@@ -127,7 +127,7 @@ async function getTransitionById(id) {
     return transition;
 }
 async function updateTransition(id, data) {
-    const existingTransition = await prisma.transition.findUnique({
+    const existingTransition = await prisma.transitions.findUnique({
         where: { id },
     });
     if (!existingTransition) {
@@ -147,7 +147,7 @@ async function updateTransition(id, data) {
     if (data.endDate)
         updateData.endDate = new Date(data.endDate);
     try {
-        const updatedTransition = await prisma.transition.update({
+        const updatedTransition = await prisma.transitions.update({
             where: { id },
             data: updateData,
         });
@@ -161,26 +161,26 @@ async function updateTransition(id, data) {
     }
 }
 async function updateTransitionStatus(id, data) {
-    const existingTransition = await prisma.transition.findUnique({
+    const existingTransition = await prisma.transitions.findUnique({
         where: { id },
     });
     if (!existingTransition) {
         throw new Error('Transition not found');
     }
-    const updatedTransition = await prisma.transition.update({
+    const updatedTransition = await prisma.transitions.update({
         where: { id },
         data: { status: data.status },
     });
     return updatedTransition;
 }
 async function deleteTransition(id) {
-    const existingTransition = await prisma.transition.findUnique({
+    const existingTransition = await prisma.transitions.findUnique({
         where: { id },
     });
     if (!existingTransition) {
         throw new Error('Transition not found');
     }
-    await prisma.transition.delete({
+    await prisma.transitions.delete({
         where: { id },
     });
     return { message: 'Transition deleted successfully' };

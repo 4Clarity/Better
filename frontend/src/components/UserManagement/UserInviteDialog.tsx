@@ -9,12 +9,13 @@ import { UserPlus, Mail, User, Shield, Building } from 'lucide-react';
 
 interface UserInviteDialogProps {
   onInvite: (invitationData: any) => void;
+  currentUserId?: string | null;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
 }
 
-export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: UserInviteDialogProps) {
+export function UserInviteDialog({ onInvite, currentUserId, isOpen, onOpenChange, trigger }: UserInviteDialogProps) {
   const [formData, setFormData] = useState({
     // Person data
     firstName: '',
@@ -102,7 +103,7 @@ export function UserInviteDialog({ onInvite, isOpen, onOpenChange, trigger }: Us
         username: formData.username,
         password: formData.password,
         roles: formData.roles,
-        invitedBy: 'current-user-id', // This should come from auth context
+        invitedBy: currentUserId || 'system', // Use actual current user ID or 'system' as fallback
       },
       // Only include organizationAffiliation if organizationId is provided
       ...(formData.organizationId && {

@@ -40,6 +40,17 @@ export type CreateBusinessOperationInput = z.infer<typeof createBusinessOperatio
 export type UpdateBusinessOperationInput = z.infer<typeof updateBusinessOperationSchema>;
 export type GetBusinessOperationsQuery = z.infer<typeof getBusinessOperationsQuerySchema>;
 
+// Helper function to transform user data from database format to API format
+function transformUserResponse(dbUser: any) {
+  if (!dbUser) return undefined;
+  return {
+    id: dbUser.id,
+    firstName: dbUser.person?.firstName || '',
+    lastName: dbUser.person?.lastName || '',
+    email: dbUser.person?.primaryEmail || '',
+  };
+}
+
 // Transform database snake_case to API camelCase
 function transformBusinessOperationResponse(dbOperation: any) {
   return {
@@ -62,10 +73,10 @@ function transformBusinessOperationResponse(dbOperation: any) {
     updatedAt: dbOperation.updated_at,
     createdBy: dbOperation.created_by,
     updatedBy: dbOperation.updated_by,
-    // Include relations if present
-    governmentPM: dbOperation.users_business_operations_government_pm_idTousers,
-    director: dbOperation.users_business_operations_director_idTousers,
-    currentManager: dbOperation.users_business_operations_current_manager_idTousers,
+    // Transform user relations to flatten the person structure
+    governmentPM: transformUserResponse(dbOperation.users_business_operations_government_pm_idTousers),
+    director: transformUserResponse(dbOperation.users_business_operations_director_idTousers),
+    currentManager: transformUserResponse(dbOperation.users_business_operations_current_manager_idTousers),
     _count: dbOperation._count,
   };
 }
@@ -324,6 +335,12 @@ export async function getBusinessOperationById(id: string) {
           person: {
             select: { firstName: true, lastName: true, primaryEmail: true }
           }
+        }
+      },
+      _count: {
+        select: {
+          contracts: true,
+          product_programs: true
         }
       }
     }

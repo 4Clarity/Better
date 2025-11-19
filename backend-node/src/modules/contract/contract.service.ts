@@ -78,11 +78,23 @@ export async function createContract(data: CreateContractInput) {
     throw new Error('Business operation not found');
   }
 
+  // Validate contractor PM if provided
+  let contractorPMId: string | null = null;
+  if (data.contractorPMId && data.contractorPMId.trim() !== '') {
+    const contractorPM = await prisma.user.findUnique({
+      where: { id: data.contractorPMId }
+    });
+    if (!contractorPM) {
+      throw new Error('Contractor PM not found. Please select a valid user.');
+    }
+    contractorPMId = data.contractorPMId;
+  }
+
   try {
     const contract = await prisma.contracts.create({
       data: {
         business_operation_id: data.businessOperationId,
-        contractor_pm_id: data.contractorPMId || null,
+        contractor_pm_id: contractorPMId,
         contract_name: data.contractName,
         contract_number: data.contractNumber,
         contractor_name: data.contractorName,
@@ -111,8 +123,12 @@ export async function createContract(data: CreateContractInput) {
     if (error.code === 'P2002' && error.meta?.target?.includes('contract_number')) {
       throw new Error('Contract number already exists');
     }
+    if (error.code === 'P2003') {
+      // Foreign key constraint violation
+      throw new Error('Invalid reference: Please ensure all selected users exist in the system');
+    }
     console.error('Create contract error:', error);
-    throw new Error('Failed to create contract');
+    throw new Error('Failed to create contract: ' + (error.message || 'Unknown error'));
   }
 }
 
@@ -242,13 +258,25 @@ export async function updateContract(id: string, data: UpdateContractInput) {
     }
   }
 
+  // Validate contractor PM if provided
+  if (data.contractorPMId !== undefined && data.contractorPMId !== null && data.contractorPMId.trim() !== '') {
+    const contractorPM = await prisma.user.findUnique({
+      where: { id: data.contractorPMId }
+    });
+    if (!contractorPM) {
+      throw new Error('Contractor PM not found. Please select a valid user.');
+    }
+  }
+
   try {
     const updateData: any = {};
 
     if (data.contractName) updateData.contract_name = data.contractName;
     if (data.contractNumber) updateData.contract_number = data.contractNumber;
     if (data.contractorName) updateData.contractor_name = data.contractorName;
-    if (data.contractorPMId !== undefined) updateData.contractor_pm_id = data.contractorPMId || null;
+    if (data.contractorPMId !== undefined) {
+      updateData.contractor_pm_id = (data.contractorPMId && data.contractorPMId.trim() !== '') ? data.contractorPMId : null;
+    }
     if (data.startDate) updateData.start_date = new Date(data.startDate);
     if (data.endDate) updateData.end_date = new Date(data.endDate);
     if (data.canBeExtended !== undefined) updateData.can_be_extended = data.canBeExtended;
@@ -277,8 +305,12 @@ export async function updateContract(id: string, data: UpdateContractInput) {
     if (error.code === 'P2002' && error.meta?.target?.includes('contract_number')) {
       throw new Error('Contract number already exists');
     }
+    if (error.code === 'P2003') {
+      // Foreign key constraint violation
+      throw new Error('Invalid reference: Please ensure all selected users exist in the system');
+    }
     console.error('Update contract error:', error);
-    throw new Error('Failed to update contract');
+    throw new Error('Failed to update contract: ' + (error.message || 'Unknown error'));
   }
 }
 
@@ -312,6 +344,8 @@ export async function getContractsByBusinessOperation(businessOperationId: strin
       orderBy: { created_at: 'desc' }
     });
 
+    // Note: Transitions are not directly linked to contracts in the current schema
+    // They are linked to product_programs instead. Return contracts without transition counts.
     return contracts.map(transformContract);
   } catch (error: any) {
     console.error('Get contracts by business operation error:', error);

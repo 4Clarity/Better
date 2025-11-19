@@ -70,13 +70,15 @@ Once the containers are running, you can access the different parts of the appli
 - **Python API:** [http://py.tip.localhost](http://py.tip.localhost)
 - **Traefik Dashboard (Reverse Proxy):** [http://localhost:8080](http://localhost:8080)
 - **Keycloak (Authentication):** [http://auth.tip.localhost](http://auth.tip.localhost)
-- **n8n (Workflows):** [http://n8n.tip.localhost](http://n8n.tip.localhost) -localhost:5678 richard@rubyengineering.com | TIPN8N25
-- **MinIO (S3 Storage):** [http://localhost:9001](http://localhost:9001)
+- **n8n (Workflows):** [http://n8n.tip.localhost](http://n8n.tip.localhost) - richard@rubyengineering.com | TIPN8N25
+- **MinIO Storage:** [http://minio.tip.localhost](http://minio.tip.localhost) - Login: miniouser / miniopassword
+- **MailHog:** [http://mail.tip.localhost](http://mail.tip.localhost)
+- **pgAdmin (Database):** [http://pgadmin.tip.localhost](http://pgadmin.tip.localhost) - Login: admin@admin.com / admin
 
 **Note:** You may need to add entries to your `/etc/hosts` file to map these hostnames to your localhost IP address (`127.0.0.1`):
 
 ```text
-127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost
+127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost mail.tip.localhost pgadmin.tip.localhost minio.tip.localhost
 ```
 
 ## 3. Project Structure
@@ -329,7 +331,7 @@ This project uses Cypress for end-to-end (E2E) testing of the UI and integrated 
 - Ensure the stack is running behind Traefik so the hostnames resolve correctly:
   - `docker-compose up -d --build`
 - Ensure these hostnames are present in `/etc/hosts`:
-  - `127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost`
+  - `127.0.0.1 tip.localhost api.tip.localhost py.tip.localhost auth.tip.localhost n8n.tip.localhost mail.tip.localhost pgadmin.tip.localhost minio.tip.localhost`
 
 ### Auth Bypass in Dev
 - The app supports an “Auth Bypass” development mode controlled via a UI toggle (in the left sidebar header). When ON, protected routes accept the header `x-auth-bypass: true`.
@@ -387,3 +389,9 @@ By default, tests assume:
 - https://claudecodecommands.directory/browse
 - https://github.com/anthropics/claude-code-action/tree/main
 - CodeReview Worflow. https://github.com/OneRedOak/claude-code-workflows
+
+## Useful process Statements
+
+- /BMad:agents:sm *Review the following user story for optimized RAG retrieved information summary, accuracy and transparency. Formulate and update the story with an agent
+  parallelization implementation strategy using available MCP's - '/Users/richardroach/Documents/Builder_Projects/Better/docs/stories/2.3.rag-query-ai-powered-answers.story.md'
+  

@@ -6,14 +6,19 @@ exports.getMilestoneByIdHandler = getMilestoneByIdHandler;
 exports.updateMilestoneHandler = updateMilestoneHandler;
 exports.deleteMilestoneHandler = deleteMilestoneHandler;
 exports.bulkDeleteMilestonesHandler = bulkDeleteMilestonesHandler;
+exports.getCombinedMilestonesHandler = getCombinedMilestonesHandler;
 const milestone_service_1 = require("./milestone.service");
-// Mock user ID for now - in real app this would come from JWT token
-const MOCK_USER_ID = 'user_123'; // TODO: Replace with actual auth
+// Helper function to get user ID from request
+function getUserId(request) {
+    // Support x-user-id header for auth bypass mode, otherwise fall back to authenticated user
+    return request.headers['x-user-id'] || request.user?.id || 'user-richard-001';
+}
 async function createMilestoneHandler(request, reply) {
     try {
         const { transitionId } = request.params;
+        const userId = getUserId(request);
         try {
-            const milestone = await (0, milestone_service_1.createMilestone)(transitionId, request.body, MOCK_USER_ID);
+            const milestone = await (0, milestone_service_1.createMilestone)(transitionId, request.body, userId);
             return reply.code(201).send(milestone);
         }
         catch (inner) {
@@ -21,7 +26,7 @@ async function createMilestoneHandler(request, reply) {
             try {
                 const { title, dueDate } = request.body;
                 if (title && dueDate) {
-                    const existing = await (0, milestone_service_1.getMilestones)(transitionId, { page: 1, limit: 100, sortBy: 'dueDate', sortOrder: 'asc' }, MOCK_USER_ID);
+                    const existing = await (0, milestone_service_1.getMilestones)(transitionId, { page: 1, limit: 100, sortBy: 'dueDate', sortOrder: 'asc' }, userId);
                     const found = (existing?.data || []).find((m) => m.title === title && new Date(m.dueDate).toISOString() === new Date(dueDate).toISOString());
                     if (found)
                         return reply.code(201).send(found);
@@ -64,7 +69,8 @@ async function createMilestoneHandler(request, reply) {
 async function getMilestonesHandler(request, reply) {
     try {
         const { transitionId } = request.params;
-        const milestones = await (0, milestone_service_1.getMilestones)(transitionId, request.query, MOCK_USER_ID);
+        const userId = getUserId(request);
+        const milestones = await (0, milestone_service_1.getMilestones)(transitionId, request.query, userId);
         return reply.code(200).send(milestones);
     }
     catch (error) {
@@ -86,7 +92,8 @@ async function getMilestonesHandler(request, reply) {
 async function getMilestoneByIdHandler(request, reply) {
     try {
         const { transitionId, milestoneId } = request.params;
-        const milestone = await (0, milestone_service_1.getMilestoneById)(transitionId, milestoneId, MOCK_USER_ID);
+        const userId = getUserId(request);
+        const milestone = await (0, milestone_service_1.getMilestoneById)(transitionId, milestoneId, userId);
         return reply.code(200).send(milestone);
     }
     catch (error) {
@@ -108,7 +115,8 @@ async function getMilestoneByIdHandler(request, reply) {
 async function updateMilestoneHandler(request, reply) {
     try {
         const { transitionId, milestoneId } = request.params;
-        const milestone = await (0, milestone_service_1.updateMilestone)(transitionId, milestoneId, request.body, MOCK_USER_ID);
+        const userId = getUserId(request);
+        const milestone = await (0, milestone_service_1.updateMilestone)(transitionId, milestoneId, request.body, userId);
         return reply.code(200).send(milestone);
     }
     catch (error) {
@@ -144,7 +152,8 @@ async function updateMilestoneHandler(request, reply) {
 async function deleteMilestoneHandler(request, reply) {
     try {
         const { transitionId, milestoneId } = request.params;
-        const result = await (0, milestone_service_1.deleteMilestone)(transitionId, milestoneId, MOCK_USER_ID);
+        const userId = getUserId(request);
+        const result = await (0, milestone_service_1.deleteMilestone)(transitionId, milestoneId, userId);
         return reply.code(200).send(result);
     }
     catch (error) {
@@ -167,6 +176,7 @@ async function bulkDeleteMilestonesHandler(request, reply) {
     try {
         const { transitionId } = request.params;
         const { milestoneIds } = request.body;
+        const userId = getUserId(request);
         if (!milestoneIds || !Array.isArray(milestoneIds) || milestoneIds.length === 0) {
             return reply.code(400).send({
                 statusCode: 400,
@@ -174,7 +184,7 @@ async function bulkDeleteMilestonesHandler(request, reply) {
                 message: 'milestoneIds array is required and cannot be empty'
             });
         }
-        const result = await (0, milestone_service_1.bulkDeleteMilestones)(transitionId, milestoneIds, MOCK_USER_ID);
+        const result = await (0, milestone_service_1.bulkDeleteMilestones)(transitionId, milestoneIds, userId);
         return reply.code(200).send(result);
     }
     catch (error) {
@@ -197,6 +207,29 @@ async function bulkDeleteMilestonesHandler(request, reply) {
             statusCode: 500,
             error: 'Internal Server Error',
             message: 'Failed to delete milestones'
+        });
+    }
+}
+async function getCombinedMilestonesHandler(request, reply) {
+    try {
+        const { transitionId } = request.params;
+        const userId = getUserId(request);
+        const combined = await (0, milestone_service_1.getCombinedMilestones)(transitionId, userId);
+        return reply.code(200).send(combined);
+    }
+    catch (error) {
+        console.error('Get combined milestones error:', error);
+        if (error.message === 'Transition not found') {
+            return reply.code(404).send({
+                statusCode: 404,
+                error: 'Not Found',
+                message: error.message
+            });
+        }
+        return reply.code(500).send({
+            statusCode: 500,
+            error: 'Internal Server Error',
+            message: 'Failed to fetch combined milestones'
         });
     }
 }

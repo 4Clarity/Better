@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Save, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { UserManagementApi, User } from "@/services/userManagementApi";
 
 export function EditBusinessOperationPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +19,7 @@ export function EditBusinessOperationPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [operation, setOperation] = useState<BusinessOperation | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
 
   // Check if user has permission to edit
   const canEdit = isAdmin || hasRoles(['program_director', 'director']);
@@ -50,8 +53,22 @@ export function EditBusinessOperationPage() {
   useEffect(() => {
     if (id) {
       fetchOperation();
+      fetchUsers();
     }
   }, [id]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await UserManagementApi.getUsers({
+        accountStatus: 'ACTIVE',
+        pageSize: 1000
+      });
+      setUsers(response.users);
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+      // Don't block the form if users can't be fetched
+    }
+  };
 
   const fetchOperation = async () => {
     if (!id) return;
@@ -85,8 +102,8 @@ export function EditBusinessOperationPage() {
         currentContractEnd: operationData.currentContractEnd 
           ? new Date(operationData.currentContractEnd).toISOString().split('T')[0] 
           : '',
-        governmentPMId: operationData.governmentPMId || 'user-dan-001',
-        directorId: operationData.directorId || 'user-dan-001',
+        governmentPMId: operationData.governmentPMId || '',
+        directorId: operationData.directorId || '',
         currentManagerId: operationData.currentManagerId || '',
       });
 
@@ -252,26 +269,78 @@ export function EditBusinessOperationPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="technicalDomain">Technical Domain *</Label>
-                <Input
-                  id="technicalDomain"
-                  value={formData.technicalDomain}
-                  onChange={(e) => setFormData({ ...formData, technicalDomain: e.target.value })}
-                  placeholder="e.g., Web Services"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="currentManagerId">Current Manager (Optional)</Label>
-                <Input
-                  id="currentManagerId"
-                  value={formData.currentManagerId}
-                  onChange={(e) => setFormData({ ...formData, currentManagerId: e.target.value })}
-                  placeholder="Manager ID (optional)"
-                />
+            <div>
+              <Label htmlFor="technicalDomain">Technical Domain *</Label>
+              <Input
+                id="technicalDomain"
+                value={formData.technicalDomain}
+                onChange={(e) => setFormData({ ...formData, technicalDomain: e.target.value })}
+                placeholder="e.g., Web Services"
+                required
+              />
+            </div>
+
+            <div className="space-y-3">
+              <Label>Key Personnel</Label>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="governmentPMId" className="text-sm text-gray-600">Government PM *</Label>
+                  <Select
+                    value={formData.governmentPMId}
+                    onValueChange={(value) => setFormData({ ...formData, governmentPMId: value })}
+                  >
+                    <SelectTrigger id="governmentPMId">
+                      <SelectValue placeholder="Select Government PM" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.firstName} {user.lastName} - {user.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="directorId" className="text-sm text-gray-600">Director *</Label>
+                  <Select
+                    value={formData.directorId}
+                    onValueChange={(value) => setFormData({ ...formData, directorId: value })}
+                  >
+                    <SelectTrigger id="directorId">
+                      <SelectValue placeholder="Select Director" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.firstName} {user.lastName} - {user.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="currentManagerId" className="text-sm text-gray-600">Current Manager (Optional)</Label>
+                  <Select
+                    value={formData.currentManagerId || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, currentManagerId: value === "none" ? "" : value })}
+                  >
+                    <SelectTrigger id="currentManagerId">
+                      <SelectValue placeholder="Select Current Manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.firstName} {user.lastName} - {user.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import { PrismaClient, MilestoneStatus, Priority } from '@prisma/client';
 import { z } from 'zod';
 import { buildJsonSchemas } from 'fastify-zod';
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -13,7 +14,8 @@ const createMilestoneSchema = z.object({
   title: z.string().min(1, "Title is required").max(255),
   description: z.string().optional(),
   dueDate: z.string().datetime(),
-  priority: PriorityEnum.default('MEDIUM'),
+  priority: PriorityEnum.default('Medium'),
+  assignedTo: z.string().optional(),
 });
 
 export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
@@ -25,6 +27,7 @@ const updateMilestoneSchema = z.object({
   dueDate: z.string().datetime().optional(),
   priority: PriorityEnum.optional(),
   status: MilestoneStatusEnum.optional(),
+  assignedTo: z.string().nullable().optional(),
 });
 
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;
@@ -52,6 +55,8 @@ const milestoneResponseSchema = z.object({
   priority: PriorityEnum,
   status: MilestoneStatusEnum,
   transitionId: z.string(),
+  assignedTo: z.string().nullable(),
+  createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
   transition: z.object({
@@ -82,7 +87,7 @@ export const { schemas: milestoneSchemas, $ref } = buildJsonSchemas({
 // Service Functions
 export async function createMilestone(transitionId: string, data: CreateMilestoneInput, userId: string) {
   // Verify the transition exists; allow if no creator recorded (legacy), or creator matches
-  const transition = await prisma.transition.findUnique({ where: { id: transitionId } });
+  const transition = await prisma.transitions.findUnique({ where: { id: transitionId } });
 
   if (!transition) {
     throw new Error('Transition not found');
@@ -97,21 +102,31 @@ export async function createMilestone(transitionId: string, data: CreateMileston
     throw new Error('Due date cannot be in the past');
   }
 
-  // Check if due date is within transition timeframe
-  if (dueDate < transition.startDate || dueDate > transition.endDate) {
-    throw new Error('Milestone due date must be within transition timeframe');
+  // Check if due date is within transition timeframe (normalize dates for comparison)
+  const dueDateOnly = new Date(dueDate);
+  dueDateOnly.setHours(0,0,0,0);
+  const startDateOnly = new Date(transition.startDate);
+  startDateOnly.setHours(0,0,0,0);
+  const endDateOnly = new Date(transition.endDate);
+  endDateOnly.setHours(0,0,0,0);
+
+  if (dueDateOnly < startDateOnly || dueDateOnly > endDateOnly) {
+    const formatDate = (date: Date) => date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    throw new Error(
+      `Milestone target date must be between ${formatDate(startDateOnly)} and ${formatDate(endDateOnly)} (transition timeframe)`
+    );
   }
 
   try {
     // Idempotency guard: avoid accidental duplicates on rapid re-submits
-    const existing = await prisma.milestone.findFirst({
+    const existing = await prisma.milestones.findFirst({
       where: {
         transitionId,
         title: data.title,
         dueDate,
       },
       include: {
-        transition: {
+        transitions: {
           select: { id: true, contractName: true, contractNumber: true },
         },
       },
@@ -120,14 +135,20 @@ export async function createMilestone(transitionId: string, data: CreateMileston
       return existing;
     }
 
-    const milestone = await prisma.milestone.create({
+    const milestone = await prisma.milestones.create({
       data: {
-        ...data,
+        id: randomUUID(),
+        title: data.title,
+        description: data.description,
         dueDate,
+        priority: data.priority ?? 'Medium',
         transitionId,
+        assignedTo: data.assignedTo || null,
+        createdBy: userId,
+        updatedAt: new Date(),
       },
       include: {
-        transition: {
+        transitions: {
           select: {
             id: true,
             contractName: true,
@@ -138,7 +159,8 @@ export async function createMilestone(transitionId: string, data: CreateMileston
     });
 
     // Create audit log
-    await createAuditLog('milestone', milestone.id, 'CREATE', null, milestone, userId);
+    // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+    // await createAuditLog('milestone', milestone.id, 'CREATE', null, milestone, userId);
 
     return milestone;
   } catch (error: any) {
@@ -181,13 +203,13 @@ export async function getMilestones(transitionId: string, query: GetMilestonesQu
   }
 
   const [data, total] = await prisma.$transaction([
-    prisma.milestone.findMany({
+    prisma.milestones.findMany({
       where,
       skip,
       take: limit,
       orderBy: { [sortBy]: sortOrder },
       include: {
-        transition: {
+        transitions: {
           select: {
             id: true,
             contractName: true,
@@ -196,7 +218,7 @@ export async function getMilestones(transitionId: string, query: GetMilestonesQu
         },
       },
     }),
-    prisma.milestone.count({ where }),
+    prisma.milestones.count({ where }),
   ]);
 
   return {
@@ -212,12 +234,12 @@ export async function getMilestones(transitionId: string, query: GetMilestonesQu
 
 export async function getMilestoneById(transitionId: string, milestoneId: string, userId: string) {
 
-  const milestone = await prisma.milestone.findFirst({
+  const milestone = await prisma.milestones.findFirst({
     where: {
       id: milestoneId,
     },
     include: {
-      transition: {
+      transitions: {
         select: {
           id: true,
           contractName: true,
@@ -236,9 +258,9 @@ export async function getMilestoneById(transitionId: string, milestoneId: string
 
 export async function updateMilestone(transitionId: string, milestoneId: string, data: UpdateMilestoneInput, userId: string) {
   // Optionally fetch transition to validate timeframe
-  const transition = await prisma.transition.findUnique({ where: { id: transitionId } });
+  const transition = await prisma.transitions.findUnique({ where: { id: transitionId } });
 
-  const existingMilestone = await prisma.milestone.findUnique({ where: { id: milestoneId } });
+  const existingMilestone = await prisma.milestones.findUnique({ where: { id: milestoneId } });
 
   if (!existingMilestone) {
     throw new Error('Milestone not found');
@@ -254,20 +276,38 @@ export async function updateMilestone(transitionId: string, milestoneId: string,
       throw new Error('Due date cannot be in the past');
     }
 
-    if (transition && (dueDate < transition.startDate || dueDate > transition.endDate)) {
-      throw new Error('Milestone due date must be within transition timeframe');
+    if (transition) {
+      // Normalize dates for comparison (compare date-only, ignoring time)
+      const dueDateOnly = new Date(dueDate);
+      dueDateOnly.setHours(0,0,0,0);
+      const startDateOnly = new Date(transition.startDate);
+      startDateOnly.setHours(0,0,0,0);
+      const endDateOnly = new Date(transition.endDate);
+      endDateOnly.setHours(0,0,0,0);
+
+      if (dueDateOnly < startDateOnly || dueDateOnly > endDateOnly) {
+        const formatDate = (date: Date) => date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        throw new Error(
+          `Milestone target date must be between ${formatDate(startDateOnly)} and ${formatDate(endDateOnly)} (transition timeframe)`
+        );
+      }
     }
   }
 
-  const updateData: any = { ...data };
+  const updateData: any = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.priority !== undefined) updateData.priority = data.priority;
+  if (data.status !== undefined) updateData.status = data.status;
   if (data.dueDate) updateData.dueDate = new Date(data.dueDate);
+  if (data.assignedTo !== undefined) updateData.assignedTo = data.assignedTo || null;
 
   try {
-    const updatedMilestone = await prisma.milestone.update({
+    const updatedMilestone = await prisma.milestones.update({
       where: { id: milestoneId },
       data: updateData,
       include: {
-        transition: {
+        transitions: {
           select: {
             id: true,
             contractName: true,
@@ -278,7 +318,8 @@ export async function updateMilestone(transitionId: string, milestoneId: string,
     });
 
     // Create audit log
-    await createAuditLog('milestone', milestoneId, 'UPDATE', existingMilestone, updatedMilestone, userId);
+    // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+    // await createAuditLog('milestone', milestoneId, 'UPDATE', existingMilestone, updatedMilestone, userId);
 
     return updatedMilestone;
   } catch (error: any) {
@@ -288,7 +329,7 @@ export async function updateMilestone(transitionId: string, milestoneId: string,
 
 export async function deleteMilestone(transitionId: string, milestoneId: string, userId: string) {
 
-  const existingMilestone = await prisma.milestone.findFirst({
+  const existingMilestone = await prisma.milestones.findFirst({
     where: {
       id: milestoneId,
       transitionId,
@@ -303,21 +344,23 @@ export async function deleteMilestone(transitionId: string, milestoneId: string,
   // For now, we'll allow deletion of any milestone
 
   // Remove related audit logs first to avoid FK constraint errors
-  await prisma.auditLog.deleteMany({
-    where: { entityType: 'milestone', entityId: milestoneId },
-  });
+  // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+  // await prisma.auditLog.deleteMany({
+  //   where: { entityType: 'milestone', entityId: milestoneId },
+  // });
 
-  await prisma.milestone.delete({ where: { id: milestoneId } });
+  await prisma.milestones.delete({ where: { id: milestoneId } });
 
   // Create audit log
-  await createAuditLog('milestone', milestoneId, 'DELETE', existingMilestone, null, userId);
+  // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+  // await createAuditLog('milestone', milestoneId, 'DELETE', existingMilestone, null, userId);
 
   return { message: 'Milestone deleted successfully' };
 }
 
 export async function bulkDeleteMilestones(transitionId: string, milestoneIds: string[], userId: string) {
   // Verify the transition exists; allow legacy records without creator
-  const transition = await prisma.transition.findUnique({ where: { id: transitionId } });
+  const transition = await prisma.transitions.findUnique({ where: { id: transitionId } });
 
   if (!transition) {
     throw new Error('Transition not found');
@@ -327,26 +370,85 @@ export async function bulkDeleteMilestones(transitionId: string, milestoneIds: s
   }
 
   // Get existing milestones for audit trail
-  const existingMilestones = await prisma.milestone.findMany({ where: { id: { in: milestoneIds } } });
+  const existingMilestones = await prisma.milestones.findMany({ where: { id: { in: milestoneIds } } });
 
   if (existingMilestones.length !== milestoneIds.length) {
     throw new Error('Some milestones not found');
   }
 
   // Delete related audit logs first to avoid FK constraint errors
-  await prisma.auditLog.deleteMany({
-    where: { entityType: 'milestone', entityId: { in: milestoneIds } },
-  });
+  // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+  // await prisma.auditLog.deleteMany({
+  //   where: { entityType: 'milestone', entityId: { in: milestoneIds } },
+  // });
 
   // Delete milestones
-  await prisma.milestone.deleteMany({ where: { id: { in: milestoneIds } } });
+  await prisma.milestones.deleteMany({ where: { id: { in: milestoneIds } } });
 
   // Create audit logs for each deleted milestone
-  for (const milestone of existingMilestones) {
-    await createAuditLog('milestone', milestone.id, 'DELETE', milestone, null, userId);
-  }
+  // Note: AuditLog model doesn't exist in current schema - audit logging disabled
+  // for (const milestone of existingMilestones) {
+  //   await createAuditLog('milestone', milestone.id, 'DELETE', milestone, null, userId);
+  // }
 
   return { message: `${milestoneIds.length} milestones deleted successfully` };
+}
+
+// Get combined milestones (transition + product program)
+export async function getCombinedMilestones(transitionId: string, userId: string) {
+  // Get the transition to find its product program
+  const transition = await prisma.transitions.findUnique({
+    where: { id: transitionId },
+    select: { id: true, productProgramId: true }
+  });
+
+  if (!transition) {
+    throw new Error('Transition not found');
+  }
+
+  // Fetch transition-level milestones
+  const transitionMilestones = await prisma.milestones.findMany({
+    where: { transitionId },
+    orderBy: [{ dueDate: 'asc' }]
+  });
+
+  // Transform transition milestones to include source type
+  const transitionMilestonesWithType = transitionMilestones.map(milestone => ({
+    ...milestone,
+    sourceType: 'transition' as const,
+    sourceName: 'Transition Milestones'
+  }));
+
+  // Fetch product program milestones if available
+  let productProgramMilestones: any[] = [];
+  if (transition.productProgramId) {
+    const ppMilestones = await prisma.product_program_milestones.findMany({
+      where: { product_program_id: transition.productProgramId },
+      orderBy: [{ target_date: 'asc' }, { status: 'asc' }]
+    });
+
+    // Transform product program milestones to match transition milestone structure
+    productProgramMilestones = ppMilestones.map(milestone => ({
+      id: milestone.id,
+      title: milestone.title,
+      description: milestone.description,
+      dueDate: milestone.target_date,
+      status: milestone.status === 'UPCOMING' ? 'Not_Started' : milestone.status === 'IN_PROGRESS' ? 'In_Progress' : milestone.status === 'ACHIEVED' ? 'Completed' : milestone.status === 'MISSED' ? 'Overdue' : 'Cancelled',
+      priority: 'High', // Product program milestones are typically high priority
+      createdAt: milestone.created_at,
+      updatedAt: milestone.updated_at,
+      sourceType: 'product_program' as const,
+      sourceName: 'Product/Program Milestones',
+      originalStatus: milestone.status, // Keep original for reference
+      achievedAt: milestone.achieved_at,
+    }));
+  }
+
+  return {
+    transitionMilestones: transitionMilestonesWithType,
+    productProgramMilestones,
+    all: [...productProgramMilestones, ...transitionMilestonesWithType]
+  };
 }
 
 // Update milestone status with automatic overdue detection
@@ -354,7 +456,7 @@ export async function updateMilestoneStatuses() {
   const now = new Date();
   
   // Mark overdue milestones
-  await prisma.milestone.updateMany({
+  await prisma.milestones.updateMany({
     where: {
       dueDate: { lt: now },
       status: { in: ['PENDING', 'IN_PROGRESS'] },
@@ -369,6 +471,7 @@ export async function updateMilestoneStatuses() {
 }
 
 // Audit Logging Helper
+// Note: AuditLog model doesn't exist in current schema - audit logging disabled
 async function createAuditLog(
   entityType: string,
   entityId: string,
@@ -377,14 +480,14 @@ async function createAuditLog(
   newValues: any,
   userId: string
 ) {
-  await prisma.auditLog.create({
-    data: {
-      entityType,
-      entityId,
-      action,
-      oldValues: oldValues ? JSON.parse(JSON.stringify(oldValues)) : null,
-      newValues: newValues ? JSON.parse(JSON.stringify(newValues)) : null,
-      userId,
-    },
-  });
+  // await prisma.auditLog.create({
+  //   data: {
+  //     entityType,
+  //     entityId,
+  //     action,
+  //     oldValues: oldValues ? JSON.parse(JSON.stringify(oldValues)) : null,
+  //     newValues: newValues ? JSON.parse(JSON.stringify(newValues)) : null,
+  //     userId,
+  //   },
+  // });
 }

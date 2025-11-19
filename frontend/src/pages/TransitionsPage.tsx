@@ -35,26 +35,38 @@ export function TransitionsPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch basic transitions from /api/transitions endpoint
-      const response = await fetch(`${API_BASE_URL}/transitions?limit=100`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Fetch transition counts from enhanced-transitions API
+      const countsResponse = await fetch(`${API_BASE_URL}/enhanced-transitions/counts`);
+      if (!countsResponse.ok) {
+        throw new Error(`Failed to fetch counts: ${countsResponse.status}`);
       }
+      const counts = await countsResponse.json();
+      setTransitionCounts(counts);
 
-      const data = await response.json();
-      const transitions = data.data || [];
+      // Fetch major transitions
+      const majorResponse = await fetch(`${API_BASE_URL}/enhanced-transitions?transitionLevel=MAJOR&limit=100`);
+      if (!majorResponse.ok) {
+        throw new Error(`Failed to fetch major transitions: ${majorResponse.status}`);
+      }
+      const majorData = await majorResponse.json();
+      setMajorTransitions(majorData.data || []);
 
-      // For now, treat all basic transitions as "major" transitions
-      // In the future, you could categorize them based on some field
-      setMajorTransitions(transitions);
-      setPersonnelTransitions([]);
-      setOperationalChanges([]);
-      setTransitionCounts({
-        major: transitions.length,
-        personnel: 0,
-        operational: 0,
-        total: transitions.length
-      });
+      // Fetch personnel transitions
+      const personnelResponse = await fetch(`${API_BASE_URL}/enhanced-transitions?transitionLevel=PERSONNEL&limit=100`);
+      if (!personnelResponse.ok) {
+        throw new Error(`Failed to fetch personnel transitions: ${personnelResponse.status}`);
+      }
+      const personnelData = await personnelResponse.json();
+      setPersonnelTransitions(personnelData.data || []);
+
+      // Fetch operational changes
+      const operationalResponse = await fetch(`${API_BASE_URL}/enhanced-transitions?transitionLevel=OPERATIONAL&limit=100`);
+      if (!operationalResponse.ok) {
+        throw new Error(`Failed to fetch operational changes: ${operationalResponse.status}`);
+      }
+      const operationalData = await operationalResponse.json();
+      setOperationalChanges(operationalData.data || []);
+
     } catch (err) {
       console.error('Failed to fetch transitions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch transitions');

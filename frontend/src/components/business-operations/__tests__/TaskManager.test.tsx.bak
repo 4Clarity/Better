@@ -1,0 +1,615 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import TaskManager from '../TaskManager';
+import * as taskApi from '../../../services/taskApi';
+import { TaskStatus } from '../../../types/task';
+
+// Mock the task API
+vi.mock('../../../services/taskApi');
+
+const mockTaskApi = taskApi as any;
+
+describe('TaskManager', () => {
+  const defaultProps = {
+    productProgramId: 'test-product-id',
+    canEdit: true,
+  };
+
+  const mockTasks = [
+    {
+      id: 'task-1',
+      productProgramId: 'test-product-id',
+      title: 'Test Task 1',
+      description: 'Test description 1',
+      status: TaskStatus.TODO,
+      dueDate: '2024-12-31T00:00:00Z',
+      assignedTo: 'user-1',
+      assignedUser: {
+        id: 'user-1',
+        person: {
+          firstName: 'John',
+          lastName: 'Doe',
+        },
+      },
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    },
+    {
+      id: 'task-2',
+      productProgramId: 'test-product-id',
+      title: 'Test Task 2',
+      description: 'Test description 2',
+      status: TaskStatus.COMPLETED,
+      dueDate: '2024-11-30T00:00:00Z',
+      assignedTo: 'user-2',
+      assignedUser: {
+        id: 'user-2',
+        person: {
+          firstName: 'Jane',
+          lastName: 'Smith',
+        },
+      },
+      completedAt: '2024-11-15T00:00:00Z',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-11-15T00:00:00Z',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTaskApi.getTasks.mockResolvedValue(mockTasks);
+    mockTaskApi.createTask.mockResolvedValue({
+      id: 'new-task-id',
+      productProgramId: 'test-product-id',
+      title: 'New Task',
+      description: 'New description',
+      status: TaskStatus.TODO,
+      dueDate: '2024-12-31T00:00:00Z',
+      assignedTo: null,
+      createdAt: '2024-01-15T00:00:00Z',
+      updatedAt: '2024-01-15T00:00:00Z',
+    });
+    mockTaskApi.updateTask.mockResolvedValue({
+      ...mockTasks[0],
+      title: 'Updated Task',
+    });
+    mockTaskApi.deleteTask.mockResolvedValue(undefined);
+    mockTaskApi.markTaskComplete.mockResolvedValue({
+      ...mockTasks[0],
+      status: TaskStatus.COMPLETED,
+      completedAt: '2024-01-15T00:00:00Z',
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('Rendering', () => {
+    it('should render loading state initially', () => {
+      render(<TaskManager {...defaultProps} />);
+      expect(screen.getByRole('img', { hidden: true })).toBeInTheDocument();
+    });
+
+    it('should render tasks after loading', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Test Task 2')).toBeInTheDocument();
+      expect(screen.getByText('2 of 2 tasks completed')).toBeInTheDocument();
+    });
+
+    it('should show empty state when no tasks exist', async () => {
+      mockTaskApi.getTasks.mockResolvedValue([]);
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/No tasks yet. Click "Add Task" to create one./i)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('should show Add Task button when canEdit is true', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+    });
+
+    it('should not show Add Task button when canEdit is false', async () => {
+      render(<TaskManager {...defaultProps} canEdit={false} />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Add Task')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should show task status badges', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('TODO')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('COMPLETED')).toBeInTheDocument();
+    });
+
+    it('should display assigned user information', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Assigned to: John Doe')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Assigned to: Jane Smith')).toBeInTheDocument();
+    });
+
+    it('should display due dates', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Due: Dec 31, 2024/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/Due: Nov 30, 2024/i)).toBeInTheDocument();
+    });
+
+    it('should hide action buttons when canEdit is false', async () => {
+      render(<TaskManager {...defaultProps} canEdit={false} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const buttons = screen.queryAllByRole('button');
+      expect(buttons).toHaveLength(0);
+    });
+  });
+
+  describe('Task Creation', () => {
+    it('should open create dialog when Add Task is clicked', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Task');
+      await user.click(addButton);
+
+      expect(screen.getByText('Create New Task')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Task title')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Task description')).toBeInTheDocument();
+    });
+
+    it('should create a task successfully', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Task');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Task title');
+      const descriptionInput = screen.getByPlaceholderText('Task description');
+      const dueDateInput = screen.getByLabelText('Due Date');
+      const createButton = screen.getByText('Create Task');
+
+      await user.type(titleInput, 'New Task');
+      await user.type(descriptionInput, 'New description');
+      await user.type(dueDateInput, '2024-12-31');
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(mockTaskApi.createTask).toHaveBeenCalledWith(
+          'test-product-id',
+          {
+            title: 'New Task',
+            description: 'New description',
+            status: TaskStatus.TODO,
+            dueDate: '2024-12-31',
+            assignedTo: '',
+          }
+        );
+      });
+    });
+
+    it('should close dialog and reset form after successful creation', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Task');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Task title');
+      const createButton = screen.getByText('Create Task');
+
+      await user.type(titleInput, 'New Task');
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Create New Task')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should handle create task error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      mockTaskApi.createTask.mockRejectedValue(new Error('Creation failed'));
+
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Task');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Task title');
+      const createButton = screen.getByText('Create Task');
+
+      await user.type(titleInput, 'New Task');
+      await user.click(createButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to create task:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should cancel task creation and reset form', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Task');
+      await user.click(addButton);
+
+      const titleInput = screen.getByPlaceholderText('Task title');
+      await user.type(titleInput, 'Test Input');
+
+      const cancelButton = screen.getByText('Cancel');
+      await user.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Create New Task')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Task Editing', () => {
+    it('should open edit dialog when Edit button is clicked', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const editButton = within(taskCard!).getAllByRole('button')[1]; // Second button is Edit
+      await user.click(editButton);
+
+      expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Test Task 1')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Test description 1')).toBeInTheDocument();
+    });
+
+    it('should update task successfully', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const editButton = within(taskCard!).getAllByRole('button')[1];
+      await user.click(editButton);
+
+      const titleInput = screen.getByDisplayValue('Test Task 1');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'Updated Task');
+
+      const saveButton = screen.getByText('Save Changes');
+      await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(mockTaskApi.updateTask).toHaveBeenCalledWith('task-1', {
+          title: 'Updated Task',
+          description: 'Test description 1',
+          status: TaskStatus.TODO,
+          dueDate: '2024-12-31',
+          assignedTo: 'user-1',
+        });
+      });
+    });
+
+    it('should handle update task error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      mockTaskApi.updateTask.mockRejectedValue(new Error('Update failed'));
+
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const editButton = within(taskCard!).getAllByRole('button')[1];
+      await user.click(editButton);
+
+      const saveButton = screen.getByText('Save Changes');
+      await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to update task:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should cancel edit and reset form', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const editButton = within(taskCard!).getAllByRole('button')[1];
+      await user.click(editButton);
+
+      const titleInput = screen.getByDisplayValue('Test Task 1');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'Changed Title');
+
+      const cancelButton = screen.getByText('Cancel');
+      await user.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Edit Task')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Task Completion', () => {
+    it('should mark task as complete', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const completeButton = within(taskCard!).getAllByRole('button')[0]; // First button is Complete
+      await user.click(completeButton);
+
+      await waitFor(() => {
+        expect(mockTaskApi.markTaskComplete).toHaveBeenCalledWith('task-1');
+      });
+    });
+
+    it('should not show complete button for already completed tasks', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 2')).toBeInTheDocument();
+      });
+
+      const completedTaskCard = screen
+        .getByText('Test Task 2')
+        .closest('div.flex.items-start.justify-between');
+      const buttons = within(completedTaskCard!).getAllByRole('button');
+
+      // Should only have Edit and Delete buttons, not Complete button (which has CheckCircle icon)
+      expect(buttons).toHaveLength(2);
+    });
+
+    it('should handle mark complete error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      mockTaskApi.markTaskComplete.mockRejectedValue(
+        new Error('Mark complete failed')
+      );
+
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const completeButton = within(taskCard!).getAllByRole('button')[0];
+      await user.click(completeButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to mark task complete:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('Task Deletion', () => {
+    it('should delete task after confirmation', async () => {
+      const user = userEvent.setup();
+      window.confirm = vi.fn(() => true);
+
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const deleteButton = within(taskCard!).getAllByRole('button')[2]; // Third button is Delete
+      await user.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockTaskApi.deleteTask).toHaveBeenCalledWith('task-1');
+      });
+    });
+
+    it('should not delete task if confirmation is cancelled', async () => {
+      const user = userEvent.setup();
+      window.confirm = vi.fn(() => false);
+
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const deleteButton = within(taskCard!).getAllByRole('button')[2];
+      await user.click(deleteButton);
+
+      expect(mockTaskApi.deleteTask).not.toHaveBeenCalled();
+    });
+
+    it('should handle delete task error', async () => {
+      const user = userEvent.setup();
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      window.confirm = vi.fn(() => true);
+      mockTaskApi.deleteTask.mockRejectedValue(new Error('Delete failed'));
+
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const deleteButton = within(taskCard!).getAllByRole('button')[2];
+      await user.click(deleteButton);
+
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          'Failed to delete task:',
+          expect.any(Error)
+        );
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('Task Status Selection', () => {
+    it('should allow selecting different task statuses', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Add Task')).toBeInTheDocument();
+      });
+
+      const addButton = screen.getByText('Add Task');
+      await user.click(addButton);
+
+      const statusSelect = screen.getAllByRole('combobox')[0];
+      await user.click(statusSelect);
+
+      // Check that all status options are available
+      expect(screen.getByText('TODO')).toBeInTheDocument();
+      expect(screen.getByText('IN PROGRESS')).toBeInTheDocument();
+      expect(screen.getByText('COMPLETED')).toBeInTheDocument();
+      expect(screen.getByText('CANCELLED')).toBeInTheDocument();
+    });
+  });
+
+  describe('Progress Counter', () => {
+    it('should calculate task completion correctly', async () => {
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('1 of 2 tasks completed')).toBeInTheDocument();
+      });
+    });
+
+    it('should update progress counter after marking task complete', async () => {
+      const user = userEvent.setup();
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('1 of 2 tasks completed')).toBeInTheDocument();
+      });
+
+      const taskCard = screen
+        .getByText('Test Task 1')
+        .closest('div.flex.items-start.justify-between');
+      const completeButton = within(taskCard!).getAllByRole('button')[0];
+      await user.click(completeButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('2 of 2 tasks completed')).toBeInTheDocument();
+      });
+    });
+
+    it('should show 0 of 0 when no tasks exist', async () => {
+      mockTaskApi.getTasks.mockResolvedValue([]);
+      render(<TaskManager {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('0 of 0 tasks completed')).toBeInTheDocument();
+      });
+    });
+  });
+});

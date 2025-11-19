@@ -95,18 +95,41 @@ class UserManagementService {
             // Hash the password for initial login
             const authService = new auth_service_1.AuthenticationService();
             const hashedPassword = await authService.hashPassword(invitationData.userData.password);
+            // Generate username from email (before @)
+            const username = invitationData.userData.username || person.primaryEmail.split('@')[0];
+            // Generate a placeholder keycloakId (will be updated when user accepts invitation)
+            const tempKeycloakId = `temp-${(0, cuid2_1.createId)()}`;
+            // Validate invitedBy user exists if provided
+            let validatedInvitedBy = null;
+            if (invitationData.userData.invitedBy && invitationData.userData.invitedBy !== 'system') {
+                const invitingUser = await tx.user.findUnique({
+                    where: { id: invitationData.userData.invitedBy },
+                });
+                if (invitingUser) {
+                    validatedInvitedBy = invitationData.userData.invitedBy;
+                }
+            }
             // Create user
             const user = await tx.user.create({
                 data: {
-                    email: person.primaryEmail, // Use the person's primary email
-                    firstName: person.firstName,
-                    lastName: person.lastName,
-                    role: invitationData.userData.roles?.[0] || 'Observer', // Use first role as primary role
+                    id: (0, cuid2_1.createId)(),
+                    personId: person.id,
+                    username: username,
+                    keycloakId: tempKeycloakId,
+                    roles: invitationData.userData.roles || ['Observer'],
                     passwordHash: hashedPassword,
-                    mustChangePassword: true, // Force password change on first login
-                    person: {
-                        connect: { id: person.id }
-                    }
+                    mustChangePassword: true,
+                    invitationStatus: 'Invitation_Sent',
+                    invitationToken: invitationToken,
+                    invitationExpiresAt: invitationExpiresAt,
+                    invitedBy: validatedInvitedBy,
+                    invitedAt: new Date(),
+                    accountStatus: 'Pending',
+                    sessionTimeout: invitationData.userData.sessionTimeout,
+                    allowedIpRanges: invitationData.userData.allowedIpRanges || null,
+                    permissions: invitationData.userData.permissions || null,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
                 },
             });
             // Create organization affiliation if provided
@@ -142,7 +165,7 @@ class UserManagementService {
         const user = await prisma.user.findFirst({
             where: {
                 invitationToken,
-                invitationStatus: 'INVITATION_SENT',
+                invitationStatus: 'Invitation_Sent',
                 invitationExpiresAt: {
                     gt: new Date(),
                 },
@@ -155,8 +178,8 @@ class UserManagementService {
             where: { id: user.id },
             data: {
                 keycloakId,
-                invitationStatus: 'INVITATION_ACCEPTED',
-                accountStatus: 'ACTIVE',
+                invitationStatus: 'Invitation_Accepted',
+                accountStatus: 'Active',
                 emailVerified: true,
                 confirmedAt: new Date(),
                 invitationToken: null,
@@ -180,7 +203,7 @@ class UserManagementService {
             data: {
                 invitationToken,
                 invitationExpiresAt,
-                invitationStatus: 'INVITATION_SENT',
+                invitationStatus: 'Invitation_Sent',
                 invitedBy,
                 invitedAt: new Date(),
                 updatedAt: new Date(),
@@ -248,14 +271,22 @@ class UserManagementService {
             updatedAt: new Date(),
         };
         // Handle deactivation specific fields
-        if (data.accountStatus === 'DEACTIVATED') {
+        if (data.accountStatus === 'Deactivated') {
             updateData.deactivatedAt = new Date();
-            updateData.deactivatedBy = data.adminId || data.deactivatedBy;
+            // Only set deactivatedBy if adminId is provided and not null/undefined
+            if (data.adminId) {
+                updateData.deactivatedBy = data.adminId;
+            }
+            else if (data.deactivatedBy) {
+                updateData.deactivatedBy = data.deactivatedBy;
+            }
         }
-        else if (data.accountStatus === 'ACTIVE') {
-            // Clear deactivation fields when reactivating
+        else if (data.accountStatus === 'Active' || data.accountStatus === 'Pending') {
+            // When activating/pending, we need to use disconnect to clear the foreign key relation
+            // Setting to null directly violates the foreign key constraint
             updateData.deactivatedAt = null;
-            updateData.deactivatedBy = null;
+            // Don't modify deactivatedBy - leave it as is for audit trail
+            // If you really need to clear it, you would need to handle the FK constraint properly
         }
         const updatedUser = await prisma.user.update({
             where: { id: data.userId },
@@ -321,13 +352,13 @@ class UserManagementService {
     validateStatusChange(fromStatus, toStatus) {
         // Define valid status transitions
         const validTransitions = {
-            PENDING: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'],
-            ACTIVE: ['INACTIVE', 'SUSPENDED', 'DEACTIVATED'],
-            INACTIVE: ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'],
-            SUSPENDED: ['ACTIVE', 'DEACTIVATED'],
-            LOCKED: ['ACTIVE', 'DEACTIVATED'],
-            EXPIRED: ['ACTIVE', 'DEACTIVATED'],
-            DEACTIVATED: [], // Generally cannot reactivate deactivated users
+            'Pending': ['Active', 'Suspended', 'Deactivated'],
+            'Active': ['Inactive', 'Suspended', 'Deactivated'],
+            'Inactive': ['Active', 'Suspended', 'Deactivated'],
+            'Suspended': ['Active', 'Deactivated'],
+            'Locked': ['Active', 'Deactivated'],
+            'Expired': ['Active', 'Deactivated'],
+            'Deactivated': [], // Generally cannot reactivate deactivated users
         };
         const allowedTransitions = validTransitions[fromStatus] || [];
         if (!allowedTransitions.includes(toStatus)) {
@@ -339,20 +370,59 @@ class UserManagementService {
         return { isValid: true };
     }
     /**
+     * Convert UI security clearance level to Prisma enum format
+     */
+    convertSecurityClearanceLevel(level) {
+        if (!level)
+            return undefined;
+        const mapping = {
+            'NONE': 'None',
+            'PUBLIC_TRUST': 'Public_Trust',
+            'CONFIDENTIAL': 'Confidential',
+            'SECRET': 'Secret',
+            'TOP_SECRET': 'Top_Secret',
+            'TS_SCI': 'TS_SCI',
+        };
+        return mapping[level] || level;
+    }
+    /**
+     * Convert date string to ISO DateTime or return undefined/null
+     */
+    convertToDateTime(dateString) {
+        if (!dateString)
+            return dateString === null ? null : undefined;
+        // If it's already a valid date string (YYYY-MM-DD), convert to full DateTime
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            return new Date(`${dateString}T00:00:00.000Z`);
+        }
+        // Try to parse as Date
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? undefined : date;
+    }
+    /**
      * Update user security information
+     * Note: PIV fields are not yet in the database schema, so they're ignored for now
      */
     async updateUserSecurity(data) {
+        // First, find the user to get their personId
+        const user = await prisma.user.findUnique({
+            where: { id: data.userId },
+            select: { personId: true },
+        });
+        if (!user) {
+            throw new Error('User not found');
+        }
+        // Now update the person record using the personId
         return prisma.persons.update({
             where: {
-                user: {
-                    id: data.userId
-                }
+                id: user.personId,
             },
             data: {
-                securityClearanceLevel: data.securityClearanceLevel,
-                clearanceExpirationDate: data.clearanceExpirationDate,
-                pivStatus: data.pivStatus,
-                pivExpirationDate: data.pivExpirationDate,
+                securityClearanceLevel: this.convertSecurityClearanceLevel(data.securityClearanceLevel),
+                clearanceExpirationDate: this.convertToDateTime(data.clearanceExpirationDate),
+                // PIV fields don't exist in persons table yet - skip them
+                // pivStatus: data.pivStatus,
+                // pivExpirationDate: this.convertToDateTime(data.pivExpirationDate),
                 updatedAt: new Date(),
             },
         });
@@ -456,7 +526,7 @@ class UserManagementService {
      */
     async inviteUserToTransition(data) {
         // Check if user is already in transition
-        const existingTransitionUser = await prisma.transitionUser.findFirst({
+        const existingTransitionUser = await prisma.transition_users.findFirst({
             where: {
                 transitionId: data.transitionId,
                 userId: data.userId,
@@ -465,15 +535,18 @@ class UserManagementService {
         if (existingTransitionUser) {
             throw new Error('User is already assigned to this transition');
         }
-        return prisma.transitionUser.create({
+        return prisma.transition_users.create({
             data: {
+                id: (0, cuid2_1.createId)(), // Generate unique ID
                 transitionId: data.transitionId,
                 userId: data.userId,
                 role: data.role,
-                securityStatus: 'PENDING',
+                securityStatus: 'Pending', // Match Prisma enum format
                 platformAccess: data.platformAccess,
                 invitedBy: data.invitedBy,
+                invitedAt: new Date(),
                 accessNotes: data.accessNotes,
+                updatedAt: new Date(), // Required field
             },
         });
     }
@@ -481,7 +554,7 @@ class UserManagementService {
      * Update transition user access
      */
     async updateTransitionUserAccess(transitionId, userId, updates) {
-        return prisma.transitionUser.update({
+        return prisma.transition_users.update({
             where: {
                 transitionId_userId: {
                     transitionId,
@@ -498,22 +571,33 @@ class UserManagementService {
      * Get users by transition
      */
     async getTransitionUsers(transitionId) {
-        return prisma.transitionUser.findMany({
+        const results = await prisma.transition_users.findMany({
             where: { transitionId },
             include: {
-                user: {
+                users_transition_users_userIdTousers: {
                     include: {
                         person: true,
                     },
                 },
-                transition: true,
-                invitedByUser: true,
+                transitions: true,
+                users_transition_users_invitedByTousers: true,
             },
             orderBy: [
                 { role: 'asc' },
-                { user: { person: { lastName: 'asc' } } },
+                { users_transition_users_userIdTousers: { person: { lastName: 'asc' } } },
             ],
         });
+        // Transform Prisma relation names to frontend-expected field names
+        return results.map(tu => ({
+            ...tu,
+            user: tu.users_transition_users_userIdTousers,
+            transition: tu.transitions,
+            invitedByUser: tu.users_transition_users_invitedByTousers,
+            // Remove the Prisma-generated relation names from the response
+            users_transition_users_userIdTousers: undefined,
+            transitions: undefined,
+            users_transition_users_invitedByTousers: undefined,
+        }));
     }
     /**
      * Record user login
@@ -558,10 +642,11 @@ class UserManagementService {
         return {
             totalUsers,
             activeUsers: totalUsers, // All users are considered active for now
-            pendingUsers: 0,
-            suspendedUsers: 0,
-            clearanceExpiringUsers: 0,
-            recentLogins: [], // Empty for now
+            pendingInvitations: 0, // Renamed from pendingUsers to match frontend
+            expiringSecurity: 0, // Renamed from clearanceExpiringUsers to match frontend
+            pivStatusCounts: {}, // TODO: Implement PIV status breakdown
+            clearanceLevelCounts: {}, // TODO: Implement clearance level breakdown
+            recentActivity: [], // Renamed from recentLogins to match frontend
         };
     }
     /**
@@ -604,7 +689,7 @@ class UserManagementService {
                 // For now, we'll assume any ACTIVE user can reset passwords
                 }
             });
-            if (!adminUser || adminUser.accountStatus !== 'ACTIVE') {
+            if (!adminUser || adminUser.accountStatus !== 'Active') {
                 throw new Error('Admin user not found or not active');
             }
             // Find target user
@@ -684,7 +769,7 @@ class UserManagementService {
                 where: { id: adminUserId },
                 // This would need to include roles/permissions based on your schema
             });
-            if (!adminUser || adminUser.accountStatus !== 'ACTIVE') {
+            if (!adminUser || adminUser.accountStatus !== 'Active') {
                 return false;
             }
             // TODO: Add role-based permission checking

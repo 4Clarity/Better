@@ -176,12 +176,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function login(loginData: LoginRequest) {
     try {
       dispatch({ type: 'AUTH_START' });
-      
+
       const result = await authApi.login(loginData);
-      
+
       // Store tokens
       authApi.storeTokens(result.data.sessionToken, result.data.refreshToken);
-      
+
+      // Enable auth bypass for development mode
+      localStorage.setItem('authBypass', 'true');
+
       dispatch({ type: 'AUTH_SUCCESS', payload: result.data.user });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed';
@@ -194,12 +197,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function demoLogin() {
     try {
       dispatch({ type: 'AUTH_START' });
-      
+
       const result = await authApi.demoLogin();
-      
+
       // Store tokens
       authApi.storeTokens(result.data.sessionToken, result.data.refreshToken);
-      
+
+      // Enable auth bypass for development mode
+      localStorage.setItem('authBypass', 'true');
+
       dispatch({ type: 'AUTH_SUCCESS', payload: result.data.user });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Demo login failed';

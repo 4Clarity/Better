@@ -1,12 +1,14 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { createTask, getTasks, getTaskById, updateTask, deleteTask, CreateTaskInput, UpdateTaskInput, GetTasksQuery, getTaskTree, moveTask, MoveTaskInput } from './task.service';
+import { createTask, getTasks, getTaskById, updateTask, deleteTask, CreateTaskInput, UpdateTaskInput, GetTasksQuery, getTaskTree, moveTask, MoveTaskInput, getCombinedTasks } from './task.service';
 
 export async function createTaskHandler(
   request: FastifyRequest<{ Params: { transitionId: string }; Body: CreateTaskInput }>, reply: FastifyReply
 ) {
   try {
     const { transitionId } = request.params;
-    const task = await createTask(transitionId, request.body);
+    // Support x-user-id header for auth bypass mode, otherwise fall back to authenticated user
+    const userId = request.headers['x-user-id'] as string || (request as any).user?.id || 'user-richard-001';
+    const task = await createTask(transitionId, request.body, userId);
     return reply.code(201).send(task);
   } catch (e: any) {
     const message = e?.message || 'Failed to create task';
@@ -78,5 +80,19 @@ export async function moveTaskHandler(
     const message = e?.message || 'Failed to move task';
     const code = message.includes('not found') || message.includes('Parent task') ? 400 : 500;
     return reply.code(code).send({ statusCode: code, error: code===400?'Bad Request':'Internal Server Error', message });
+  }
+}
+
+export async function getCombinedTasksHandler(
+  request: FastifyRequest<{ Params: { transitionId: string } }>, reply: FastifyReply
+) {
+  try {
+    const { transitionId } = request.params;
+    const combined = await getCombinedTasks(transitionId);
+    return reply.code(200).send(combined);
+  } catch (e: any) {
+    const message = e?.message || 'Failed to fetch combined tasks';
+    const code = message.includes('not found') ? 404 : 500;
+    return reply.code(code).send({ statusCode: code, error: code===404?'Not Found':'Internal Server Error', message });
   }
 }

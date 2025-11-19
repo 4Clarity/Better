@@ -26,8 +26,18 @@ const approval_queue_route_1 = __importDefault(require("./modules/knowledge/appr
 const documents_route_1 = __importDefault(require("./modules/knowledge/documents.route"));
 const knowledge_source_routes_1 = __importDefault(require("./modules/knowledge/knowledge-source.routes"));
 const n8n_integration_routes_1 = __importDefault(require("./modules/knowledge/n8n-integration.routes"));
+const n8n_monitoring_routes_1 = __importDefault(require("./modules/knowledge/n8n-monitoring.routes"));
 const settings_routes_1 = require("./modules/settings/settings.routes");
 const security_1 = require("./modules/security");
+const ai_planning_routes_1 = require("./modules/business-operation/ai-planning.routes");
+const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
+const platform_setup_routes_1 = __importDefault(require("./routes/platform-setup.routes"));
+const learning_path_routes_1 = __importDefault(require("./routes/learning-path.routes"));
+const skills_assessment_routes_1 = __importDefault(require("./routes/skills-assessment.routes"));
+const handover_checklist_routes_1 = __importDefault(require("./routes/handover-checklist.routes"));
+const activity_log_routes_1 = __importDefault(require("./routes/activity-log.routes"));
+const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
+const ollama_routes_1 = __importDefault(require("./routes/ollama.routes"));
 function buildServer() {
     const server = (0, fastify_1.default)({
         logger: true,
@@ -56,7 +66,7 @@ function buildServer() {
         origin: true, // Allow all origins for development
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-bypass', 'X-Requested-With'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-bypass', 'x-user-role', 'X-Requested-With'],
         exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
         preflightContinue: false,
         optionsSuccessStatus: 200 // Some legacy browsers choke on 204
@@ -167,9 +177,19 @@ function buildServer() {
     server.register(documents_route_1.default, { prefix: '/api' });
     server.register(knowledge_source_routes_1.default, { prefix: '/api/knowledge-sources' });
     server.register(n8n_integration_routes_1.default, { prefix: '/api/n8n' });
+    server.register(n8n_monitoring_routes_1.default, { prefix: '/api/knowledge/n8n' });
     server.register(settings_routes_1.settingsRoutes, { prefix: '/api/settings' });
     server.register(security_1.impersonationRoutes);
     server.register(security_1.roleManagementRoutes);
+    server.register(ai_planning_routes_1.aiPlanningRoutes);
+    server.register(dashboard_routes_1.default, { prefix: '/api/dashboard' });
+    server.register(platform_setup_routes_1.default, { prefix: '/api/platform' });
+    server.register(learning_path_routes_1.default, { prefix: '/api/learning' });
+    server.register(skills_assessment_routes_1.default, { prefix: '/api/skills' });
+    server.register(handover_checklist_routes_1.default, { prefix: '/api/handover-checklist' });
+    server.register(activity_log_routes_1.default, { prefix: '/api/activity-logs' });
+    server.register(chat_routes_1.default, { prefix: '/api/chat' });
+    server.register(ollama_routes_1.default, { prefix: '/api/ollama' });
     // Register nested milestone routes under transitions
     server.register(async function (server) {
         server.register(milestone_route_1.default, { prefix: '/:transitionId/milestones' });

@@ -3,9 +3,11 @@ import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { Alert, AlertDescription } from '../../ui/alert';
-import { FolderOpen, Info, Upload, X, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { FolderOpen, Info, Upload, X, FileText, CheckCircle, AlertCircle, History, Play } from 'lucide-react';
 import { settingsApi } from '../../../services/settingsApi';
+import { documentApi } from '../../../services/documentApi';
 import { useAuth } from '../../../contexts/AuthContext';
+import { DocumentRevisions } from '../DocumentRevisions';
 
 interface UploadedFile {
   file: File;
@@ -32,6 +34,9 @@ export function DocumentUpload() {
   const [selectedFiles, setSelectedFiles] = useState<UploadedFile[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [showRevisions, setShowRevisions] = useState(false);
+  const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -167,6 +172,20 @@ export function DocumentUpload() {
 
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleProcessDocument = async (documentId: string) => {
+    try {
+      setProcessingDocId(documentId);
+      await documentApi.triggerDocumentProcessing(documentId);
+      // Refresh document list to show updated status
+      await loadRecentDocuments();
+    } catch (error) {
+      console.error('Failed to trigger document processing:', error);
+      alert(`Failed to process document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setProcessingDocId(null);
+    }
   };
 
   const uploadFile = async (fileItem: UploadedFile, index: number) => {
@@ -423,15 +442,28 @@ export function DocumentUpload() {
               ) : (
                 recentDocuments.slice(0, 5).map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="space-y-1">
+                    <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium">{doc.filename}</p>
                       <p className="text-xs text-muted-foreground">
                         {getTimeAgo(doc.created_at)} • {doc.chunk_count} chunk{doc.chunk_count !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    <Badge variant={getStatusBadgeVariant(doc.upload_status)}>
-                      {getStatusDisplay(doc.upload_status)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getStatusBadgeVariant(doc.upload_status)}>
+                        {getStatusDisplay(doc.upload_status)}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedDocumentId(doc.id);
+                          setShowRevisions(true);
+                        }}
+                        title="View revisions"
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}
@@ -450,9 +482,21 @@ export function DocumentUpload() {
               .filter(doc => ['UPLOADED', 'ANALYZING', 'EMBEDDING'].includes(doc.upload_status))
               .map((item) => (
                 <div key={item.id} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{item.filename}</span>
-                    <span className="text-muted-foreground">{getStatusDisplay(item.upload_status)}</span>
+                  <div className="flex items-center justify-between text-sm gap-2">
+                    <span className="font-medium flex-1 truncate">{item.filename}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground whitespace-nowrap">{getStatusDisplay(item.upload_status)}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleProcessDocument(item.id)}
+                        disabled={processingDocId === item.id}
+                        className="h-8 w-8 p-0 hover:bg-primary/10"
+                        title="Process document"
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
                     <div
@@ -465,6 +509,17 @@ export function DocumentUpload() {
           )}
         </div>
       </Card>
+
+      {/* Document Revisions Dialog */}
+      {showRevisions && selectedDocumentId && (
+        <DocumentRevisions
+          documentId={selectedDocumentId}
+          onClose={() => {
+            setShowRevisions(false);
+            setSelectedDocumentId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

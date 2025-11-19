@@ -15,6 +15,7 @@ const createTransitionSchema = z.object({
   contractNumber: z.string().min(1, "Contract number is required").max(100),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
+  organizationId: z.string().optional(), // Optional - will use default if not provided
   keyPersonnel: z.string().optional(),
   description: z.string().optional(),
 });
@@ -55,6 +56,7 @@ export type GetTransitionsQuery = z.infer<typeof getTransitionsQuerySchema>;
 // Response Schemas
 const transitionResponseSchema = z.object({
   id: z.string(),
+  name: z.string(),
   contractName: z.string(),
   contractNumber: z.string(),
   startDate: z.string(),
@@ -117,38 +119,57 @@ export async function createTransition(data: CreateTransitionInput, userId: stri
   // Validate date logic
   const startDate = new Date(data.startDate);
   const endDate = new Date(data.endDate);
-  
+
   if (endDate <= startDate) {
     throw new Error('End date must be after start date');
   }
 
+  // Get or create a default organization if not provided
+  let organizationId = data.organizationId;
+  if (!organizationId) {
+    // Try to find an existing default organization
+    let defaultOrg = await prisma.organizations.findFirst({
+      where: { type: 'Government_Agency' },
+    });
+
+    // If no organization exists, create a default one
+    if (!defaultOrg) {
+      defaultOrg = await prisma.organizations.create({
+        data: {
+          id: 'default-org-' + Date.now(),
+          name: 'Default Organization',
+          type: 'Government_Agency',
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      });
+    }
+    organizationId = defaultOrg.id;
+  }
+
   try {
-    const transition = await prisma.transition.create({
+    const transition = await prisma.transitions.create({
       data: {
         ...data,
+        id: 'trans-' + Date.now() + '-' + Math.random().toString(36).substring(7),
+        name: data.contractName, // Set name to contractName to satisfy schema requirement
+        organizationId,
         startDate,
         endDate,
+        updatedAt: new Date(),
         createdBy: userId,
       },
       include: {
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
         _count: {
           select: {
-            Milestone: true,
+            milestones: true,
           },
         },
       },
     });
 
-    // Create audit log
-    await createAuditLog('transition', transition.id, 'CREATE', null, transition, userId);
+    // Note: Audit logging removed - no general audit_logs model exists
+    console.log(`Transition created: ${transition.id} by user ${userId}`);
 
     return transition;
   } catch (error: any) {
@@ -180,29 +201,26 @@ export async function getTransitions(query: GetTransitionsQuery, userId: string)
   }
 
   const [data, total] = await prisma.$transaction([
-    prisma.transition.findMany({
+    prisma.transitions.findMany({
       where,
       skip,
       take: limit,
       orderBy: { [sortBy]: sortOrder },
       include: {
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
         _count: {
           select: {
-            Milestone: true,
+            milestones: true,
           },
         },
       },
     }),
-    prisma.transition.count({ where }),
+    prisma.transitions.count({ where }),
   ]);
+
+  // Debug: Log the first transition to see all fields
+  if (data.length > 0) {
+    console.log('Sample transition from DB:', JSON.stringify(data[0], null, 2));
+  }
 
   return {
     data,
@@ -216,26 +234,18 @@ export async function getTransitions(query: GetTransitionsQuery, userId: string)
 }
 
 export async function getTransitionById(id: string, userId: string) {
-  const transition = await prisma.transition.findFirst({
+  const transition = await prisma.transitions.findFirst({
     where: {
       id,
       createdBy: userId, // Security: only show transitions created by this user
     },
     include: {
-      creator: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      Milestone: {
+      milestones: {
         orderBy: { dueDate: 'asc' },
       },
       _count: {
         select: {
-          Milestone: true,
+          milestones: true,
         },
       },
     },
@@ -249,7 +259,7 @@ export async function getTransitionById(id: string, userId: string) {
 }
 
 export async function updateTransition(id: string, data: UpdateTransitionInput, userId: string) {
-  const existingTransition = await prisma.transition.findFirst({
+  const existingTransition = await prisma.transitions.findFirst({
     where: { id, createdBy: userId },
   });
 
@@ -261,7 +271,7 @@ export async function updateTransition(id: string, data: UpdateTransitionInput, 
   if (data.startDate || data.endDate) {
     const startDate = data.startDate ? new Date(data.startDate) : existingTransition.startDate;
     const endDate = data.endDate ? new Date(data.endDate) : existingTransition.endDate;
-    
+
     if (endDate <= startDate) {
       throw new Error('End date must be after start date');
     }
@@ -272,28 +282,20 @@ export async function updateTransition(id: string, data: UpdateTransitionInput, 
   if (data.endDate) updateData.endDate = new Date(data.endDate);
 
   try {
-    const updatedTransition = await prisma.transition.update({
+    const updatedTransition = await prisma.transitions.update({
       where: { id },
       data: updateData,
       include: {
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
         _count: {
           select: {
-            Milestone: true,
+            milestones: true,
           },
         },
       },
     });
 
-    // Create audit log
-    await createAuditLog('transition', id, 'UPDATE', existingTransition, updatedTransition, userId);
+    // Note: Audit logging removed - no general audit_logs model exists
+    console.log(`Transition updated: ${id} by user ${userId}`);
 
     return updatedTransition;
   } catch (error: any) {
@@ -305,7 +307,7 @@ export async function updateTransition(id: string, data: UpdateTransitionInput, 
 }
 
 export async function updateTransitionStatus(id: string, data: UpdateTransitionStatusInput, userId: string) {
-  const existingTransition = await prisma.transition.findFirst({
+  const existingTransition = await prisma.transitions.findFirst({
     where: { id, createdBy: userId },
   });
 
@@ -313,18 +315,10 @@ export async function updateTransitionStatus(id: string, data: UpdateTransitionS
     throw new Error('Transition not found');
   }
 
-  const updatedTransition = await prisma.transition.update({
+  const updatedTransition = await prisma.transitions.update({
     where: { id },
     data: { status: data.status },
     include: {
-      creator: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
       _count: {
         select: {
           milestones: true,
@@ -333,56 +327,31 @@ export async function updateTransitionStatus(id: string, data: UpdateTransitionS
     },
   });
 
-  // Create audit log
-  await createAuditLog('transition', id, 'UPDATE', 
-    { status: existingTransition.status }, 
-    { status: data.status }, 
-    userId
-  );
+  // Note: Audit logging removed - no general audit_logs model exists
+  console.log(`Transition status updated: ${id} from ${existingTransition.status} to ${data.status} by user ${userId}`);
 
   return updatedTransition;
 }
 
 export async function deleteTransition(id: string, userId: string) {
-  const existingTransition = await prisma.transition.findFirst({
+  const existingTransition = await prisma.transitions.findFirst({
     where: { id, createdBy: userId },
-    include: { Milestone: true },
+    include: { milestones: true },
   });
 
   if (!existingTransition) {
     throw new Error('Transition not found');
   }
 
-  // Soft delete by updating status (optional - could be hard delete)
-  const deletedTransition = await prisma.transition.delete({
+  // Hard delete the transition
+  await prisma.transitions.delete({
     where: { id },
   });
 
-  // Create audit log
-  await createAuditLog('transition', id, 'DELETE', existingTransition, null, userId);
+  // Note: Audit logging removed - no general audit_logs model exists
+  console.log(`Transition deleted: ${id} by user ${userId}`);
 
   return { message: 'Transition deleted successfully' };
-}
-
-// Audit Logging Helper
-async function createAuditLog(
-  entityType: string,
-  entityId: string,
-  action: string,
-  oldValues: any,
-  newValues: any,
-  userId: string
-) {
-  await prisma.auditLog.create({
-    data: {
-      entityType,
-      entityId,
-      action,
-      oldValues: oldValues ? JSON.parse(JSON.stringify(oldValues)) : null,
-      newValues: newValues ? JSON.parse(JSON.stringify(newValues)) : null,
-      userId,
-    },
-  });
 }
 
 // ============================================

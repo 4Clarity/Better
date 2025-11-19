@@ -1,0 +1,628 @@
+{
+  "name": "N8N Expert",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee2bcd57-3b4c-43f9-b4b7-3a25687b9a68",
+              "name": "query",
+              "value": "={{ $json.chatInput || $json.body.query }}   ",
+              "type": "string"
+            },
+            {
+              "id": "63f23e51-af2b-47c4-a288-5abaf9b6c357",
+              "name": "user_id",
+              "value": "={{ $json.user?.id || $json.body.user_id || 'chatbot-user' }}",
+              "type": "string"
+            },
+            {
+              "id": "b97a3670-8a87-481b-8695-db44624be7d8",
+              "name": "request_id",
+              "value": "={{ $json.body.request_id || Date.now().toString() }}",
+              "type": "string"
+            },
+            {
+              "id": "7d3fa06d-08f7-4517-b9c5-3c46ff476f55",
+              "name": "session_id",
+              "value": "={{ $json.sessionId || $json.body.session_id || 'chatbot-session' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "45df9b7f-b1cc-4d80-bd3c-1d02c0303f21",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        912,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "model": "text-embedding-3-small",
+        "options": {}
+      },
+      "id": "64674350-0de7-41e6-8163-4b6d50734e8b",
+      "name": "Embeddings OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        464
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "omb8sqitdPNX0M7w",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "text",
+              "renameField": true,
+              "outputFieldName": "workflow_ids"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8da77a36-c2b2-4e07-ab6c-409c1027f1a3",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1984,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      },
+      "id": "11db50f6-5a88-4cc8-9a30-b2a9b5516b0e",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1744,
+        208
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "omb8sqitdPNX0M7w",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "workflows",
+        "limit": 5,
+        "filterType": "string",
+        "filterString": "=workflow_id=in.{{ $json.query_string }}"
+      },
+      "id": "367b6aab-1039-4df1-a6ef-4d481c4d606b",
+      "name": "Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2608,
+        48
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "6CBjSktSLt871Sa2",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "concatenate",
+              "field": "workflow_ids"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9b9d51a3-00d5-42cf-8c0f-6a4a6718294f",
+      "name": "Summarize",
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.query_string = $('Summarize').first().json.concatenated_workflow_ids.replaceAll(\"\\\"\", \"\").replaceAll(\"[\", \"(\").replaceAll(\"]\", \")\");\n}\n\nreturn $input.all();"
+      },
+      "id": "8a4d34fa-190b-4730-a7a2-957eec5f58ba",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b5eaa2a2-a6bc-40ab-af5e-baa8a5dda1a7",
+              "name": "output",
+              "value": "={{ $('Aggregate1').item.json.data.length ? \"Here are the recommended workflows to use as an example for you:\" : \"No related workflows found at this time. Please try a different prompt.\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "7793bce0-1a0e-4f1f-b1ec-6b2642b2417f",
+      "name": "Edit Fields1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2992,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $('Edit Fields').first().json.session_id }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ {\n\"type\": \"ai\",\n\"content\": $json.output,\n\"data\": $json.data,\n\"additional_kwargs\": {},\n\"response_metadata\": {}\n} }}"
+            }
+          ]
+        }
+      },
+      "id": "32d7771c-3072-4a5f-ba34-47d6a7ee1da0",
+      "name": "Supabase1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3184,
+        288
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "6CBjSktSLt871Sa2",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "63835fe5-3763-44ec-b757-e08700529c44",
+      "name": "Aggregate1",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2784,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "X-n8n-Signature",
+                "value": "EvtIS^EBVISeie6svB@6ev"
+              }
+            ]
+          }
+        }
+      },
+      "id": "faa43781-3c25-4595-bac2-157827087dfc",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3584,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here is a n8n workflow descriptions:\n\n{{ $json.document.pageContent }}\n\nYour job is to identify if the workflow is relevant to the user query which is:\n\n{{ $('Edit Fields').first().json.query }}\n\nOutput the workflow ID if the workflow relates to the user query. Otherwise, output -1. ONLY ever output a number, nothing else. You will always output the workflow ID or -1.\n\nThe workflow ID is: {{ $json.document.metadata.workflow_id }}\n\nThe workflow ID or -1 if the workflow doesn't relate to the user query:"
+      },
+      "id": "cca255e3-f161-46f6-b6d7-bb987aaa5dc5",
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        1632,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b5eaa2a2-a6bc-40ab-af5e-baa8a5dda1a7",
+              "name": "output",
+              "value": "={{ $('Edit Fields1').item.json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "392160a6-53a6-4b7e-9c43-75571172c590",
+              "name": "data",
+              "value": "={{ $('Edit Fields1').item.json.data}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4bf4c0e6-9607-4b29-bab1-d96ce3df59ac",
+      "name": "Edit Fields2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3392,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $json.session_id }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ {\n\"type\": \"human\",\n\"content\": $json.query,\n\"additional_kwargs\": {},\n\"response_metadata\": {}\n} }}"
+            }
+          ]
+        }
+      },
+      "id": "cfb19684-2181-40b7-b73e-1efb2972ff2c",
+      "name": "Supabase2",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        64
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "6CBjSktSLt871Sa2",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "tableName": {
+          "__rl": true,
+          "value": "workflows",
+          "mode": "list",
+          "cachedResultName": "workflows"
+        },
+        "prompt": "={{ $('Edit Fields').item.json.query }}",
+        "topK": 5,
+        "options": {
+          "queryName": "match_summaries"
+        }
+      },
+      "id": "e0a52455-0045-427b-94c6-08b190bbfb70",
+      "name": "Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        288
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "6CBjSktSLt871Sa2",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## The n8n Expert Agent helps you find and understand n8n automation workflows. Simply describe what you're trying to automate, and the agent will recommend relevant workflows to help you get started.\n\nAuthor: [Cole Medin](https://www.youtube.com/@ColeMedin)\n\n## For example:\n\n### User: \"I need to automatically post tweets when new blog posts are published\"\n### Agent: Here are some recommended workflows to help you get started:\n- WordPress to Twitter Auto-Poster\n- Blog RSS Feed to Social Media\n- Content Distribution Workflow\nThe agent analyzes your request and provides matching workflows from its knowledge base, along with explanations of how to implement and customize them for your needs.\n\nRNR- Implemented a Gap analysis report when there are missing workflows not covered in the Knowledgebase.",
+        "height": 502.790697674419,
+        "width": 651.0139534883727,
+        "color": 6
+      },
+      "id": "5d3b69de-aa21-44a4-a6ca-ff4cc219cf90",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "invoke-n8n-expert",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3aa2367a-7dcb-448c-992f-aceb35dbd92f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        720,
+        112
+      ],
+      "webhookId": "ba5e9235-01af-47f8-9f72-29df862bfa0f",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9PayghoYIjQBuBno",
+          "name": "N8N Expert Webhook Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "#### This agent is in beta, especially as its knowledgebase grows! Workflows won't always be super related to your query and sometimes it won't have any. This agent will also involve into a conversational agent eventually to help you build n8n workflows!",
+        "height": 111.41953488372111,
+        "width": 648.3795348837208
+      },
+      "id": "1fa17e90-503f-4bc1-9503-3f3938e37ba8",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        720,
+        464
+      ],
+      "id": "eedac68a-54b1-4cd5-9279-f46e39b985e6",
+      "name": "When chat message received",
+      "webhookId": "ae5b8b70-64a4-43a9-b17d-852fb9f1c320"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Supabase2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase": {
+      "main": [
+        [
+          {
+            "node": "Aggregate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Supabase1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase2": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b3e193d6-7a1a-47ec-b138-cd7d612df6c9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "26b5839a5853f07a877e2fcea9f992a7ede4a6c959fb92da830a087cbe2da988"
+  },
+  "id": "UL3UzC5bYRu7fPTr",
+  "tags": [
+    {
+      "name": "studio-prod",
+      "id": "ngQY1vyQ9cXSMAhf",
+      "createdAt": "2025-10-25T14:43:50.045Z",
+      "updatedAt": "2025-10-25T14:43:50.045Z"
+    }
+  ]
+}

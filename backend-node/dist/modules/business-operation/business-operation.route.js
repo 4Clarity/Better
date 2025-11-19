@@ -9,6 +9,15 @@ const errorSchema = {
         message: { type: 'string' },
     },
 };
+const userSchema = {
+    type: 'object',
+    properties: {
+        id: { type: 'string' },
+        firstName: { type: 'string' },
+        lastName: { type: 'string' },
+        email: { type: 'string' },
+    },
+};
 const businessOperationResponseSchema = {
     type: 'object',
     properties: {
@@ -23,8 +32,23 @@ const businessOperationResponseSchema = {
         supportPeriodStart: { type: 'string' },
         supportPeriodEnd: { type: 'string' },
         currentContractEnd: { type: 'string' },
+        governmentPMId: { type: 'string' },
+        directorId: { type: 'string' },
+        currentManagerId: { type: ['string', 'null'] },
+        governmentPM: { ...userSchema, nullable: true },
+        director: { ...userSchema, nullable: true },
+        currentManager: { ...userSchema, nullable: true },
+        _count: {
+            type: 'object',
+            properties: {
+                contracts: { type: 'number' },
+                product_programs: { type: 'number' },
+            },
+        },
         createdAt: { type: 'string' },
         updatedAt: { type: 'string' },
+        createdBy: { type: 'string' },
+        updatedBy: { type: 'string' },
     },
 };
 async function businessOperationRoutes(server) {
@@ -180,5 +204,56 @@ async function businessOperationRoutes(server) {
             },
         },
     }, business_operation_controller_1.deleteBusinessOperationHandler);
+    // ============================================
+    // Business Operation Linking Routes
+    // Story 4.2 - Phase 3
+    // ============================================
+    // GET /api/business-operations/:id/programs-products
+    // Get all Programs and Products linked to this Business Operation
+    server.get('/:id/programs-products', {
+        schema: {
+            params: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                },
+                required: ['id'],
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean' },
+                        data: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string' },
+                                    name: { type: 'string' },
+                                    description: { type: 'string' },
+                                    objectives: { type: 'string' },
+                                    deliverables: { type: 'string' },
+                                    business_operation_type: { type: 'string' },
+                                    security_classification: { type: 'string' },
+                                    created_at: { type: 'string' },
+                                    updated_at: { type: 'string' },
+                                    _count: {
+                                        type: 'object',
+                                        properties: {
+                                            transitions: { type: 'number' },
+                                            product_program_stakeholders: { type: 'number' },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                404: errorSchema,
+                400: errorSchema,
+            },
+        },
+    }, business_operation_controller_1.getProgramsAndProductsHandler);
 }
 exports.default = businessOperationRoutes;

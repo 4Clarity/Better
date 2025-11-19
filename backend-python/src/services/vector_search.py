@@ -147,33 +147,32 @@ class VectorSearchService:
             params = [query_embedding, limit]
 
             if security_classification:
-                security_filter = "AND kd.security_classification = %s"
+                security_filter = "AND nv.metadata->>'security_classification' = %s"
                 params.insert(1, security_classification)
 
-            # Cosine similarity search using <=> operator
+            # Cosine similarity search using <=> operator with IVFFlat index
             # Lower distance = higher similarity (0 = identical, 2 = opposite)
             # Convert to similarity score: 1 - (distance / 2)
             query = f"""
                 SELECT
-                    kc.id,
-                    kc.content,
-                    kc.chunk_index,
-                    kc.token_count,
-                    kc.semantic_boundary_type,
-                    kc.vector_model,
-                    kc.thought_completeness_score,
-                    kc.document_id,
-                    kd.filename,
-                    kd.original_name,
-                    kd.mime_type,
-                    kd.security_classification,
-                    kd.created_at,
-                    (1 - (kc.embedding <=> %s::vector) / 2) as similarity_score
-                FROM knowledge_document_chunks kc
-                JOIN knowledge_documents kd ON kc.document_id = kd.id
-                WHERE kc.embedding IS NOT NULL
+                    nv.id,
+                    nv.text as content,
+                    (nv.metadata->>'chunk_index')::int as chunk_index,
+                    LENGTH(nv.text) as token_count,
+                    NULL as semantic_boundary_type,
+                    'nomic-embed-text:latest' as vector_model,
+                    NULL as thought_completeness_score,
+                    nv.metadata->>'document_id' as document_id,
+                    nv.metadata->>'filename' as filename,
+                    nv.metadata->>'filename' as original_name,
+                    nv.metadata->>'mime_type' as mime_type,
+                    nv.metadata->>'security_classification' as security_classification,
+                    NOW() as created_at,
+                    (1 - (nv.embedding <=> %s::vector) / 2) as similarity_score
+                FROM n8n_vectors nv
+                WHERE nv.embedding IS NOT NULL
                 {security_filter}
-                ORDER BY kc.embedding <=> %s::vector
+                ORDER BY nv.embedding <=> %s::vector
                 LIMIT %s;
             """
 
@@ -231,20 +230,19 @@ class VectorSearchService:
 
             query = """
                 SELECT
-                    kc.id,
-                    kc.content,
-                    kc.chunk_index,
-                    kc.token_count,
-                    kc.semantic_boundary_type,
-                    kc.vector_model,
-                    kc.thought_completeness_score,
-                    kc.document_id,
-                    kd.filename,
-                    kd.original_name,
-                    kd.mime_type
-                FROM knowledge_document_chunks kc
-                JOIN knowledge_documents kd ON kc.document_id = kd.id
-                WHERE kc.id = %s;
+                    nv.id,
+                    nv.text as content,
+                    (nv.metadata->>'chunk_index')::int as chunk_index,
+                    LENGTH(nv.text) as token_count,
+                    NULL as semantic_boundary_type,
+                    'nomic-embed-text:latest' as vector_model,
+                    NULL as thought_completeness_score,
+                    nv.metadata->>'document_id' as document_id,
+                    nv.metadata->>'filename' as filename,
+                    nv.metadata->>'filename' as original_name,
+                    nv.metadata->>'mime_type' as mime_type
+                FROM n8n_vectors nv
+                WHERE nv.id = %s;
             """
 
             cursor.execute(query, (chunk_id,))

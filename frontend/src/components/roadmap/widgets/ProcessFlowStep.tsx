@@ -1,4 +1,5 @@
 import { CheckIcon, AlertCircleIcon, Loader2Icon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface ProcessFlowStepProps {
   stepNumber: number;
@@ -7,6 +8,7 @@ interface ProcessFlowStepProps {
   status: 'not-started' | 'in-progress' | 'complete' | 'error';
   orientation?: 'horizontal' | 'vertical';
   isLast?: boolean;
+  link?: string;
 }
 
 export function ProcessFlowStep({
@@ -16,7 +18,16 @@ export function ProcessFlowStep({
   status,
   orientation = 'horizontal',
   isLast = false,
+  link,
 }: ProcessFlowStepProps) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (link) {
+      navigate(link);
+    }
+  };
+
   const getStatusStyles = () => {
     switch (status) {
       case 'not-started':
@@ -50,7 +61,10 @@ export function ProcessFlowStep({
 
   if (orientation === 'vertical') {
     return (
-      <div className="flex gap-3">
+      <div
+        className={`flex gap-3 ${link ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+        onClick={handleClick}
+      >
         <div className="flex flex-col items-center">
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${styles.circle}`}
@@ -71,7 +85,10 @@ export function ProcessFlowStep({
 
   return (
     <div className="flex items-center">
-      <div className="flex flex-col items-center flex-shrink-0">
+      <div
+        className={`flex flex-col items-center flex-shrink-0 ${link ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+        onClick={handleClick}
+      >
         <div
           className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${styles.circle} transition-all`}
         >
@@ -96,6 +113,7 @@ interface ProcessFlowProps {
     title: string;
     description: string;
     status: 'not-started' | 'in-progress' | 'complete' | 'error';
+    link?: string;
   }>;
   orientation?: 'horizontal' | 'vertical';
 }
@@ -113,6 +131,7 @@ export function ProcessFlow({ steps, orientation = 'horizontal' }: ProcessFlowPr
             status={step.status}
             orientation="vertical"
             isLast={index === steps.length - 1}
+            link={step.link}
           />
         ))}
       </div>
@@ -130,6 +149,7 @@ export function ProcessFlow({ steps, orientation = 'horizontal' }: ProcessFlowPr
           status={step.status}
           orientation="horizontal"
           isLast={index === steps.length - 1}
+          link={step.link}
         />
       ))}
     </div>
